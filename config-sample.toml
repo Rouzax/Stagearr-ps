@@ -1,0 +1,143 @@
+# Stagearr Configuration
+# Copy to config.toml and customize.
+# You only need to include settings you want to change from defaults.
+
+[paths]
+# File system paths - use forward slashes or double backslashes (TOML treats \ as escape)
+stagingRoot = "C:/Staging"
+logArchive = "C:/Logs/Stagearr"
+queueRoot = "C:/Stagearr/Queue"
+
+[labels]
+# Label mappings - match these to your torrent client labels
+tv = "tv"
+movie = "movie"
+skip = "skip"
+# Additional labels treated as TV (merged with 'tv')
+tvLabels = ["tv", "sonarr", "series"]
+# Additional labels treated as movies (merged with 'movie')
+movieLabels = ["movie", "radarr", "film"]
+
+[processing]
+tvImporter = "Medusa" # Medusa | Sonarr
+cleanupStaging = true # Remove staging folder after processing. Set false for debugging.
+staleLockMinutes = 15 # Release lock if held longer than this (crash recovery)
+
+[tools]
+# Paths to external tools - only needed for enabled features
+winrar = "C:/Program Files/WinRAR/RAR.exe"
+mkvmerge = "C:/Program Files/MKVToolNix/mkvmerge.exe"
+mkvextract = "C:/Program Files/MKVToolNix/mkvextract.exe"
+subtitleEdit = "C:/Program Files/Subtitle Edit/SubtitleEdit.exe"
+
+[video.mp4Remux]
+# Remux MP4/M4V files to MKV container. Disable if you only have MKV files. Requires mkvmerge.
+enabled = true
+
+[subtitles]
+# Subtitle handling configuration
+wantedLanguages = ["eng", "nld"]
+# Pattern-matched tracks only removed if a clean alternative exists in same language
+namePatternsToRemove = ["Forced", "Signs", "Songs"]
+
+[subtitles.extraction]
+# Extract text subtitle tracks from MKV to SRT files. Disable if you use player's built-in track selection. Requires mkvextract.
+enabled = true
+# How to handle multiple tracks of the same language:
+# 'all' keeps all with numeric suffixes (.en.srt, .en.1.srt)
+# 'largest' keeps only the biggest track per language
+duplicateLanguageMode = "all"
+
+[subtitles.stripping]
+# Remove unwanted subtitle tracks from MKV. Disable to keep all original tracks. Requires mkvmerge.
+enabled = true
+
+[subtitles.cleanup]
+# Clean subtitles with SubtitleEdit (removes HI tags, fixes common errors). Requires subtitleEdit tool.
+enabled = true
+
+[subtitles.openSubtitles]
+# OpenSubtitles.com API settings (REST API v1)
+enabled = true
+user = "your_username"
+password = "your_password"
+apiKey = "your_api_key"
+
+[subtitles.openSubtitles.filters]
+# Subtitle filtering options: include, exclude, or only
+hearingImpaired = "exclude"
+foreignPartsOnly = "exclude"
+machineTranslated = "exclude"
+aiTranslated = "include"
+
+[importers.radarr]
+enabled = true
+host = "localhost"
+port = 7878
+apiKey = "your_radarr_api_key"
+ssl = false
+urlRoot = "" # URL path prefix if behind reverse proxy (e.g., '/radarr')
+timeoutMinutes = 10
+remotePath = "" # Path translation if importer runs on different machine
+importMode = "move" # move | copy
+
+[importers.sonarr]
+enabled = true
+host = "localhost"
+port = 8989
+apiKey = "your_sonarr_api_key"
+ssl = false
+urlRoot = ""
+timeoutMinutes = 10
+remotePath = ""
+importMode = "move" # move | copy
+
+[importers.medusa]
+# Alternative to Sonarr for TV (set processing.tvImporter to use)
+enabled = false
+host = "localhost"
+port = 8081
+apiKey = "your_medusa_api_key"
+ssl = false
+urlRoot = ""
+timeoutMinutes = 15
+remotePath = ""
+
+[notifications.email]
+# Email notification via SMTP. See README for subject template options.
+enabled = false
+to = "you@example.com"
+from = "stagearr@example.com"
+fromName = "Stagearr"
+subjectStyle = "detailed" # detailed | quality | source | group | hash | none | custom
+subjectTemplate = "{result}{label}: {name} [{resolution} {source}-{group}]"
+
+[notifications.email.smtp]
+server = "smtp.gmail.com"
+port = 587
+user = "your_smtp_username"
+password = "your_smtp_password_or_app_password"
+
+[notifications.email.metadata]
+# Email metadata enrichment (poster, ratings)
+source = "auto" # auto | omdb | none
+
+[notifications.email.metadata.poster]
+size = "w185" # w92 | w185 | w500 | original
+
+[omdb]
+# OMDb API for email enrichment. Get free key: https://www.omdbapi.com/apikey.aspx
+enabled = false
+apiKey = ""
+timeoutSeconds = 5
+
+[omdb.poster]
+enabled = true
+
+[omdb.display]
+plot = false # Include plot synopsis in email (adds length)
+plotMaxLength = 150
+
+[logging]
+dateFormat = "yyyy-MM-dd HH:mm:ss"
+consoleColors = true

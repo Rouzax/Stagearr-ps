@@ -1,0 +1,26 @@
+# User configuration (contains API keys, SMTP credentials)
+config.toml
+
+# Log and queue runtime data
+logs/
+queue/
+
+# Staging/processing temp files
+staging/
+
+# PowerShell module cache
+*.psm1.cache
+
+# IDE and editor files
+.vscode/
+*.code-workspace
+.idea/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Claude workspace and development files
+.claude/
+CLAUDE.md
