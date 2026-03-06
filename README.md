@@ -26,8 +26,8 @@ graph TB
         C --> D["📝 Subtitles<br/>Processing"]
     end
     subgraph row2[" "]
-        direction RL
-        F["📧 Email<br/>Notify"] --> E["🔄 Import<br/>Radarr / Sonarr / Medusa"]
+        direction LR
+        E["🔄 Import<br/>Radarr / Sonarr / Medusa"] --> F["📧 Email<br/>Notify"]
     end
     D --> E
 
