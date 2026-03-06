@@ -18,12 +18,12 @@
 ---
 
 ```mermaid
-graph LR
-    A["🔽 qBittorrent<br/>Completion Hook"] --> B["📦 RAR<br/>Extract"]
-    B --> C["🎥 Video<br/>Process"]
-    C --> D["📝 Subtitles<br/>Processing"]
-    D --> E["🔄 Import<br/>Radarr / Sonarr / Medusa"]
-    E --> F["📧 Email<br/>Notify"]
+graph TD
+    A["🔽 qBittorrent Completion Hook"] --> B["📦 RAR Extract"]
+    B --> C["🎥 Video Process"]
+    C --> D["📝 Subtitle Processing"]
+    D --> E["🔄 Import — Radarr / Sonarr / Medusa"]
+    E --> F["📧 Email Notify"]
 
     style A fill:#2d333b,stroke:#539bf5,color:#adbac7
     style B fill:#2d333b,stroke:#57ab5a,color:#adbac7
