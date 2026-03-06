@@ -18,18 +18,12 @@
 ---
 
 ```mermaid
-graph TB
-    subgraph row1[" "]
-        direction LR
-        A["🔽 qBittorrent<br/>Completion Hook"] --> B["📦 RAR<br/>Extract"]
-        B --> C["🎥 Video<br/>Process"]
-        C --> D["📝 Subtitles<br/>Processing"]
-    end
-    subgraph row2[" "]
-        direction LR
-        E["🔄 Import<br/>Radarr / Sonarr / Medusa"] --> F["📧 Email<br/>Notify"]
-    end
-    D --> E
+flowchart LR
+    A["🔽 qBittorrent\nCompletion Hook"] --> B["📦 RAR\nExtract"]
+    B --> C["🎥 Video\nProcess"]
+    C --> D["📝 Subtitles\nProcessing"]
+    D --> E["🔄 Import\nRadarr / Sonarr / Medusa"]
+    E --> F["📧 Email\nNotify"]
 
     style A fill:#2d333b,stroke:#539bf5,color:#adbac7
     style B fill:#2d333b,stroke:#57ab5a,color:#adbac7
@@ -37,8 +31,6 @@ graph TB
     style D fill:#2d333b,stroke:#57ab5a,color:#adbac7
     style E fill:#2d333b,stroke:#daaa3f,color:#adbac7
     style F fill:#2d333b,stroke:#986ee2,color:#adbac7
-    style row1 fill:none,stroke:none
-    style row2 fill:none,stroke:none
 ```
 
 ---
