@@ -192,17 +192,11 @@ Once configured, Stagearr runs automatically when torrents complete.
 .\Stagearr.ps1 -DownloadPath "C:\Downloads\Movie.2024" -DownloadLabel "Movie" -TorrentHash "abc123..."
 ```
 
-### Queue Management
+### Queue Status
 
 ```powershell
 # Check queue status
 .\Stagearr.ps1 -Status
-
-# Run worker to process pending queue
-.\Stagearr.ps1 -Worker
-
-# Recover orphaned jobs (from crashes/reboots)
-.\Stagearr.ps1 -Requeue
 ```
 
 ### CLI Parameters
@@ -213,11 +207,10 @@ Once configured, Stagearr runs automatically when torrents complete.
 | `-DownloadLabel` | Torrent label/category (e.g., TV, Movie) |
 | `-TorrentHash` | Torrent hash for better import matching |
 | `-NoCleanup` | Skip staging folder cleanup after processing |
-| `-NoMail` / `-SkipEmail` | Skip email notification |
+| `-SkipEmail` | Skip email notification |
 | `-Force` | Re-run even if job already completed/failed |
-| `-Worker` | Process queue without adding new job |
+| `-Wait` | Wait for job to complete before returning |
 | `-Status` | Show queue status, running job details, and recent history |
-| `-Requeue` | Recover orphaned running jobs |
 | `-SyncConfig` | Report missing/extra settings vs config-sample.toml |
 | `-Setup` | Interactive setup wizard for config.toml |
 | `-ConfigPath` | Custom config.toml path |
@@ -258,7 +251,7 @@ Once configured, Stagearr runs automatically when torrents complete.
 - **Cannot connect to Radarr/Sonarr** — Check host, port, and API key in config
 - **Path not accessible** — Check `remotePath` mapping for Docker/NAS setups
 - **Subtitle extraction failed** — Verify MKVToolNix is installed; only text subtitles (SRT/ASS/WebVTT) can be extracted
-- **Queue locked** — Run `-Status` to check, then `-Requeue` to recover stuck jobs
+- **Queue locked** — Run `-Status` to check for stuck jobs
 - **Email issues** — Gmail requires App Passwords; use port 587 without Mailozaurr
 
 > 📖 **Detailed troubleshooting:** [Wiki](https://github.com/rouzax/Stagearr-ps/wiki/Troubleshooting)
