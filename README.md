@@ -17,24 +17,20 @@
 
 ---
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            Stagearr Pipeline                                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   qBittorrent        ┌─────────┐    ┌─────────┐    ┌──────────────┐         │
-│   Completion    ──►  │   RAR   │ ─► │  Video  │ ─► │  Subtitles   │         │
-│   Hook               │Extract  │    │Process  │    │  Processing  │         │
-│                      └─────────┘    └─────────┘    └──────────────┘         │
-│                                                            │                │
-│                      ┌─────────┐    ┌─────────┐           ▼                 │
-│                      │  Email  │ ◄─ │ Import  │ ◄─────────┘                 │
-│                      │ Notify  │    │ Radarr/ │                             │
-│                      └─────────┘    │ Sonarr/ │                             │ 
-│                                     │ Medusa  │                             │
-│                                     └─────────┘                             │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph LR
+    A["🔽 qBittorrent<br/>Completion Hook"] --> B["📦 RAR<br/>Extract"]
+    B --> C["🎥 Video<br/>Process"]
+    C --> D["📝 Subtitles<br/>Processing"]
+    D --> E["🔄 Import<br/>Radarr / Sonarr / Medusa"]
+    E --> F["📧 Email<br/>Notify"]
+
+    style A fill:#2d333b,stroke:#539bf5,color:#adbac7
+    style B fill:#2d333b,stroke:#57ab5a,color:#adbac7
+    style C fill:#2d333b,stroke:#57ab5a,color:#adbac7
+    style D fill:#2d333b,stroke:#57ab5a,color:#adbac7
+    style E fill:#2d333b,stroke:#daaa3f,color:#adbac7
+    style F fill:#2d333b,stroke:#986ee2,color:#adbac7
 ```
 
 ---
