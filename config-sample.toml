@@ -46,7 +46,7 @@ enabled = true
 # How to handle multiple tracks of the same language:
 # 'all' keeps all with numeric suffixes (.en.srt, .en.1.srt)
 # 'largest' keeps only the biggest track per language
-duplicateLanguageMode = "all"
+duplicateLanguageMode = "largest"
 
 [subtitles.stripping]
 # Remove unwanted subtitle tracks from MKV. Disable to keep all original tracks. Requires mkvmerge.

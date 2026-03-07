@@ -978,6 +978,83 @@ function Send-SAOpenSubtitlesUpload {
     return [PSCustomObject]@{ Success = $false; Duplicate = $false; Message = $msg }
 }
 
+function Test-SAOpenSubtitlesSubtitleExists {
+    <#
+    .SYNOPSIS
+        Checks if subtitles already exist on OpenSubtitles for a given video and language.
+    .DESCRIPTION
+        Uses the REST API to search for existing subtitles. Returns $true if any are found,
+        preventing duplicate uploads. Fail-open: returns $false on errors.
+    .PARAMETER Config
+        OpenSubtitles configuration hashtable.
+    .PARAMETER MovieHash
+        OpenSubtitles video hash.
+    .PARAMETER Language
+        ISO 639-1 language code.
+    .PARAMETER VideoFileName
+        Video filename for query and season/episode parsing.
+    .OUTPUTS
+        Boolean indicating whether subtitles already exist.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config,
+
+        [Parameter()]
+        [string]$MovieHash = '',
+
+        [Parameter(Mandatory = $true)]
+        [string]$Language,
+
+        [Parameter()]
+        [string]$VideoFileName = ''
+    )
+
+    $token = Get-SAOpenSubtitlesToken -Config $Config
+    if (-not $token) { return $false }
+
+    $lang = ConvertTo-SALanguageCode -Code $Language -To 'iso1'
+    if (-not $lang) { $lang = $Language }
+
+    $queryParams = @{ languages = $lang }
+    if ($MovieHash) { $queryParams.moviehash = $MovieHash }
+    if ($VideoFileName) {
+        $baseName = [System.IO.Path]::GetFileNameWithoutExtension($VideoFileName)
+        $queryParams.query = $baseName
+        $mediaInfo = Get-SAMediaInfo -FileName $VideoFileName
+        if ($mediaInfo.Type -eq 'episode') {
+            $queryParams.season_number = $mediaInfo.Season
+            $queryParams.episode_number = $mediaInfo.Episode
+            $queryParams.type = 'episode'
+        }
+        elseif ($mediaInfo.Type -eq 'movie' -and $mediaInfo.Year) {
+            $queryParams.year = $mediaInfo.Year
+            $queryParams.type = 'movie'
+        }
+    }
+
+    $queryString = ($queryParams.GetEnumerator() | ForEach-Object {
+        "$($_.Key)=$([System.Uri]::EscapeDataString($_.Value))"
+    }) -join '&'
+
+    $uri = "https://api.opensubtitles.com/api/v1/subtitles?$queryString"
+    $headers = @{
+        'Api-Key'       = $Config.apiKey
+        'Authorization' = "Bearer $token"
+        'Accept'        = 'application/json'
+        'User-Agent'    = 'Stagearr v2.0'
+    }
+
+    $result = Invoke-SAWebRequest -Uri $uri -Method GET -Headers $headers -MaxRetries 2
+
+    if ($result.Success -and $result.Data.data -and $result.Data.data.Count -gt 0) {
+        return $true
+    }
+    return $false
+}
+
 function Resolve-SAOpenSubtitlesImdbId {
     <#
     .SYNOPSIS
@@ -1149,6 +1226,18 @@ function Start-SAOpenSubtitlesUpload {
         $movieHash = if ($VideoHashMap.ContainsKey($videoBaseName)) { $VideoHashMap[$videoBaseName] } else { '' }
         $movieSize = if ($VideoSizeMap.ContainsKey($videoBaseName)) { $VideoSizeMap[$videoBaseName] } else { [long]0 }
         $movieFileName = "$videoBaseName.mkv"
+
+        # Pre-check: search REST API for existing subtitles in this language
+        $existsOnSite = Test-SAOpenSubtitlesSubtitleExists -Config $config `
+            -MovieHash $movieHash `
+            -Language $lang `
+            -VideoFileName $movieFileName
+
+        if ($existsOnSite) {
+            $duplicates++
+            Write-SAVerbose -Text "Subtitle already exists on OpenSubtitles for '$lang': $srtName"
+            continue
+        }
 
         try {
             $result = Send-SAOpenSubtitlesUpload -Config $config `
