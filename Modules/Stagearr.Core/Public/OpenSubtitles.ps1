@@ -1119,9 +1119,25 @@ function Resolve-SAOpenSubtitlesImdbId {
             if ($result.Success -and $result.Data.data -and $result.Data.data.Count -gt 0) {
                 $featureDetails = $result.Data.data[0].attributes.feature_details
                 if ($featureDetails -and $featureDetails.imdb_id) {
-                    $imdbId = [string]$featureDetails.imdb_id
-                    Write-SAVerbose -Text "Resolved IMDB ID: $imdbId (source: OpenSubtitles)"
-                    return $imdbId
+                    # Validate that the result type matches our content type
+                    $resultType = $featureDetails.feature_type  # 'Movie', 'Episode', 'Tvshow'
+                    $expectedType = if ($releaseInfo) { $releaseInfo.Type } else { $null }
+
+                    $typeMismatch = $false
+                    if ($expectedType -eq 'episode' -and $resultType -eq 'Movie') {
+                        Write-SAVerbose -Text "IMDB ID rejected: API returned Movie but content is TV episode"
+                        $typeMismatch = $true
+                    }
+                    elseif ($expectedType -eq 'movie' -and $resultType -in @('Episode', 'Tvshow')) {
+                        Write-SAVerbose -Text "IMDB ID rejected: API returned $resultType but content is movie"
+                        $typeMismatch = $true
+                    }
+
+                    if (-not $typeMismatch) {
+                        $imdbId = [string]$featureDetails.imdb_id
+                        Write-SAVerbose -Text "Resolved IMDB ID: $imdbId (source: OpenSubtitles)"
+                        return $imdbId
+                    }
                 }
             }
         }
