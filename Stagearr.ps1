@@ -448,7 +448,7 @@ switch ($PSCmdlet.ParameterSetName) {
         }
         
         # Try to start worker to process queue
-        Start-SAWorker -QueueRoot $Config.paths.queueRoot -Config $Config -Wait:$Wait -ProcessJob {
+        Start-SAWorker -QueueRoot $Config.paths.queueRoot -Config $Config -Wait:$Wait -Verbose:($VerbosePreference -eq 'Continue') -ProcessJob {
             param($Context, $Job)
             Invoke-SAJobProcessing -Context $Context -Job $Job
         }
