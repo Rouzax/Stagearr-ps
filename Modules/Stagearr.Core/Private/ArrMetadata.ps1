@@ -153,14 +153,20 @@ function ConvertTo-SAArrMetadata {
         $plot = $plot.Substring(0, $PlotMaxLength - 3).TrimEnd() + '...'
     }
     
-    # Extract poster URL and convert to requested size
-    # TMDb URLs have format: https://image.tmdb.org/t/p/original/{path}
+    # Extract poster URLs
+    # remoteUrl: CDN URL (TMDb/TheTVDB) — kept as fallback reference
+    # url: local *arr proxy path (e.g. /MediaCover/123/poster.jpg) — preferred source
     $posterUrl = $null
+    $posterLocalPath = $null
     if ($null -ne $media.images -and $media.images.Count -gt 0) {
         $posterImage = $media.images | Where-Object { $_.coverType -eq 'poster' } | Select-Object -First 1
-        if ($null -ne $posterImage -and -not [string]::IsNullOrWhiteSpace($posterImage.remoteUrl)) {
-            # Convert original size to requested size
-            $posterUrl = $posterImage.remoteUrl -replace '/original/', "/$PosterSize/"
+        if ($null -ne $posterImage) {
+            if (-not [string]::IsNullOrWhiteSpace($posterImage.remoteUrl)) {
+                $posterUrl = $posterImage.remoteUrl -replace '/original/', "/$PosterSize/"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($posterImage.url)) {
+                $posterLocalPath = $posterImage.url
+            }
         }
     }
     
@@ -182,8 +188,9 @@ function ConvertTo-SAArrMetadata {
         Genre          = $genre
         Runtime        = $runtime
         Plot           = $plot
-        PosterUrl      = $posterUrl      # URL only - download separately
-        PosterData     = $null           # Will be populated by Get-SAArrPosterData
+        PosterUrl       = $posterUrl       # CDN URL — fallback reference
+        PosterLocalPath = $posterLocalPath  # Local *arr path — preferred for download
+        PosterData      = $null            # Will be populated by Get-SAArrPosterData
         Type           = $contentType
         TotalSeasons   = $totalSeasons
         Source         = 'arr'           # Indicates metadata source (not OMDb)
