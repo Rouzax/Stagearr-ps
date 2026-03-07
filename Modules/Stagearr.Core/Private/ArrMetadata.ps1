@@ -479,14 +479,17 @@ function Get-SASimplifiedRejectionReason {
 function Get-SAArrPosterData {
     <#
     .SYNOPSIS
-        Downloads poster image from local *arr server.
+        Downloads poster image from local *arr server or CDN URL.
     .DESCRIPTION
-        Downloads a poster image from the local Sonarr/Radarr server's cached poster
-        and returns it in the format expected by the email system (Bytes, MimeType, ContentId).
+        Downloads a poster image and returns it in the format expected by the email
+        system (Bytes, MimeType, ContentId).
 
-        Uses the *arr's /api/v3/{localPath} endpoint with X-Api-Key authentication.
-        This avoids external CDN downloads (TheTVDB/TMDb) which can silently truncate
-        on slow connections, producing corrupt JPEG images.
+        Two modes:
+        - Local mode (PosterLocalPath + ArrConfig): Downloads from the *arr server's
+          cached poster via /api/v3/{path} with X-Api-Key auth. Preferred for sources
+          without URL-based resizing (TheTVDB).
+        - CDN mode (PosterUrl): Downloads directly from a CDN URL. Used when the URL
+          supports size parameters (TMDb /t/p/w185/).
 
         Validates JPEG integrity after download — returns $null if truncated.
     .PARAMETER PosterLocalPath
@@ -495,37 +498,57 @@ function Get-SAArrPosterData {
     .PARAMETER ArrConfig
         Importer configuration hashtable (host, port, apiKey, ssl, urlRoot).
         Used to construct the base URL via Get-SAImporterBaseUrl.
+    .PARAMETER PosterUrl
+        Direct CDN URL for poster download (e.g., https://image.tmdb.org/t/p/w185/abc.jpg).
     .PARAMETER TimeoutSeconds
         Request timeout (default: 10).
     .OUTPUTS
         Hashtable with Bytes, MimeType, ContentId - or $null on failure.
     .EXAMPLE
-        $metadata = ConvertTo-SAArrMetadata -ScanResult $file -AppType 'Sonarr'
-        if ($metadata.PosterLocalPath) {
-            $metadata.PosterData = Get-SAArrPosterData -PosterLocalPath $metadata.PosterLocalPath -ArrConfig $config.importers.sonarr
-        }
+        # Local mode (Sonarr/TheTVDB):
+        $metadata.PosterData = Get-SAArrPosterData -PosterLocalPath $metadata.PosterLocalPath -ArrConfig $sonarrConfig
+    .EXAMPLE
+        # CDN mode (Radarr/TMDb with resize):
+        $metadata.PosterData = Get-SAArrPosterData -PosterUrl "https://image.tmdb.org/t/p/w185/abc.jpg"
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
     param(
-        [Parameter(Mandatory = $true)]
+        [Parameter()]
         [string]$PosterLocalPath,
 
-        [Parameter(Mandatory = $true)]
+        [Parameter()]
         [hashtable]$ArrConfig,
+
+        [Parameter()]
+        [string]$PosterUrl,
 
         [Parameter()]
         [int]$TimeoutSeconds = 10
     )
 
-    if ([string]::IsNullOrWhiteSpace($PosterLocalPath)) {
+    # Determine download URL and headers based on mode
+    $downloadUrl = $null
+    $headers = @{}
+    $mimeSourcePath = $null
+
+    if (-not [string]::IsNullOrWhiteSpace($PosterLocalPath) -and $null -ne $ArrConfig) {
+        # Local mode: download from *arr server
+        $urlInfo = Get-SAImporterBaseUrl -Config $ArrConfig
+        $cleanPath = $PosterLocalPath.TrimStart('/')
+        $downloadUrl = "$($urlInfo.Url)/api/v3/$cleanPath"
+        $headers['X-Api-Key'] = $ArrConfig.apiKey
+        if ($urlInfo.HostHeader) {
+            $headers['Host'] = $urlInfo.HostHeader
+        }
+        $mimeSourcePath = $PosterLocalPath
+    } elseif (-not [string]::IsNullOrWhiteSpace($PosterUrl)) {
+        # CDN mode: download directly from URL
+        $downloadUrl = $PosterUrl
+        $mimeSourcePath = $PosterUrl
+    } else {
         return $null
     }
-
-    # Build local URL: base URL + /api/v3 + local path
-    $urlInfo = Get-SAImporterBaseUrl -Config $ArrConfig
-    $cleanPath = $PosterLocalPath.TrimStart('/')
-    $posterUrl = "$($urlInfo.Url)/api/v3/$cleanPath"
 
     Write-SAVerbose -Label 'Poster' -Text "Downloading poster..."
 
@@ -536,17 +559,14 @@ function Get-SAArrPosterData {
 
     try {
         $requestParams = @{
-            Uri             = $posterUrl
+            Uri             = $downloadUrl
             Method          = 'GET'
             TimeoutSec      = $TimeoutSeconds
             UseBasicParsing = $true
-            Headers         = @{ 'X-Api-Key' = $ArrConfig.apiKey }
             ErrorAction     = 'Stop'
         }
-
-        # Add Host header for reverse proxy compatibility
-        if ($urlInfo.HostHeader) {
-            $requestParams.Headers['Host'] = $urlInfo.HostHeader
+        if ($headers.Count -gt 0) {
+            $requestParams.Headers = $headers
         }
 
         $response = Invoke-WebRequest @requestParams -Verbose:$false
@@ -589,11 +609,11 @@ function Get-SAArrPosterData {
 
         # Determine MIME type from URL or default to JPEG
         $mimeType = 'image/jpeg'
-        if ($PosterLocalPath -match '\.png($|\?)') {
+        if ($mimeSourcePath -match '\.png($|\?)') {
             $mimeType = 'image/png'
-        } elseif ($PosterLocalPath -match '\.gif($|\?)') {
+        } elseif ($mimeSourcePath -match '\.gif($|\?)') {
             $mimeType = 'image/gif'
-        } elseif ($PosterLocalPath -match '\.webp($|\?)') {
+        } elseif ($mimeSourcePath -match '\.webp($|\?)') {
             $mimeType = 'image/webp'
         }
 
