@@ -661,14 +661,25 @@ function Invoke-SAStandardJob {
         $omdbData = $importResult.ArrMetadata
         Write-SAVerbose -Text "Email metadata: Using ArrMetadata from $($importResult.ArrMetadata.Source)"
         
-        # Download poster from TMDb if enabled and URL available
+        # Download poster if enabled
         $posterEnabled = $Context.Config.omdb.poster.enabled -ne $false
-        if ($posterEnabled -and -not [string]::IsNullOrWhiteSpace($omdbData.PosterUrl) -and $null -eq $omdbData.PosterData) {
-            # Update poster URL to use configured size
-            if ($omdbData.PosterUrl -match '/t/p/\w+/') {
-                $omdbData.PosterUrl = $omdbData.PosterUrl -replace '/t/p/\w+/', "/t/p/$posterSize/"
+        if ($posterEnabled -and $null -eq $omdbData.PosterData) {
+            # TMDb URLs support resizing via /t/p/{size}/ — use CDN for small image
+            # TheTVDB and other URLs don't — use local *arr server cache instead
+            if (-not [string]::IsNullOrWhiteSpace($omdbData.PosterUrl) -and $omdbData.PosterUrl -match '/t/p/\w+/') {
+                $resizedUrl = $omdbData.PosterUrl -replace '/t/p/\w+/', "/t/p/$posterSize/"
+                $omdbData.PosterData = Get-SAArrPosterData -PosterUrl $resizedUrl
+            } elseif (-not [string]::IsNullOrWhiteSpace($omdbData.PosterLocalPath)) {
+                $labelType = Get-SALabelType -Label $Context.State.ProcessingLabel -Config $Context.Config
+                $arrConfig = switch ($labelType) {
+                    'tv'    { $Context.Config.importers.sonarr }
+                    'movie' { $Context.Config.importers.radarr }
+                    default { $null }
+                }
+                if ($null -ne $arrConfig) {
+                    $omdbData.PosterData = Get-SAArrPosterData -PosterLocalPath $omdbData.PosterLocalPath -ArrConfig $arrConfig
+                }
             }
-            $omdbData.PosterData = Get-SAArrPosterData -PosterUrl $omdbData.PosterUrl
         }
         
         # Respect display.plot config - clear if not enabled

@@ -37,7 +37,7 @@ function ConvertTo-SAArrMetadata {
         Handles:
         - Extracting movie/series metadata (title, year, IMDb ID)
         - Normalizing ratings from ratings object (IMDb, Rotten Tomatoes, Metacritic)
-        - Building TMDb poster URL with configurable size
+        - Extracting poster URLs (CDN remote URL and local *arr path)
         - Converting overview to plot
         - Detecting content type (movie vs series)
         
@@ -48,8 +48,6 @@ function ConvertTo-SAArrMetadata {
         - series object (Sonarr)
     .PARAMETER AppType
         The *arr application type: 'Radarr' or 'Sonarr'.
-    .PARAMETER PosterSize
-        TMDb poster size: 'w92', 'w185', 'w500', or 'original' (default: 'w185').
     .PARAMETER PlotMaxLength
         Maximum length for plot/overview text (0 = no truncation, default: 150).
     .OUTPUTS
@@ -76,11 +74,7 @@ function ConvertTo-SAArrMetadata {
         [Parameter(Mandatory = $true)]
         [ValidateSet('Radarr', 'Sonarr')]
         [string]$AppType,
-        
-        [Parameter()]
-        [ValidateSet('w92', 'w185', 'w500', 'original')]
-        [string]$PosterSize = 'w185',
-        
+
         [Parameter()]
         [int]$PlotMaxLength = 150
     )
@@ -153,14 +147,20 @@ function ConvertTo-SAArrMetadata {
         $plot = $plot.Substring(0, $PlotMaxLength - 3).TrimEnd() + '...'
     }
     
-    # Extract poster URL and convert to requested size
-    # TMDb URLs have format: https://image.tmdb.org/t/p/original/{path}
+    # Extract poster URLs
+    # remoteUrl: CDN URL (TMDb/TheTVDB) — kept as fallback reference
+    # url: local *arr proxy path (e.g. /MediaCover/123/poster.jpg) — preferred source
     $posterUrl = $null
+    $posterLocalPath = $null
     if ($null -ne $media.images -and $media.images.Count -gt 0) {
         $posterImage = $media.images | Where-Object { $_.coverType -eq 'poster' } | Select-Object -First 1
-        if ($null -ne $posterImage -and -not [string]::IsNullOrWhiteSpace($posterImage.remoteUrl)) {
-            # Convert original size to requested size
-            $posterUrl = $posterImage.remoteUrl -replace '/original/', "/$PosterSize/"
+        if ($null -ne $posterImage) {
+            if (-not [string]::IsNullOrWhiteSpace($posterImage.remoteUrl)) {
+                $posterUrl = $posterImage.remoteUrl
+            }
+            if (-not [string]::IsNullOrWhiteSpace($posterImage.url)) {
+                $posterLocalPath = $posterImage.url
+            }
         }
     }
     
@@ -182,8 +182,9 @@ function ConvertTo-SAArrMetadata {
         Genre          = $genre
         Runtime        = $runtime
         Plot           = $plot
-        PosterUrl      = $posterUrl      # URL only - download separately
-        PosterData     = $null           # Will be populated by Get-SAArrPosterData
+        PosterUrl       = $posterUrl       # CDN URL — fallback reference
+        PosterLocalPath = $posterLocalPath  # Local *arr path — preferred for download
+        PosterData      = $null            # Will be populated by Get-SAArrPosterData
         Type           = $contentType
         TotalSeasons   = $totalSeasons
         Source         = 'arr'           # Indicates metadata source (not OMDb)
@@ -472,113 +473,145 @@ function Get-SASimplifiedRejectionReason {
 function Get-SAArrPosterData {
     <#
     .SYNOPSIS
-        Downloads poster image from TMDb URL.
+        Downloads poster image from local *arr server or CDN URL.
     .DESCRIPTION
-        Downloads a poster image from a TMDb URL and returns it in the format expected
-        by the email system (Bytes, MimeType, ContentId).
-        
-        Reuses the same pattern as Get-SAOmdbPosterData for consistency:
-        - Short timeout (5s default) - poster is optional
-        - Graceful failure - returns $null on any error
-        - Handles PS5.1 vs PS7 binary response differences
-        - Generates unique Content-ID for CID embedding
+        Downloads a poster image and returns it in the format expected by the email
+        system (Bytes, MimeType, ContentId).
+
+        Two modes:
+        - Local mode (PosterLocalPath + ArrConfig): Downloads from the *arr server's
+          cached poster via /api/v3/{path} with X-Api-Key auth. Preferred for sources
+          without URL-based resizing (TheTVDB).
+        - CDN mode (PosterUrl): Downloads directly from a CDN URL. Used when the URL
+          supports size parameters (TMDb /t/p/w185/).
+
+        Validates JPEG integrity after download — returns $null if truncated.
+    .PARAMETER PosterLocalPath
+        Local *arr poster path (e.g., /MediaCover/123/poster.jpg?lastWrite=...).
+        From the 'url' field in the *arr images array.
+    .PARAMETER ArrConfig
+        Importer configuration hashtable (host, port, apiKey, ssl, urlRoot).
+        Used to construct the base URL via Get-SAImporterBaseUrl.
     .PARAMETER PosterUrl
-        TMDb poster URL (e.g., https://image.tmdb.org/t/p/w185/abc123.jpg).
+        Direct CDN URL for poster download (e.g., https://image.tmdb.org/t/p/w185/abc.jpg).
     .PARAMETER TimeoutSeconds
-        Request timeout (default: 5).
+        Request timeout (default: 10).
     .OUTPUTS
         Hashtable with Bytes, MimeType, ContentId - or $null on failure.
     .EXAMPLE
-        $metadata = ConvertTo-SAArrMetadata -ScanResult $file -AppType 'Radarr'
-        if ($metadata.PosterUrl) {
-            $metadata.PosterData = Get-SAArrPosterData -PosterUrl $metadata.PosterUrl
-        }
+        # Local mode (Sonarr/TheTVDB):
+        $metadata.PosterData = Get-SAArrPosterData -PosterLocalPath $metadata.PosterLocalPath -ArrConfig $sonarrConfig
+    .EXAMPLE
+        # CDN mode (Radarr/TMDb with resize):
+        $metadata.PosterData = Get-SAArrPosterData -PosterUrl "https://image.tmdb.org/t/p/w185/abc.jpg"
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$PosterUrl,
-        
         [Parameter()]
-        [int]$TimeoutSeconds = 5
+        [string]$PosterLocalPath,
+
+        [Parameter()]
+        [hashtable]$ArrConfig,
+
+        [Parameter()]
+        [string]$PosterUrl,
+
+        [Parameter()]
+        [int]$TimeoutSeconds = 10
     )
-    
-    # Validate URL
-    if ([string]::IsNullOrWhiteSpace($PosterUrl)) {
+
+    # Determine download URL and headers based on mode
+    $downloadUrl = $null
+    $headers = @{}
+    $mimeSourcePath = $null
+
+    if (-not [string]::IsNullOrWhiteSpace($PosterLocalPath) -and $null -ne $ArrConfig) {
+        # Local mode: download from *arr server
+        $urlInfo = Get-SAImporterBaseUrl -Config $ArrConfig
+        $cleanPath = $PosterLocalPath.TrimStart('/')
+        $downloadUrl = "$($urlInfo.Url)/api/v3/$cleanPath"
+        $headers['X-Api-Key'] = $ArrConfig.apiKey
+        if ($urlInfo.HostHeader) {
+            $headers['Host'] = $urlInfo.HostHeader
+        }
+        $mimeSourcePath = $PosterLocalPath
+    } elseif (-not [string]::IsNullOrWhiteSpace($PosterUrl)) {
+        # CDN mode: download directly from URL
+        $downloadUrl = $PosterUrl
+        $mimeSourcePath = $PosterUrl
+    } else {
         return $null
-    }
-    
-    # Quick validation that this looks like a known poster source
-    if ($PosterUrl -notmatch 'image\.tmdb\.org|themoviedb\.org|thetvdb\.com') {
-        Write-SAVerbose -Label 'Poster' -Text "Unexpected poster URL format: $PosterUrl"
-        # Still try to download - may be a different image host
     }
 
     Write-SAVerbose -Label 'Poster' -Text "Downloading poster..."
-    
+
     # Ensure TLS 1.2 for PowerShell 5.1
     if ($PSVersionTable.PSEdition -ne 'Core') {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     }
-    
+
     try {
         $requestParams = @{
-            Uri             = $PosterUrl
+            Uri             = $downloadUrl
             Method          = 'GET'
             TimeoutSec      = $TimeoutSeconds
             UseBasicParsing = $true
             ErrorAction     = 'Stop'
         }
-        
-        # Make request (suppress built-in verbose)
+        if ($headers.Count -gt 0) {
+            $requestParams.Headers = $headers
+        }
+
         $response = Invoke-WebRequest @requestParams -Verbose:$false
-        
+
         if ($response.StatusCode -ne 200) {
             Write-SAVerbose -Label 'Poster' -Text "Poster download failed: HTTP $($response.StatusCode)"
             return $null
         }
-        
+
         # Get raw bytes - handle PS5.1 vs PS7 differences
-        # Use RawContentStream for reliable binary access across versions
         $imageBytes = $null
-        
+
         if ($response.RawContentStream) {
-            # PS5.1+ with RawContentStream available - most reliable method
             $response.RawContentStream.Position = 0
             $memStream = New-Object System.IO.MemoryStream
             $response.RawContentStream.CopyTo($memStream)
             $imageBytes = $memStream.ToArray()
             $memStream.Dispose()
         } elseif ($response.Content -is [byte[]]) {
-            # PS7 with binary content properly typed
             $imageBytes = $response.Content
         } elseif ($response.Content -is [string]) {
-            # PS7 may return string for some scenarios - try to decode
             Write-SAVerbose -Label 'Poster' -Text 'Content returned as string, attempting byte conversion'
             $imageBytes = [System.Text.Encoding]::ISO88591.GetBytes($response.Content)
         } else {
-            # Fallback - try direct assignment
             $imageBytes = $response.Content
         }
-        
+
         if ($null -eq $imageBytes -or $imageBytes.Length -eq 0) {
             Write-SAVerbose -Label 'Poster' -Text 'Poster download returned empty content'
             return $null
         }
-        
+
+        # Validate JPEG integrity — truncated downloads produce corrupt images
+        $isJpeg = $imageBytes.Length -ge 2 -and $imageBytes[0] -eq 0xFF -and $imageBytes[1] -eq 0xD8
+        if ($isJpeg -and ($imageBytes[$imageBytes.Length - 2] -ne 0xFF -or $imageBytes[$imageBytes.Length - 1] -ne 0xD9)) {
+            $sizeKb = [math]::Round($imageBytes.Length / 1024, 0)
+            Write-SAVerbose -Label 'Poster' -Text "Poster appears truncated (missing JPEG EOI marker, $sizeKb KB)"
+            return $null
+        }
+
         # Determine MIME type from URL or default to JPEG
         $mimeType = 'image/jpeg'
-        if ($PosterUrl -match '\.png($|\?)') {
+        if ($mimeSourcePath -match '\.png($|\?)') {
             $mimeType = 'image/png'
-        } elseif ($PosterUrl -match '\.gif($|\?)') {
+        } elseif ($mimeSourcePath -match '\.gif($|\?)') {
             $mimeType = 'image/gif'
-        } elseif ($PosterUrl -match '\.webp($|\?)') {
+        } elseif ($mimeSourcePath -match '\.webp($|\?)') {
             $mimeType = 'image/webp'
         }
-        
+
         # Generate unique Content-ID with extension for Mailozaurr compatibility
-        # Format: poster-{short-guid}.{ext}
         $ext = switch ($mimeType) {
             'image/png'  { '.png' }
             'image/gif'  { '.gif' }
@@ -586,16 +619,16 @@ function Get-SAArrPosterData {
             default      { '.jpg' }
         }
         $contentId = "poster-$([guid]::NewGuid().ToString('N').Substring(0, 8))$ext"
-        
+
         $sizeKb = [math]::Round($imageBytes.Length / 1024, 0)
         Write-SAVerbose -Label 'Poster' -Text "Downloaded ($sizeKb KB, CID: $contentId)"
-        
+
         return @{
             Bytes     = $imageBytes
             MimeType  = $mimeType
             ContentId = $contentId
         }
-        
+
     } catch [System.Net.WebException] {
         $errorMsg = $_.Exception.Message
         if ($errorMsg -match 'timed out') {
@@ -606,7 +639,7 @@ function Get-SAArrPosterData {
             Write-SAVerbose -Label 'Poster' -Text "Poster download failed: $errorMsg"
         }
         return $null
-        
+
     } catch {
         Write-SAVerbose -Label 'Poster' -Text "Poster download failed: $($_.Exception.Message)"
         return $null
@@ -631,8 +664,6 @@ function Get-SAArrMetadataFromScan {
         The *arr application type: 'Radarr' or 'Sonarr'.
     .PARAMETER DownloadPoster
         Whether to download the poster image (default: $true).
-    .PARAMETER PosterSize
-        TMDb poster size: 'w92', 'w185', 'w500', or 'original' (default: 'w185').
     .PARAMETER PlotMaxLength
         Maximum length for plot/overview text (0 = no truncation, default: 150).
     .OUTPUTS
@@ -656,15 +687,14 @@ function Get-SAArrMetadataFromScan {
         
         [Parameter()]
         [bool]$DownloadPoster = $true,
-        
+
         [Parameter()]
-        [ValidateSet('w92', 'w185', 'w500', 'original')]
-        [string]$PosterSize = 'w185',
-        
+        [int]$PlotMaxLength = 150,
+
         [Parameter()]
-        [int]$PlotMaxLength = 150
+        [hashtable]$ArrConfig
     )
-    
+
     # Handle null or empty input
     if ($null -eq $ScanResults -or $ScanResults.Count -eq 0) {
         return $null
@@ -686,15 +716,15 @@ function Get-SAArrMetadataFromScan {
     }
     
     # Extract metadata
-    $metadata = ConvertTo-SAArrMetadata -ScanResult $fileWithMetadata -AppType $AppType -PosterSize $PosterSize -PlotMaxLength $PlotMaxLength
+    $metadata = ConvertTo-SAArrMetadata -ScanResult $fileWithMetadata -AppType $AppType -PlotMaxLength $PlotMaxLength
     
     if ($null -eq $metadata) {
         return $null
     }
     
-    # Download poster if enabled and URL available
-    if ($DownloadPoster -and -not [string]::IsNullOrWhiteSpace($metadata.PosterUrl)) {
-        $metadata.PosterData = Get-SAArrPosterData -PosterUrl $metadata.PosterUrl
+    # Download poster if enabled and local path available
+    if ($DownloadPoster -and $null -ne $ArrConfig -and -not [string]::IsNullOrWhiteSpace($metadata.PosterLocalPath)) {
+        $metadata.PosterData = Get-SAArrPosterData -PosterLocalPath $metadata.PosterLocalPath -ArrConfig $ArrConfig
     }
     
     # Log metadata summary
