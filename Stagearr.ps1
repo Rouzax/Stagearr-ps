@@ -432,25 +432,48 @@ switch ($PSCmdlet.ParameterSetName) {
             $SkipEmail = $true
         }
         
-        # Add job to queue
-        $job = Add-SAJob -QueueRoot $Config.paths.queueRoot `
-            -DownloadPath $DownloadPath `
-            -DownloadLabel $DownloadLabel `
-            -TorrentHash $TorrentHash `
-            -NoCleanup:$NoCleanup `
-            -NoMail:$SkipEmail `
-            -Force:$Force
-        
-        if ($null -eq $job) {
-            Write-SAProgress -Label "Queue" -Text "Job already exists or was skipped"
-            Write-SAProgress -Label "Hint" -Text "Use -Force to re-run"
-            exit 0
-        }
-        
-        # Try to start worker to process queue
-        Start-SAWorker -QueueRoot $Config.paths.queueRoot -Config $Config -Wait:$Wait -Verbose:($VerbosePreference -eq 'Continue') -ProcessJob {
-            param($Context, $Job)
-            Invoke-SAJobProcessing -Context $Context -Job $Job
+        if ($Wait) {
+            # Defer job creation until after lock acquisition to prevent
+            # the background worker from stealing it during the wait period
+            $jobParams = @{
+                QueueRoot     = $Config.paths.queueRoot
+                DownloadPath  = $DownloadPath
+                DownloadLabel = $DownloadLabel
+                TorrentHash   = $TorrentHash
+                NoCleanup     = $NoCleanup
+                NoMail        = $SkipEmail
+                Force         = $Force
+            }
+
+            Start-SAWorker -QueueRoot $Config.paths.queueRoot -Config $Config -Wait `
+                -Verbose:($VerbosePreference -eq 'Continue') `
+                -DeferredJobParams $jobParams `
+                -ProcessJob {
+                    param($Context, $Job)
+                    Invoke-SAJobProcessing -Context $Context -Job $Job
+                }
+        } else {
+            # Add job immediately so background worker picks it up
+            $job = Add-SAJob -QueueRoot $Config.paths.queueRoot `
+                -DownloadPath $DownloadPath `
+                -DownloadLabel $DownloadLabel `
+                -TorrentHash $TorrentHash `
+                -NoCleanup:$NoCleanup `
+                -NoMail:$SkipEmail `
+                -Force:$Force
+
+            if ($null -eq $job) {
+                Write-SAProgress -Label "Queue" -Text "Job already exists or was skipped"
+                Write-SAProgress -Label "Hint" -Text "Use -Force to re-run"
+                exit 0
+            }
+
+            Start-SAWorker -QueueRoot $Config.paths.queueRoot -Config $Config `
+                -Verbose:($VerbosePreference -eq 'Continue') `
+                -ProcessJob {
+                    param($Context, $Job)
+                    Invoke-SAJobProcessing -Context $Context -Job $Job
+                }
         }
         
         exit 0

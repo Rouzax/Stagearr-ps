@@ -341,17 +341,34 @@ function Start-SAWorker {
         [switch]$Wait,
 
         [Parameter(Mandatory = $true)]
-        [scriptblock]$ProcessJob
+        [scriptblock]$ProcessJob,
+
+        [Parameter()]
+        [hashtable]$DeferredJobParams
     )
-    
+
     # Try to acquire lock
     $lock = Get-SAGlobalLock -QueueRoot $QueueRoot -StaleMinutes $Config.processing.staleLockMinutes -Wait:$Wait
-    
+
     if ($null -eq $lock) {
+        # Lock not acquired — if we have deferred params, write the job anyway
+        # so the background worker will process it (job must not be lost)
+        if ($DeferredJobParams) {
+            Add-SAJob @DeferredJobParams | Out-Null
+            Write-SAProgress -Label "Queue" -Text "Job queued for background processing"
+        }
         Write-SAProgress -Label "Queue" -Text "Could not acquire lock, exiting"
         return
     }
-    
+
+    # If we have deferred job params, create the job now (under lock protection)
+    if ($DeferredJobParams) {
+        $deferredJob = Add-SAJob @DeferredJobParams
+        if ($null -eq $deferredJob) {
+            Write-SAProgress -Label "Queue" -Text "Job already exists or was skipped"
+        }
+    }
+
     $jobsProcessed = 0
     
     try {
