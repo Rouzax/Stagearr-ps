@@ -479,113 +479,125 @@ function Get-SASimplifiedRejectionReason {
 function Get-SAArrPosterData {
     <#
     .SYNOPSIS
-        Downloads poster image from TMDb URL.
+        Downloads poster image from local *arr server.
     .DESCRIPTION
-        Downloads a poster image from a TMDb URL and returns it in the format expected
-        by the email system (Bytes, MimeType, ContentId).
-        
-        Reuses the same pattern as Get-SAOmdbPosterData for consistency:
-        - Short timeout (5s default) - poster is optional
-        - Graceful failure - returns $null on any error
-        - Handles PS5.1 vs PS7 binary response differences
-        - Generates unique Content-ID for CID embedding
-    .PARAMETER PosterUrl
-        TMDb poster URL (e.g., https://image.tmdb.org/t/p/w185/abc123.jpg).
+        Downloads a poster image from the local Sonarr/Radarr server's cached poster
+        and returns it in the format expected by the email system (Bytes, MimeType, ContentId).
+
+        Uses the *arr's /api/v3/{localPath} endpoint with X-Api-Key authentication.
+        This avoids external CDN downloads (TheTVDB/TMDb) which can silently truncate
+        on slow connections, producing corrupt JPEG images.
+
+        Validates JPEG integrity after download — returns $null if truncated.
+    .PARAMETER PosterLocalPath
+        Local *arr poster path (e.g., /MediaCover/123/poster.jpg?lastWrite=...).
+        From the 'url' field in the *arr images array.
+    .PARAMETER ArrConfig
+        Importer configuration hashtable (host, port, apiKey, ssl, urlRoot).
+        Used to construct the base URL via Get-SAImporterBaseUrl.
     .PARAMETER TimeoutSeconds
-        Request timeout (default: 5).
+        Request timeout (default: 10).
     .OUTPUTS
         Hashtable with Bytes, MimeType, ContentId - or $null on failure.
     .EXAMPLE
-        $metadata = ConvertTo-SAArrMetadata -ScanResult $file -AppType 'Radarr'
-        if ($metadata.PosterUrl) {
-            $metadata.PosterData = Get-SAArrPosterData -PosterUrl $metadata.PosterUrl
+        $metadata = ConvertTo-SAArrMetadata -ScanResult $file -AppType 'Sonarr'
+        if ($metadata.PosterLocalPath) {
+            $metadata.PosterData = Get-SAArrPosterData -PosterLocalPath $metadata.PosterLocalPath -ArrConfig $config.importers.sonarr
         }
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
     param(
         [Parameter(Mandatory = $true)]
-        [string]$PosterUrl,
-        
+        [string]$PosterLocalPath,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$ArrConfig,
+
         [Parameter()]
-        [int]$TimeoutSeconds = 5
+        [int]$TimeoutSeconds = 10
     )
-    
-    # Validate URL
-    if ([string]::IsNullOrWhiteSpace($PosterUrl)) {
+
+    if ([string]::IsNullOrWhiteSpace($PosterLocalPath)) {
         return $null
     }
-    
-    # Quick validation that this looks like a known poster source
-    if ($PosterUrl -notmatch 'image\.tmdb\.org|themoviedb\.org|thetvdb\.com') {
-        Write-SAVerbose -Label 'Poster' -Text "Unexpected poster URL format: $PosterUrl"
-        # Still try to download - may be a different image host
-    }
+
+    # Build local URL: base URL + /api/v3 + local path
+    $urlInfo = Get-SAImporterBaseUrl -Config $ArrConfig
+    $cleanPath = $PosterLocalPath.TrimStart('/')
+    $posterUrl = "$($urlInfo.Url)/api/v3/$cleanPath"
 
     Write-SAVerbose -Label 'Poster' -Text "Downloading poster..."
-    
+
     # Ensure TLS 1.2 for PowerShell 5.1
     if ($PSVersionTable.PSEdition -ne 'Core') {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     }
-    
+
     try {
         $requestParams = @{
-            Uri             = $PosterUrl
+            Uri             = $posterUrl
             Method          = 'GET'
             TimeoutSec      = $TimeoutSeconds
             UseBasicParsing = $true
+            Headers         = @{ 'X-Api-Key' = $ArrConfig.apiKey }
             ErrorAction     = 'Stop'
         }
-        
-        # Make request (suppress built-in verbose)
+
+        # Add Host header for reverse proxy compatibility
+        if ($urlInfo.HostHeader) {
+            $requestParams.Headers['Host'] = $urlInfo.HostHeader
+        }
+
         $response = Invoke-WebRequest @requestParams -Verbose:$false
-        
+
         if ($response.StatusCode -ne 200) {
             Write-SAVerbose -Label 'Poster' -Text "Poster download failed: HTTP $($response.StatusCode)"
             return $null
         }
-        
+
         # Get raw bytes - handle PS5.1 vs PS7 differences
-        # Use RawContentStream for reliable binary access across versions
         $imageBytes = $null
-        
+
         if ($response.RawContentStream) {
-            # PS5.1+ with RawContentStream available - most reliable method
             $response.RawContentStream.Position = 0
             $memStream = New-Object System.IO.MemoryStream
             $response.RawContentStream.CopyTo($memStream)
             $imageBytes = $memStream.ToArray()
             $memStream.Dispose()
         } elseif ($response.Content -is [byte[]]) {
-            # PS7 with binary content properly typed
             $imageBytes = $response.Content
         } elseif ($response.Content -is [string]) {
-            # PS7 may return string for some scenarios - try to decode
             Write-SAVerbose -Label 'Poster' -Text 'Content returned as string, attempting byte conversion'
             $imageBytes = [System.Text.Encoding]::ISO88591.GetBytes($response.Content)
         } else {
-            # Fallback - try direct assignment
             $imageBytes = $response.Content
         }
-        
+
         if ($null -eq $imageBytes -or $imageBytes.Length -eq 0) {
             Write-SAVerbose -Label 'Poster' -Text 'Poster download returned empty content'
             return $null
         }
-        
+
+        # Validate JPEG integrity — truncated downloads produce corrupt images
+        $isJpeg = $imageBytes.Length -ge 2 -and $imageBytes[0] -eq 0xFF -and $imageBytes[1] -eq 0xD8
+        if ($isJpeg -and ($imageBytes[$imageBytes.Length - 2] -ne 0xFF -or $imageBytes[$imageBytes.Length - 1] -ne 0xD9)) {
+            $sizeKb = [math]::Round($imageBytes.Length / 1024, 0)
+            Write-SAVerbose -Label 'Poster' -Text "Poster appears truncated (missing JPEG EOI marker, $sizeKb KB)"
+            return $null
+        }
+
         # Determine MIME type from URL or default to JPEG
         $mimeType = 'image/jpeg'
-        if ($PosterUrl -match '\.png($|\?)') {
+        if ($PosterLocalPath -match '\.png($|\?)') {
             $mimeType = 'image/png'
-        } elseif ($PosterUrl -match '\.gif($|\?)') {
+        } elseif ($PosterLocalPath -match '\.gif($|\?)') {
             $mimeType = 'image/gif'
-        } elseif ($PosterUrl -match '\.webp($|\?)') {
+        } elseif ($PosterLocalPath -match '\.webp($|\?)') {
             $mimeType = 'image/webp'
         }
-        
+
         # Generate unique Content-ID with extension for Mailozaurr compatibility
-        # Format: poster-{short-guid}.{ext}
         $ext = switch ($mimeType) {
             'image/png'  { '.png' }
             'image/gif'  { '.gif' }
@@ -593,16 +605,16 @@ function Get-SAArrPosterData {
             default      { '.jpg' }
         }
         $contentId = "poster-$([guid]::NewGuid().ToString('N').Substring(0, 8))$ext"
-        
+
         $sizeKb = [math]::Round($imageBytes.Length / 1024, 0)
         Write-SAVerbose -Label 'Poster' -Text "Downloaded ($sizeKb KB, CID: $contentId)"
-        
+
         return @{
             Bytes     = $imageBytes
             MimeType  = $mimeType
             ContentId = $contentId
         }
-        
+
     } catch [System.Net.WebException] {
         $errorMsg = $_.Exception.Message
         if ($errorMsg -match 'timed out') {
@@ -613,7 +625,7 @@ function Get-SAArrPosterData {
             Write-SAVerbose -Label 'Poster' -Text "Poster download failed: $errorMsg"
         }
         return $null
-        
+
     } catch {
         Write-SAVerbose -Label 'Poster' -Text "Poster download failed: $($_.Exception.Message)"
         return $null
