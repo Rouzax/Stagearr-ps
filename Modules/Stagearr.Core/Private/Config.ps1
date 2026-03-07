@@ -359,16 +359,6 @@ function Test-SAConfigValid {
         }
     }
     
-    # Metadata poster size validation
-    $validPosterSizes = @('w92', 'w185', 'w500', 'original')
-    if ($Config.notifications.email.metadata -and 
-        $Config.notifications.email.metadata.poster -and 
-        $Config.notifications.email.metadata.poster.size) {
-        if ($Config.notifications.email.metadata.poster.size -notin $validPosterSizes) {
-            $errors.Add("notifications.email.metadata.poster.size must be: w92, w185, w500, or original")
-        }
-    }
-    
     # Email validation
     if ($Config.notifications.email.enabled) {
         if ([string]::IsNullOrWhiteSpace($Config.notifications.email.to)) {

@@ -920,7 +920,7 @@ function Invoke-SARadarrImport {
     .EXAMPLE
         $result = Invoke-SARadarrImport -Config $config.importers.radarr -StagingPath "C:\Staging\Movie\Film" -StagingRoot "C:\Staging"
         if ($result.ArrMetadata) {
-            # Use $result.ArrMetadata.Title, .Year, .ImdbRating, .PosterUrl for email
+            # Use $result.ArrMetadata.Title, .Year, .ImdbRating for email
         }
     #>
     [CmdletBinding()]
@@ -1091,7 +1091,7 @@ function Invoke-SASonarrImport {
     .EXAMPLE
         $result = Invoke-SASonarrImport -Config $config.importers.sonarr -StagingPath "C:\Staging\TV\Show" -StagingRoot "C:\Staging"
         if ($result.ArrMetadata) {
-            # Use $result.ArrMetadata.Title, .Year, .ImdbRating, .PosterUrl for email
+            # Use $result.ArrMetadata.Title, .Year, .ImdbRating for email
         }
     #>
     [CmdletBinding()]

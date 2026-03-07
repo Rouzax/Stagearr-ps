@@ -156,7 +156,6 @@ Modules/Stagearr.Core/
 | Make HTTP request | `Invoke-SAWebRequest` | Http.ps1 |
 | Fetch OMDb metadata | `Get-SAOmdbMetadata` | Omdb.ps1 |
 | Extract *arr metadata | `ConvertTo-SAArrMetadata` | ArrMetadata.ps1 |
-| Get *arr metadata with poster | `Get-SAArrMetadataFromScan` | ArrMetadata.ps1 |
 | Filter importable files | `Get-SAImportableFiles` | ArrMetadata.ps1 |
 | Summarize rejections | `Get-SARejectionSummary` | ArrMetadata.ps1 |
 | Run external tool | `Invoke-SAProcess` | Process.ps1 |
@@ -372,14 +371,13 @@ Controls the source for email metadata enrichment (poster, ratings, etc.).
 | Config Path | Options | Default | Description |
 |-------------|---------|---------|-------------|
 | `notifications.email.metadata.source` | `auto`, `omdb`, `none` | `auto` | Metadata source priority |
-| `notifications.email.metadata.poster.size` | `w92`, `w185`, `w500`, `original` | `w185` | TMDb poster size |
 
 **Source options:**
-- **auto** (default): Uses *arr metadata when available (Radarr/Sonarr ManualImport), falls back to OMDb for Medusa or when *arr metadata unavailable
-- **omdb**: Always uses OMDb API (requires `omdb.enabled` and `omdb.apiKey`)
+- **auto** (default): Merges *arr metadata (ratings/genre) with OMDb poster when both available. Falls back to whichever is available.
+- **omdb**: Always uses OMDb API only (requires `omdb.enabled` and `omdb.apiKey`)
 - **none**: Disables metadata enrichment entirely
 
-**Note**: The `omdb.poster.enabled` setting controls whether posters are displayed (both arr and OMDb sources). The `notifications.email.metadata.poster.size` controls the poster resolution for arr metadata.
+**Note**: The `omdb.poster.enabled` setting controls whether posters are included in emails. Posters always come from OMDb (~25KB, reliable).
 
 ### Import Mode
 
@@ -740,7 +738,7 @@ These have no I/O — input → output only:
 
 **SubtitleProcessing.ps1:** `Get-SAVideoExistingLanguages`, `Get-SAVideoMissingLanguages`, `Get-SASubtitleLanguageCounts`, `Format-SASubtitleSummary`, `Get-SAMissingLanguagesInfo`
 
-**JobProcessor.ps1:** `Get-SAEmailMetadataSource`, `Get-SASubtitleLanguagesFromResult`, `Get-SAMissingLanguageNames`, `Get-SAImportTargetName`, `Get-SAImportResultText`, `Get-SAEmailResultLevel`, `Format-SAImportEpisodeNote`
+**JobProcessor.ps1:** `Get-SASubtitleLanguagesFromResult`, `Get-SAMissingLanguageNames`, `Get-SAImportTargetName`, `Get-SAImportResultText`, `Get-SAEmailResultLevel`, `Format-SAImportEpisodeNote`
 
 **ErrorHandling.ps1:** `Get-SAToolErrorInfo` (error translation)
 
@@ -754,7 +752,7 @@ These have no I/O — input → output only:
 
 **ImportResultParser.ps1:** `Get-SAMedusaFileDetails`, `Get-SAMedusaSimplifiedReason`, `Get-SAMedusaSameSizeSkipReason`, `Get-SAImportHint`, `Get-SAImportErrorMessage`, `Get-SAImportSkipMessage`
 
-**ArrMetadata.ps1:** `ConvertTo-SAArrMetadata`, `Get-SAArrPosterData`, `Get-SAImportableFiles`, `Get-SARejectionSummary`, `Get-SASimplifiedRejectionReason` (*arr metadata extraction, local poster download, and rejection filtering)
+**ArrMetadata.ps1:** `ConvertTo-SAArrMetadata`, `Get-SAImportableFiles`, `Get-SARejectionSummary`, `Get-SASimplifiedRejectionReason` (*arr metadata extraction and rejection filtering)
 
 **ImportArr.ps1:** `Get-SAErrorTypeFromRejection` (maps rejection reasons to error types for hint compatibility)
 

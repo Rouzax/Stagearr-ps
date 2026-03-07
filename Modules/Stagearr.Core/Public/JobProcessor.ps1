@@ -14,66 +14,6 @@
 
 #region Pure Helper Functions (SOLID Refactor - Phase 6)
 
-function Get-SAEmailMetadataSource {
-    <#
-    .SYNOPSIS
-        Determines the source of email metadata.
-    .DESCRIPTION
-        Pure function - no I/O. Identifies which source will be used for email metadata
-        based on configuration and availability:
-        - 'none': Metadata disabled in config
-        - 'ArrMetadata': From Radarr/Sonarr ManualImport scan
-        - 'OMDb': From OMDb API lookup
-    .PARAMETER ImportResult
-        Import result object that may contain ArrMetadata.
-    .PARAMETER OmdbEnabled
-        Whether OMDb feature is enabled in config.
-    .PARAMETER ConfigSource
-        Configured metadata source: 'auto', 'omdb', or 'none'.
-    .OUTPUTS
-        String identifying the metadata source.
-    #>
-    [CmdletBinding()]
-    [OutputType([string])]
-    param(
-        [Parameter()]
-        [AllowNull()]
-        [object]$ImportResult,
-        
-        [Parameter()]
-        [bool]$OmdbEnabled = $false,
-        
-        [Parameter()]
-        [ValidateSet('auto', 'omdb', 'none')]
-        [string]$ConfigSource = 'auto'
-    )
-    
-    # Check config override first
-    if ($ConfigSource -eq 'none') {
-        return 'none'
-    }
-    
-    if ($ConfigSource -eq 'omdb') {
-        # Force OMDb - skip ArrMetadata check
-        if ($OmdbEnabled) {
-            return 'OMDb'
-        }
-        return 'none'
-    }
-    
-    # Auto mode: Check if ArrMetadata is available from import
-    if ($null -ne $ImportResult -and $null -ne $ImportResult.ArrMetadata) {
-        return 'ArrMetadata'
-    }
-    
-    # Check if OMDb fallback is available
-    if ($OmdbEnabled) {
-        return 'OMDb'
-    }
-    
-    return 'none'
-}
-
 function Get-SASubtitleLanguagesFromResult {
     <#
     .SYNOPSIS
@@ -567,7 +507,20 @@ function Invoke-SAStandardJob {
         if ($releaseInfo.HdrDisplay) { $qualityParts += "hdr=$($releaseInfo.HdrDisplay)" }
         Write-SAVerbose -Text "Quality: $($qualityParts -join ', ')"
     }
-    
+
+    # Query OMDb early — caches poster, ratings, and IMDB ID for subtitle upload and email
+    if (Test-SAFeatureEnabled -Feature 'omdb' -Config $Context.Config) {
+        if ($releaseInfo -and $releaseInfo.Title) {
+            $labelType = Get-SALabelType -Label $Job.input.downloadLabel -Config $Context.Config
+            $omdbType = if ($labelType -eq 'tv') { 'series' } else { 'movie' }
+            $Context.State.OmdbData = Get-SAOmdbMetadata `
+                -Title $releaseInfo.Title `
+                -Year $releaseInfo.Year `
+                -Type $omdbType `
+                -Config $Context.Config.omdb
+        }
+    }
+
     # Step 1: Video processing (RAR/remux/strip/extract)
     Update-SAJobProgress -QueueRoot $Context.Paths.QueueRoot -JobId $Job.id -Phase 'Staging' -Activity 'Processing video files...'
     $videoResult = Invoke-SAVideoProcessing -Context $Context
@@ -611,103 +564,66 @@ function Invoke-SAStandardJob {
         }
     }
     
-    # Email metadata enrichment - Priority based on config: metadata.source
-    # This happens BEFORE cleanup so we have access to release info, and BEFORE email summary
+    # Email metadata enrichment
+    # OMDb (cached from early pipeline query) provides poster + ratings
+    # ArrMetadata (from import) provides *arr ratings/genre/plot
+    # Merge strategy: *arr base + OMDb poster, fill rating gaps from OMDb
     $omdbData = $null
-    $omdbEnabled = Test-SAFeatureEnabled -Feature 'omdb' -Config $Context.Config
-    
+
     # Get metadata source from config (defaults to 'auto')
     $metadataSourceConfig = 'auto'
-    if ($Context.Config.notifications.email.metadata -and 
+    if ($Context.Config.notifications.email.metadata -and
         $Context.Config.notifications.email.metadata.source) {
         $metadataSourceConfig = $Context.Config.notifications.email.metadata.source
     }
-    
-    # Get poster size from config (defaults to 'w185')
-    $posterSize = 'w185'
-    if ($Context.Config.notifications.email.metadata -and 
-        $Context.Config.notifications.email.metadata.poster -and 
-        $Context.Config.notifications.email.metadata.poster.size) {
-        $posterSize = $Context.Config.notifications.email.metadata.poster.size
-    }
-    
-    # Determine actual metadata source based on config and availability
-    $metadataSource = Get-SAEmailMetadataSource -ImportResult $importResult -OmdbEnabled $omdbEnabled -ConfigSource $metadataSourceConfig
-    
+
+    $cachedOmdb = $Context.State.OmdbData  # From early pipeline query (may be null)
+    $arrMetadata = if ($null -ne $importResult) { $importResult.ArrMetadata } else { $null }
+
     if ($metadataSourceConfig -eq 'none') {
-        # Metadata disabled
         Write-SAVerbose -Text "Email metadata: Disabled (metadata.source = none)"
     } elseif ($metadataSourceConfig -eq 'omdb') {
-        # Force OMDb - skip ArrMetadata
-        if ($omdbEnabled) {
+        # Force OMDb only
+        if ($cachedOmdb) {
+            $omdbData = $cachedOmdb
             Write-SAVerbose -Text "Email metadata: Using OMDb (metadata.source = omdb)"
-            
-            $releaseInfo = $Context.State.ReleaseInfo
-            if ($releaseInfo -and $releaseInfo.Title) {
-                $labelType = Get-SALabelType -Label $Job.input.downloadLabel -Config $Context.Config
-                $omdbType = if ($labelType -eq 'tv') { 'series' } else { 'movie' }
-                
-                $omdbData = Get-SAOmdbMetadata `
-                    -Title $releaseInfo.Title `
-                    -Year $releaseInfo.Year `
-                    -Type $omdbType `
-                    -Config $Context.Config.omdb
-            }
         } else {
             Write-SAVerbose -Text "Email metadata: None available (metadata.source = omdb but OMDb disabled)"
         }
-    } elseif ($null -ne $importResult -and $null -ne $importResult.ArrMetadata) {
-        # Auto mode with ArrMetadata available
-        $omdbData = $importResult.ArrMetadata
-        Write-SAVerbose -Text "Email metadata: Using ArrMetadata from $($importResult.ArrMetadata.Source)"
-        
-        # Download poster if enabled
-        $posterEnabled = $Context.Config.omdb.poster.enabled -ne $false
-        if ($posterEnabled -and $null -eq $omdbData.PosterData) {
-            # TMDb URLs support resizing via /t/p/{size}/ — use CDN for small image
-            # TheTVDB and other URLs don't — use local *arr server cache instead
-            if (-not [string]::IsNullOrWhiteSpace($omdbData.PosterUrl) -and $omdbData.PosterUrl -match '/t/p/\w+/') {
-                $resizedUrl = $omdbData.PosterUrl -replace '/t/p/\w+/', "/t/p/$posterSize/"
-                $omdbData.PosterData = Get-SAArrPosterData -PosterUrl $resizedUrl
-            } elseif (-not [string]::IsNullOrWhiteSpace($omdbData.PosterLocalPath)) {
-                $labelType = Get-SALabelType -Label $Context.State.ProcessingLabel -Config $Context.Config
-                $arrConfig = switch ($labelType) {
-                    'tv'    { $Context.Config.importers.sonarr }
-                    'movie' { $Context.Config.importers.radarr }
-                    default { $null }
-                }
-                if ($null -ne $arrConfig) {
-                    $omdbData.PosterData = Get-SAArrPosterData -PosterLocalPath $omdbData.PosterLocalPath -ArrConfig $arrConfig
-                }
+    } elseif ($null -ne $arrMetadata) {
+        # Auto mode: merge *arr metadata with OMDb poster
+        $omdbData = $arrMetadata
+
+        if ($null -ne $cachedOmdb) {
+            Write-SAVerbose -Text "Email metadata: Merging ArrMetadata + OMDb poster"
+            # Overlay OMDb poster (small, reliable ~25KB)
+            if ($cachedOmdb.PosterData) {
+                $omdbData.PosterData = $cachedOmdb.PosterData
             }
+            # Fill missing ratings from OMDb
+            if (-not $omdbData.ImdbRating -and $cachedOmdb.ImdbRating) {
+                $omdbData.ImdbRating = $cachedOmdb.ImdbRating
+            }
+            if (-not $omdbData.RottenTomatoes -and $cachedOmdb.RottenTomatoes) {
+                $omdbData.RottenTomatoes = $cachedOmdb.RottenTomatoes
+            }
+            if (-not $omdbData.Metacritic -and $cachedOmdb.Metacritic) {
+                $omdbData.Metacritic = $cachedOmdb.Metacritic
+            }
+        } else {
+            Write-SAVerbose -Text "Email metadata: Using ArrMetadata (no OMDb available)"
         }
-        
-        # Respect display.plot config - clear if not enabled
-        $plotEnabled = $Context.Config.omdb.display.plot -eq $true
-        if (-not $plotEnabled) {
+
+        # Respect display.plot config
+        if ($Context.Config.omdb.display.plot -ne $true) {
             $omdbData.Plot = $null
         }
-    } elseif ($Context.State.OmdbData) {
-        # Cached from IMDB ID resolution during subtitle upload — reuse to avoid duplicate API call
-        $omdbData = $Context.State.OmdbData
-        Write-SAVerbose -Text "Email metadata: Using cached OMDb data from subtitle upload"
-    } elseif ($omdbEnabled) {
-        # Auto mode, falling back to OMDb API
-        Write-SAVerbose -Text "Email metadata: Falling back to OMDb API"
-
-        $releaseInfo = $Context.State.ReleaseInfo
-        if ($releaseInfo -and $releaseInfo.Title) {
-            $labelType = Get-SALabelType -Label $Job.input.downloadLabel -Config $Context.Config
-            $omdbType = if ($labelType -eq 'tv') { 'series' } else { 'movie' }
-
-            $omdbData = Get-SAOmdbMetadata `
-                -Title $releaseInfo.Title `
-                -Year $releaseInfo.Year `
-                -Type $omdbType `
-                -Config $Context.Config.omdb
-        }
+    } elseif ($null -ne $cachedOmdb) {
+        # No *arr metadata, use OMDb directly
+        $omdbData = $cachedOmdb
+        Write-SAVerbose -Text "Email metadata: Using OMDb (no ArrMetadata available)"
     } else {
-        Write-SAVerbose -Text "Email metadata: None available (no ArrMetadata, OMDb disabled)"
+        Write-SAVerbose -Text "Email metadata: None available"
     }
     
     # Step 4: Finalize (Cleanup, Log, Email)

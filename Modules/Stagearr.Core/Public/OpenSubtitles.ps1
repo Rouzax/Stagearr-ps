@@ -1060,7 +1060,7 @@ function Resolve-SAOpenSubtitlesImdbId {
     .SYNOPSIS
         Resolves a numeric IMDB ID for a video using available sources.
     .DESCRIPTION
-        Tries OpenSubtitles REST API search (by hash) first, then falls back to OMDb API.
+        Uses cached OMDb data first, then tries OpenSubtitles REST API search (by hash).
         Returns numeric IMDB ID string (e.g. '1234567') or empty string.
     #>
     [CmdletBinding()]
@@ -1077,6 +1077,13 @@ function Resolve-SAOpenSubtitlesImdbId {
     )
 
     $osConfig = $Context.Config.subtitles.openSubtitles
+
+    # Step 0: Use cached OMDb data if available (from early pipeline query)
+    if ($Context.State.OmdbData -and $Context.State.OmdbData.ImdbId) {
+        $imdbId = $Context.State.OmdbData.ImdbId -replace '^tt', ''
+        Write-SAVerbose -Text "Resolved IMDB ID: $imdbId (source: cached OMDb)"
+        return $imdbId
+    }
 
     # Step 1: Try OpenSubtitles REST API search by hash + filename
     if ($MovieHash -or $VideoFileName) {
@@ -1140,29 +1147,6 @@ function Resolve-SAOpenSubtitlesImdbId {
                     }
                 }
             }
-        }
-    }
-
-    # Step 2: Fall back to OMDb API if configured
-    $omdbEnabled = Test-SAFeatureEnabled -Feature 'omdb' -Config $Context.Config
-    $releaseInfo = $Context.State.ReleaseInfo
-    if ($omdbEnabled -and $releaseInfo -and $releaseInfo.Title) {
-        $labelType = Get-SALabelType -Label $Context.Job.input.downloadLabel -Config $Context.Config
-        $omdbType = if ($labelType -eq 'tv') { 'series' } else { 'movie' }
-
-        $omdbData = Get-SAOmdbMetadata `
-            -Title $releaseInfo.Title `
-            -Year $releaseInfo.Year `
-            -Type $omdbType `
-            -Config $Context.Config.omdb
-
-        if ($omdbData -and $omdbData.ImdbId) {
-            # Cache full OMDb result for later email enrichment (avoids duplicate API call)
-            $Context.State.OmdbData = $omdbData
-
-            $imdbId = $omdbData.ImdbId -replace '^tt', ''
-            Write-SAVerbose -Text "Resolved IMDB ID: $imdbId (source: OMDb)"
-            return $imdbId
         }
     }
 

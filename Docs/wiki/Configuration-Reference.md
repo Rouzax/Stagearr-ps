@@ -274,8 +274,7 @@ size = "w185"      # w92 | w185 | w500 | original
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `metadata.source` | `auto` uses *arr data when available, falls back to OMDb; `omdb` always uses OMDb; `none` disables | `"auto"` |
-| `metadata.poster.size` | Poster image width | `"w185"` |
+| `metadata.source` | `auto` merges *arr ratings with OMDb poster; `omdb` uses OMDb only; `none` disables | `"auto"` |
 
 ---
 

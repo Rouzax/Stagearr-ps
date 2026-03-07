@@ -124,9 +124,6 @@ password = "your_smtp_password_or_app_password"
 # Email metadata enrichment (poster, ratings)
 source = "auto" # auto | omdb | none
 
-[notifications.email.metadata.poster]
-size = "w185" # w92 | w185 | w500 | original
-
 [omdb]
 # OMDb API for email enrichment. Get free key: https://www.omdbapi.com/apikey.aspx
 enabled = false
