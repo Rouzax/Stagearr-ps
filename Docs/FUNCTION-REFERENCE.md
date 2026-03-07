@@ -754,7 +754,7 @@ These have no I/O — input → output only:
 
 **ImportResultParser.ps1:** `Get-SAMedusaFileDetails`, `Get-SAMedusaSimplifiedReason`, `Get-SAMedusaSameSizeSkipReason`, `Get-SAImportHint`, `Get-SAImportErrorMessage`, `Get-SAImportSkipMessage`
 
-**ArrMetadata.ps1:** `ConvertTo-SAArrMetadata`, `Get-SAImportableFiles`, `Get-SARejectionSummary`, `Get-SASimplifiedRejectionReason` (*arr metadata extraction and rejection filtering)
+**ArrMetadata.ps1:** `ConvertTo-SAArrMetadata`, `Get-SAArrPosterData`, `Get-SAImportableFiles`, `Get-SARejectionSummary`, `Get-SASimplifiedRejectionReason` (*arr metadata extraction, local poster download, and rejection filtering)
 
 **ImportArr.ps1:** `Get-SAErrorTypeFromRejection` (maps rejection reasons to error types for hint compatibility)
 
