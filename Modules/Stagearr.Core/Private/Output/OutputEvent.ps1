@@ -96,7 +96,10 @@ function Initialize-SAOutputSystem {
         [string]$LogFolder = '',
         
         [Parameter()]
-        [string]$TorrentHash = ''
+        [string]$TorrentHash = '',
+
+        [Parameter()]
+        [switch]$VerboseMode
     )
     
     # Reset event collection
@@ -129,7 +132,7 @@ function Initialize-SAOutputSystem {
     }
     
     # Initialize renderers
-    Initialize-SAConsoleRenderer
+    Initialize-SAConsoleRenderer -VerboseMode:$VerboseMode
     Initialize-SAFileLogRenderer -LogFolder $LogFolder -JobName $Name
     Initialize-SAEmailRenderer
 }

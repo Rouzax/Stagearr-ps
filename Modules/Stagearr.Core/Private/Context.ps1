@@ -30,11 +30,14 @@ function New-SAContext {
         [hashtable]$Config,
         
         [Parameter()]
-        [hashtable]$Job
+        [hashtable]$Job,
+
+        [Parameter()]
+        [switch]$VerboseMode
     )
     
     # Initialize console renderer with config settings
-    Initialize-SAConsoleRenderer -UseColors $Config.logging.consoleColors
+    Initialize-SAConsoleRenderer -UseColors $Config.logging.consoleColors -VerboseMode:$VerboseMode
     
     # Create context object
     $context = @{

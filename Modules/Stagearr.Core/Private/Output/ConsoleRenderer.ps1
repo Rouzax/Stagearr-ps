@@ -34,6 +34,7 @@
 $script:SAConsoleSettings = @{
     UseUnicode    = $null   # Auto-detected or forced
     UseColors     = $true
+    VerboseMode   = $false
     QuietMode     = $false
     Initialized   = $false
 }
@@ -63,13 +64,17 @@ function Initialize-SAConsoleRenderer {
         
         [Parameter()]
         [switch]$ForceAscii,
-        
+
+        [Parameter()]
+        [bool]$VerboseMode = $script:SAConsoleSettings.VerboseMode,
+
         [Parameter()]
         [switch]$QuietMode
     )
-    
+
     $script:SAConsoleSettings.UseColors = $UseColors
     $script:SAConsoleSettings.QuietMode = $QuietMode.IsPresent
+    $script:SAConsoleSettings.VerboseMode = $VerboseMode
     
     if ($ForceAscii) {
         $script:SAConsoleSettings.UseUnicode = $false
@@ -125,6 +130,7 @@ function Reset-SAConsoleRenderer {
     $script:SAConsoleSettings = @{
         UseUnicode    = $null
         UseColors     = $true
+        VerboseMode   = $false
         QuietMode     = $false
         Initialized   = $false
     }
@@ -595,7 +601,7 @@ function Write-SAConsoleKeyValue {
 function Write-SAConsoleVerbose {
     <#
     .SYNOPSIS
-        Renders a verbose event using PowerShell's verbose stream.
+        Renders a verbose event to console when VerboseMode is enabled.
     .PARAMETER Event
         Verbose event
     #>
@@ -604,15 +610,27 @@ function Write-SAConsoleVerbose {
         [Parameter(Mandatory = $true)]
         [PSCustomObject]$Event
     )
-    
+
+    if (-not $script:SAConsoleSettings.VerboseMode) {
+        return
+    }
+
+    $timestamp = Format-SAConsoleTimestamp -Time $Event.Timestamp
+
     # Format: "Label: Message" or just "Message"
     $message = if ([string]::IsNullOrWhiteSpace($Event.Label)) {
         $Event.Text
     } else {
         "$($Event.Label): $($Event.Text)"
     }
-    
-    Write-Verbose $message
+
+    $line = "$timestamp     $message"
+
+    if ($script:SAConsoleSettings.UseColors) {
+        Write-Host $line -ForegroundColor DarkGray
+    } else {
+        Write-Host $line
+    }
 }
 
 function Format-SAConsoleMessage {
