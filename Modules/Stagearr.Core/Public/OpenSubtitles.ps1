@@ -1279,7 +1279,7 @@ function Start-SAOpenSubtitlesUpload {
     }
     if ($duplicates -gt 0) {
         $subWord = Get-SAPluralForm -Count $duplicates -Singular 'subtitle'
-        Write-SAVerbose -Text "$duplicates $subWord already on OpenSubtitles"
+        Write-SAOutcome -Level Info -Label "OpenSubs" -Text "Skipped $duplicates $subWord (already on OpenSubtitles)" -Indent 1
     }
 
     return [PSCustomObject]@{

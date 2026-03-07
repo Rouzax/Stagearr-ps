@@ -389,14 +389,15 @@ function Start-SAWorker {
             Write-SAProgress -Label "Path" -Text $pendingJob.input.downloadPath
             Write-SAProgress -Label "Label" -Text $pendingJob.input.downloadLabel
             
-            # Create context (capture verbose preference before it's lost to module scope)
-            $isVerbose = $VerbosePreference -eq 'Continue'
-            $context = New-SAContext -Config $Config -VerboseMode:$isVerbose
-            
             try {
-                # Reset module state to prevent memory leaks from previous jobs
+                # Reset module state FIRST to prevent memory leaks from previous jobs
+                # Must happen before New-SAContext so the reset doesn't wipe VerboseMode
                 Reset-SAJobState
-                
+
+                # Create context (capture verbose preference before it's lost to module scope)
+                $isVerbose = $VerbosePreference -eq 'Continue'
+                $context = New-SAContext -Config $Config -VerboseMode:$isVerbose
+
                 # Initialize context with job (this initializes output system with job metadata)
                 Initialize-SAContext -Context $context -Job $pendingJob
                 
