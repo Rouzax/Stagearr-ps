@@ -81,9 +81,10 @@ function New-SAContext {
         
         # Runtime flags
         Flags = @{
-            NoCleanup = $false
-            NoMail    = $false
-            DryRun    = $false
+            NoCleanup   = $false
+            NoMail      = $false
+            DryRun      = $false
+            VerboseMode = [bool]$VerboseMode
         }
         
         # Results/stats (accumulated during processing)

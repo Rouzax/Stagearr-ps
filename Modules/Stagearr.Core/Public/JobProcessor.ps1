@@ -407,7 +407,8 @@ function Invoke-SAJobProcessing {
         -SourcePath $Job.input.downloadPath `
         -StagingPath $Context.State.StagingPath `
         -LogFolder $Context.Paths.LogArchive `
-        -TorrentHash $Job.input.torrentHash
+        -TorrentHash $Job.input.torrentHash `
+        -VerboseMode:$Context.Flags.VerboseMode
     
     # Configure file log with exact path and tool versions
     $logPath = Get-SAContextLogPath -Context $Context
