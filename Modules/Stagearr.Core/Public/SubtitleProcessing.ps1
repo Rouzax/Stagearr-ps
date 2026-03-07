@@ -34,7 +34,8 @@ function Reset-SASubtitlesState {
     $script:SAOpenSubtitlesToken = $null
     $script:SAOpenSubtitlesTokenExpiry = $null
     $script:SAOpenSubtitlesTokenFile = $null
-    
+    $script:SAXmlRpcToken = $null
+
     if ($IncludeDiskCache) {
         $tokenPath = Get-SAOpenSubtitlesTokenPath
         if (Test-Path -LiteralPath $tokenPath) {
@@ -545,7 +546,8 @@ function Invoke-SASubtitleProcessing {
     Write-SAVerbose -Text "Wanted languages: $($wantedLanguages -join ', ')"
     
     $allSrts = [System.Collections.Generic.List[string]]::new()
-    
+    $downloadedSrts = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+
     # Collect all extracted SRTs from video processing
     foreach ($pf in $ProcessedFiles) {
         if ($pf.ExtractedSrts) {
@@ -680,6 +682,7 @@ function Invoke-SASubtitleProcessing {
             
             foreach ($sub in $downloaded) {
                 $allSrts.Add($sub)
+                $downloadedSrts.Add($sub) | Out-Null
                 $totalDownloaded++
             }
             
@@ -780,6 +783,32 @@ function Invoke-SASubtitleProcessing {
         Write-SAVerbose -Text "SubtitleEdit not configured - skipping cleanup"
     }
     
+    # Step 4: Upload cleaned subtitles to OpenSubtitles (excluding downloaded ones)
+    $uploadedCount = 0
+    if ($allSrts.Count -gt 0 -and $openSubsEnabled -and
+        $Context.Config.subtitles.openSubtitles.uploadCleaned -eq $true) {
+
+        $uploadableSrts = @($allSrts | Where-Object { -not $downloadedSrts.Contains($_) })
+
+        if ($uploadableSrts.Count -gt 0) {
+            $videoHashMap = @{}
+            $videoSizeMap = @{}
+            foreach ($pf in $ProcessedFiles) {
+                if ($pf.OutputPath -and (Test-Path -LiteralPath $pf.OutputPath)) {
+                    $baseName = [System.IO.Path]::GetFileNameWithoutExtension($pf.OutputPath)
+                    if ($pf.OpenSubsHash) { $videoHashMap[$baseName] = $pf.OpenSubsHash }
+                    $videoSizeMap[$baseName] = (Get-Item -LiteralPath $pf.OutputPath).Length
+                }
+            }
+
+            $uploadResult = Start-SAOpenSubtitlesUpload -Context $Context `
+                -SubtitlePaths $uploadableSrts `
+                -VideoHashMap $videoHashMap `
+                -VideoSizeMap $videoSizeMap
+            $uploadedCount = $uploadResult.UploadedCount
+        }
+    }
+
     # C5 fix: Summary shows languages, not file count (per OUTPUT-STYLE-GUIDE)
     # Use pure helper function for language counting
     $langCounts = Get-SASubtitleLanguageCounts -SrtFiles $allSrts.ToArray()
@@ -800,6 +829,7 @@ function Invoke-SASubtitleProcessing {
         SubtitleFiles        = $allSrts.ToArray()
         ExtractedCount       = ($ProcessedFiles | ForEach-Object { if ($_.ExtractedSrts) { $_.ExtractedSrts.Count } else { 0 } } | Measure-Object -Sum).Sum
         DownloadedCount      = $totalDownloaded
+        UploadedCount        = $uploadedCount
         MissingLanguages     = $stillMissingLangs
         MissingLanguagesInfo = $missingLanguagesInfo
     }

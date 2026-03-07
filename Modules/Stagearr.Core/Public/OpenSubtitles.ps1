@@ -22,6 +22,9 @@ $script:SAOpenSubtitlesToken = $null
 $script:SAOpenSubtitlesTokenExpiry = $null
 $script:SAOpenSubtitlesTokenFile = $null
 
+# XML-RPC session token (separate from REST API token)
+$script:SAXmlRpcToken = $null
+
 function Get-SAOpenSubtitlesTokenPath {
     <#
     .SYNOPSIS
@@ -583,3 +586,618 @@ function Start-SAOpenSubtitlesDownload {
     
     return $downloadedFiles.ToArray()
 }
+
+#region XML-RPC Upload Functions
+
+function Invoke-SAXmlRpcRequest {
+    <#
+    .SYNOPSIS
+        Sends an XML-RPC method call and parses the response.
+    .PARAMETER Url
+        XML-RPC endpoint URL.
+    .PARAMETER MethodName
+        XML-RPC method name (e.g. 'LogIn', 'TryUploadSubtitles').
+    .PARAMETER Parameters
+        Array of XML-RPC parameter strings (pre-formatted as XML value elements).
+    .OUTPUTS
+        Parsed response hashtable with Status, Data keys.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Url,
+
+        [Parameter(Mandatory = $true)]
+        [string]$MethodName,
+
+        [Parameter()]
+        [string[]]$Parameters = @()
+    )
+
+    # Build XML-RPC request
+    $paramXml = ''
+    foreach ($p in $Parameters) {
+        $paramXml += "<param>$p</param>"
+    }
+
+    $body = @"
+<?xml version="1.0" encoding="UTF-8"?>
+<methodCall>
+<methodName>$MethodName</methodName>
+<params>$paramXml</params>
+</methodCall>
+"@
+
+    try {
+        $response = Invoke-WebRequest -Uri $Url -Method POST -Body $body `
+            -ContentType 'text/xml' -UseBasicParsing -ErrorAction Stop -Verbose:$false
+
+        Write-SAVerbose -Text "XML-RPC $MethodName`: HTTP $($response.StatusCode)"
+
+        [xml]$xml = $response.Content
+
+        # Check for fault
+        $fault = $xml.methodResponse.fault
+        if ($fault) {
+            $faultString = $fault.value.struct.member |
+                Where-Object { $_.name -eq 'faultString' } |
+                ForEach-Object { $_.value.string }
+            Write-SAVerbose -Text "XML-RPC $MethodName fault: $faultString"
+            return @{ Success = $false; ErrorMessage = "XML-RPC fault: $faultString" }
+        }
+
+        # Parse response struct
+        $responseParams = $xml.methodResponse.params.param.value
+        $data = ConvertFrom-SAXmlRpcValue -XmlValue $responseParams
+
+        # Check status field
+        $status = $null
+        if ($data -is [hashtable] -and $data.ContainsKey('status')) {
+            $status = $data['status']
+        }
+
+        Write-SAVerbose -Text "XML-RPC $MethodName`: status=$status"
+
+        return @{
+            Success = ($null -eq $status -or $status -match '^2')
+            Status  = $status
+            Data    = $data
+        }
+    }
+    catch {
+        Write-SAVerbose -Text "XML-RPC $MethodName exception: $_"
+        return @{ Success = $false; ErrorMessage = "XML-RPC request failed: $_" }
+    }
+}
+
+function ConvertFrom-SAXmlRpcValue {
+    <#
+    .SYNOPSIS
+        Converts an XML-RPC value element to a PowerShell object.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowNull()]
+        $XmlValue
+    )
+
+    if ($null -eq $XmlValue) { return $null }
+
+    # Handle XmlElement
+    if ($XmlValue -is [System.Xml.XmlElement]) {
+        $child = $XmlValue.FirstChild
+
+        if ($null -eq $child) {
+            # Bare <value>text</value>
+            return $XmlValue.InnerText
+        }
+
+        switch ($child.LocalName) {
+            'string'  { return $child.InnerText }
+            'int'     { return [int]$child.InnerText }
+            'i4'      { return [int]$child.InnerText }
+            'boolean' { return $child.InnerText -eq '1' }
+            'double'  { return [double]$child.InnerText }
+            'struct' {
+                $result = @{}
+                foreach ($member in $child.member) {
+                    $name = $member.name
+                    $val = ConvertFrom-SAXmlRpcValue -XmlValue $member.value
+                    $result[$name] = $val
+                }
+                return $result
+            }
+            'array' {
+                $items = @()
+                foreach ($item in $child.data.value) {
+                    $items += ConvertFrom-SAXmlRpcValue -XmlValue $item
+                }
+                return $items
+            }
+            default { return $child.InnerText }
+        }
+    }
+
+    # Plain string
+    return $XmlValue.ToString()
+}
+
+function ConvertTo-SAXmlRpcString {
+    <#
+    .SYNOPSIS
+        Wraps a string value as an XML-RPC value element.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string]$Value)
+
+    $escaped = [System.Security.SecurityElement]::Escape($Value)
+    return "<value><string>$escaped</string></value>"
+}
+
+function ConvertTo-SAXmlRpcStruct {
+    <#
+    .SYNOPSIS
+        Converts a hashtable to an XML-RPC struct element.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([hashtable]$Hashtable)
+
+    $members = ''
+    foreach ($key in $Hashtable.Keys) {
+        $val = $Hashtable[$key]
+        $escapedKey = [System.Security.SecurityElement]::Escape($key)
+
+        if ($val -is [hashtable] -and $val.ContainsKey('__base64')) {
+            $members += "<member><name>$escapedKey</name><value><base64>$($val['__base64'])</base64></value></member>"
+        }
+        elseif ($val -is [hashtable] -and $val.ContainsKey('__int')) {
+            $members += "<member><name>$escapedKey</name><value><int>$($val['__int'])</int></value></member>"
+        }
+        elseif ($val -is [hashtable]) {
+            $innerStruct = ConvertTo-SAXmlRpcStruct -Hashtable $val
+            $members += "<member><name>$escapedKey</name>$innerStruct</member>"
+        }
+        else {
+            $escapedVal = [System.Security.SecurityElement]::Escape([string]$val)
+            $members += "<member><name>$escapedKey</name><value><string>$escapedVal</string></value></member>"
+        }
+    }
+
+    return "<value><struct>$members</struct></value>"
+}
+
+function Connect-SAOpenSubtitlesXmlRpc {
+    <#
+    .SYNOPSIS
+        Logs in to OpenSubtitles XML-RPC API.
+    .PARAMETER Config
+        OpenSubtitles configuration hashtable.
+    .OUTPUTS
+        Session token string, or $null on failure.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config
+    )
+
+    # Return cached token if available
+    if ($script:SAXmlRpcToken) {
+        return $script:SAXmlRpcToken
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Config.user) -or
+        [string]::IsNullOrWhiteSpace($Config.password)) {
+        return $null
+    }
+
+    $url = $script:SAConstants.OpenSubtitlesXmlRpcUrl
+
+    $params = @(
+        (ConvertTo-SAXmlRpcString -Value $Config.user),
+        (ConvertTo-SAXmlRpcString -Value $Config.password),
+        (ConvertTo-SAXmlRpcString -Value 'en'),
+        (ConvertTo-SAXmlRpcString -Value 'Stagearr v2.0')
+    )
+
+    $result = Invoke-SAXmlRpcRequest -Url $url -MethodName 'LogIn' -Parameters $params
+
+    if ($result.Success -and $result.Data -is [hashtable] -and $result.Data['token']) {
+        $script:SAXmlRpcToken = $result.Data['token']
+        Write-SAVerbose -Text "XML-RPC authenticated with OpenSubtitles"
+        return $script:SAXmlRpcToken
+    }
+
+    $errorMsg = if ($result.ErrorMessage) { $result.ErrorMessage } else { "Unknown error" }
+    Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "XML-RPC login failed: $errorMsg" -Indent 1 -ConsoleOnly
+    return $null
+}
+
+function Send-SAOpenSubtitlesUpload {
+    <#
+    .SYNOPSIS
+        Uploads a single subtitle file via XML-RPC.
+    .PARAMETER Config
+        OpenSubtitles configuration hashtable.
+    .PARAMETER SubtitlePath
+        Path to the SRT file.
+    .PARAMETER Language
+        ISO 639-1 language code.
+    .PARAMETER MovieHash
+        OpenSubtitles video hash.
+    .PARAMETER MovieByteSize
+        Video file size in bytes.
+    .PARAMETER MovieFileName
+        Video filename.
+    .PARAMETER XmlRpcToken
+        Session token from Connect-SAOpenSubtitlesXmlRpc.
+    .PARAMETER ImdbId
+        Pre-resolved numeric IMDB ID (e.g. '1234567'). If empty, falls back to TryUpload response.
+    .OUTPUTS
+        PSCustomObject with Success, Duplicate, Message.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config,
+
+        [Parameter(Mandatory = $true)]
+        [string]$SubtitlePath,
+
+        [Parameter()]
+        [string]$ImdbId = '',
+
+        [Parameter(Mandatory = $true)]
+        [string]$Language,
+
+        [Parameter()]
+        [string]$MovieHash = '',
+
+        [Parameter()]
+        [long]$MovieByteSize = 0,
+
+        [Parameter()]
+        [string]$MovieFileName = '',
+
+        [Parameter(Mandatory = $true)]
+        [string]$XmlRpcToken
+    )
+
+    $url = $script:SAConstants.OpenSubtitlesXmlRpcUrl
+    $subFileName = Split-Path -Path $SubtitlePath -Leaf
+
+    # Compute subtitle MD5 hash
+    $md5 = [System.Security.Cryptography.MD5]::Create()
+    $subBytes = [System.IO.File]::ReadAllBytes($SubtitlePath)
+    $hashBytes = $md5.ComputeHash($subBytes)
+    $subHash = [BitConverter]::ToString($hashBytes).Replace('-', '').ToLower()
+    $md5.Dispose()
+
+    # Convert language to ISO 639-2/B for XML-RPC API
+    $langCode = ConvertTo-SALanguageCode -Code $Language -To 'iso2b'
+    if (-not $langCode) { $langCode = $Language }
+
+    Write-SAVerbose -Text "Upload check: $subFileName (lang=$langCode, hash=$MovieHash, size=$MovieByteSize)"
+
+    # Step 1: TryUploadSubtitles - check if already exists
+    $cd1Try = @{
+        subhash       = $subHash
+        subfilename   = $subFileName
+        moviehash     = $MovieHash
+        moviebytesize = [string]$MovieByteSize
+        moviefilename = $MovieFileName
+    }
+
+    $tryStruct = ConvertTo-SAXmlRpcStruct -Hashtable @{ cd1 = $cd1Try }
+    $tryParams = @(
+        (ConvertTo-SAXmlRpcString -Value $XmlRpcToken),
+        $tryStruct
+    )
+
+    $tryResult = Invoke-SAXmlRpcRequest -Url $url -MethodName 'TryUploadSubtitles' -Parameters $tryParams
+
+    $alreadyInDb = if ($tryResult.Data -is [hashtable]) { $tryResult.Data['alreadyindb'] } else { 'N/A' }
+    Write-SAVerbose -Text "TryUpload response: status=$($tryResult.Status), alreadyindb=$alreadyInDb"
+
+    if (-not $tryResult.Success) {
+        $msg = if ($tryResult.ErrorMessage) { $tryResult.ErrorMessage } else { "TryUpload failed (status=$($tryResult.Status))" }
+        return [PSCustomObject]@{ Success = $false; Duplicate = $false; Message = $msg }
+    }
+
+    # Check if already in database
+    if ($tryResult.Data -is [hashtable] -and $tryResult.Data['alreadyindb'] -eq 1) {
+        return [PSCustomObject]@{ Success = $true; Duplicate = $true; Message = "Already on OpenSubtitles" }
+    }
+
+    # Use pre-resolved IMDB ID if available, otherwise try to extract from TryUpload response
+    $resolvedImdbId = $ImdbId
+    if (-not $resolvedImdbId) {
+        if ($tryResult.Data -is [hashtable] -and $tryResult.Data['data'] -is [hashtable]) {
+            $resolvedImdbId = [string]$tryResult.Data['data']['IDMovieImdb']
+        }
+        elseif ($tryResult.Data -is [hashtable] -and $tryResult.Data['data'] -is [array] -and $tryResult.Data['data'].Count -gt 0) {
+            $movieInfo = $tryResult.Data['data'][0]
+            if ($movieInfo -is [hashtable] -and $movieInfo['IDMovieImdb']) {
+                $resolvedImdbId = [string]$movieInfo['IDMovieImdb']
+            }
+        }
+        if ($resolvedImdbId) {
+            Write-SAVerbose -Text "TryUpload returned IMDB ID: $resolvedImdbId"
+        }
+    }
+
+    # Step 2: UploadSubtitles - gzip compress and send
+    $ms = [System.IO.MemoryStream]::new()
+    $gs = [System.IO.Compression.ZLibStream]::new($ms, [System.IO.Compression.CompressionMode]::Compress)
+    $gs.Write($subBytes, 0, $subBytes.Length)
+    $gs.Close()
+    $subcontent = [Convert]::ToBase64String($ms.ToArray())
+    $ms.Dispose()
+
+    $baseinfo = @{
+        sublanguageid = $langCode
+    }
+    if ($resolvedImdbId) {
+        $baseinfo['idmovieimdb'] = @{ __int = [int]$resolvedImdbId }
+    }
+
+    $cd1Upload = @{
+        subhash       = $subHash
+        subfilename   = $subFileName
+        moviehash     = $MovieHash
+        moviebytesize = [string]$MovieByteSize
+        moviefilename = $MovieFileName
+        subcontent    = $subcontent
+    }
+
+    Write-SAVerbose -Text "Subtitle compressed: $($subcontent.Length) chars base64 (raw=$($subBytes.Length) bytes, hash=$subHash)"
+
+    $uploadStruct = ConvertTo-SAXmlRpcStruct -Hashtable @{
+        baseinfo = $baseinfo
+        cd1      = $cd1Upload
+    }
+
+    $uploadParams = @(
+        (ConvertTo-SAXmlRpcString -Value $XmlRpcToken),
+        $uploadStruct
+    )
+
+    $uploadResult = Invoke-SAXmlRpcRequest -Url $url -MethodName 'UploadSubtitles' -Parameters $uploadParams
+
+    Write-SAVerbose -Text "Upload response: status=$($uploadResult.Status), success=$($uploadResult.Success)"
+
+    if ($uploadResult.Success) {
+        return [PSCustomObject]@{ Success = $true; Duplicate = $false; Message = "Uploaded successfully" }
+    }
+
+    $msg = if ($uploadResult.ErrorMessage) { $uploadResult.ErrorMessage } else { "Upload failed" }
+    return [PSCustomObject]@{ Success = $false; Duplicate = $false; Message = $msg }
+}
+
+function Resolve-SAOpenSubtitlesImdbId {
+    <#
+    .SYNOPSIS
+        Resolves a numeric IMDB ID for a video using available sources.
+    .DESCRIPTION
+        Tries OpenSubtitles REST API search (by hash) first, then falls back to OMDb API.
+        Returns numeric IMDB ID string (e.g. '1234567') or empty string.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Context,
+
+        [Parameter()]
+        [string]$MovieHash = '',
+
+        [Parameter()]
+        [string]$VideoFileName = ''
+    )
+
+    $osConfig = $Context.Config.subtitles.openSubtitles
+
+    # Step 1: Try OpenSubtitles REST API search by hash + filename
+    if ($MovieHash -or $VideoFileName) {
+        $token = Get-SAOpenSubtitlesToken -Config $osConfig
+        if ($token) {
+            $queryParams = @{
+                languages = 'en'
+            }
+            if ($MovieHash) { $queryParams.moviehash = $MovieHash }
+            if ($VideoFileName) {
+                $queryParams.query = [System.IO.Path]::GetFileNameWithoutExtension($VideoFileName)
+            }
+            $queryString = ($queryParams.GetEnumerator() | ForEach-Object {
+                "$($_.Key)=$([System.Uri]::EscapeDataString($_.Value))"
+            }) -join '&'
+
+            $uri = "https://api.opensubtitles.com/api/v1/subtitles?$queryString"
+            $headers = @{
+                'Api-Key'       = $osConfig.apiKey
+                'Authorization' = "Bearer $token"
+                'Accept'        = 'application/json'
+                'User-Agent'    = 'Stagearr v2.0'
+            }
+
+            $result = Invoke-SAWebRequest -Uri $uri -Method GET -Headers $headers -MaxRetries 2
+            if ($result.Success -and $result.Data.data -and $result.Data.data.Count -gt 0) {
+                $featureDetails = $result.Data.data[0].attributes.feature_details
+                if ($featureDetails -and $featureDetails.imdb_id) {
+                    $imdbId = [string]$featureDetails.imdb_id
+                    Write-SAVerbose -Text "Resolved IMDB ID: $imdbId (source: OpenSubtitles)"
+                    return $imdbId
+                }
+            }
+        }
+    }
+
+    # Step 2: Fall back to OMDb API if configured
+    $omdbEnabled = Test-SAFeatureEnabled -Feature 'omdb' -Config $Context.Config
+    $releaseInfo = $Context.State.ReleaseInfo
+    if ($omdbEnabled -and $releaseInfo -and $releaseInfo.Title) {
+        $labelType = Get-SALabelType -Label $Context.Job.input.downloadLabel -Config $Context.Config
+        $omdbType = if ($labelType -eq 'tv') { 'series' } else { 'movie' }
+
+        $omdbData = Get-SAOmdbMetadata `
+            -Title $releaseInfo.Title `
+            -Year $releaseInfo.Year `
+            -Type $omdbType `
+            -Config $Context.Config.omdb
+
+        if ($omdbData -and $omdbData.ImdbId) {
+            # Cache full OMDb result for later email enrichment (avoids duplicate API call)
+            $Context.State.OmdbData = $omdbData
+
+            $imdbId = $omdbData.ImdbId -replace '^tt', ''
+            Write-SAVerbose -Text "Resolved IMDB ID: $imdbId (source: OMDb)"
+            return $imdbId
+        }
+    }
+
+    Write-SAVerbose -Text "Could not resolve IMDB ID — upload may fail"
+    return ''
+}
+
+function Start-SAOpenSubtitlesUpload {
+    <#
+    .SYNOPSIS
+        Batch orchestrator for uploading cleaned subtitles to OpenSubtitles.
+    .PARAMETER Context
+        Processing context.
+    .PARAMETER SubtitlePaths
+        Array of SRT file paths to upload.
+    .PARAMETER VideoHashMap
+        Hashtable mapping video base name to OpenSubtitles hash.
+    .PARAMETER VideoSizeMap
+        Hashtable mapping video base name to file size in bytes.
+    .OUTPUTS
+        PSCustomObject with UploadedCount, DuplicateCount, FailedCount.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Context,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$SubtitlePaths,
+
+        [Parameter()]
+        [hashtable]$VideoHashMap = @{},
+
+        [Parameter()]
+        [hashtable]$VideoSizeMap = @{}
+    )
+
+    $config = $Context.Config.subtitles.openSubtitles
+
+    # ZLibStream requires .NET 6+ (PowerShell 7+)
+    if ($PSVersionTable.PSVersion.Major -lt 7) {
+        Write-SAVerbose -Text "Subtitle upload requires PowerShell 7+ - skipping"
+        return [PSCustomObject]@{ UploadedCount = 0; DuplicateCount = 0; FailedCount = 0 }
+    }
+
+    $uploaded = 0
+    $duplicates = 0
+    $failed = 0
+
+    # Login via XML-RPC
+    $token = Connect-SAOpenSubtitlesXmlRpc -Config $config
+    if (-not $token) {
+        Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "Upload login failed - skipping uploads" -Indent 1 -ConsoleOnly
+        return [PSCustomObject]@{ UploadedCount = 0; DuplicateCount = 0; FailedCount = $SubtitlePaths.Count }
+    }
+
+    # Resolve IMDB ID once for the batch (using first video's hash + filename)
+    $batchImdbId = ''
+    $firstVideoBase = if ($VideoHashMap.Count -gt 0) { $VideoHashMap.Keys | Select-Object -First 1 } else { '' }
+    $firstHash = if ($firstVideoBase -and $VideoHashMap.ContainsKey($firstVideoBase)) { $VideoHashMap[$firstVideoBase] } else { '' }
+    $firstFileName = if ($firstVideoBase) { "$firstVideoBase.mkv" } else { '' }
+    if ($firstHash -or $firstFileName) {
+        $batchImdbId = Resolve-SAOpenSubtitlesImdbId -Context $Context -MovieHash $firstHash -VideoFileName $firstFileName
+    }
+
+    $subWord = Get-SAPluralForm -Count $SubtitlePaths.Count -Singular 'subtitle'
+    Write-SAProgress -Label "OpenSubs" -Text "Uploading $($SubtitlePaths.Count) cleaned $subWord to OpenSubtitles..." -Indent 1
+
+    foreach ($srtPath in $SubtitlePaths) {
+        $srtName = Split-Path -Path $srtPath -Leaf
+        $srtBaseName = [System.IO.Path]::GetFileNameWithoutExtension($srtPath)
+
+        # Extract language from filename (e.g. Movie.en.srt -> en)
+        $lang = ''
+        if ($srtBaseName -match '\.([a-z]{2})$') {
+            $lang = $Matches[1]
+        }
+        # Also handle numbered duplicates (e.g. Movie.en.1.srt -> en)
+        elseif ($srtBaseName -match '\.([a-z]{2})\.\d+$') {
+            $lang = $Matches[1]
+        }
+
+        if ([string]::IsNullOrWhiteSpace($lang)) {
+            Write-SAVerbose -Text "Skipped upload (no language code): $srtName"
+            $failed++
+            continue
+        }
+
+        # Find matching video hash and size by stripping language suffix from SRT base name
+        $videoBaseName = $srtBaseName -replace '\.[a-z]{2}(\.\d+)?$', ''
+        $movieHash = if ($VideoHashMap.ContainsKey($videoBaseName)) { $VideoHashMap[$videoBaseName] } else { '' }
+        $movieSize = if ($VideoSizeMap.ContainsKey($videoBaseName)) { $VideoSizeMap[$videoBaseName] } else { [long]0 }
+        $movieFileName = "$videoBaseName.mkv"
+
+        try {
+            $result = Send-SAOpenSubtitlesUpload -Config $config `
+                -SubtitlePath $srtPath `
+                -ImdbId $batchImdbId `
+                -Language $lang `
+                -MovieHash $movieHash `
+                -MovieByteSize $movieSize `
+                -MovieFileName $movieFileName `
+                -XmlRpcToken $token
+
+            if ($result.Duplicate) {
+                $duplicates++
+                Write-SAVerbose -Text "Already on OpenSubtitles: $srtName"
+            }
+            elseif ($result.Success) {
+                $uploaded++
+                Write-SAVerbose -Text "Uploaded: $srtName"
+            }
+            else {
+                $failed++
+                $detail = if ($result.Message) { "$srtName - $($result.Message)" } else { $srtName }
+                Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "Upload failed: $detail" -Indent 1 -ConsoleOnly
+            }
+        }
+        catch {
+            $failed++
+            Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "Upload error for $($srtName): $_" -Indent 1 -ConsoleOnly
+        }
+
+        # Rate limit between uploads
+        Start-Sleep -Milliseconds $script:SAConstants.OpenSubtitlesUploadDelayMs
+    }
+
+    # Batch summary
+    if ($uploaded -gt 0) {
+        $subWord = Get-SAPluralForm -Count $uploaded -Singular 'subtitle'
+        Write-SAOutcome -Level Success -Label "OpenSubs" -Text "Uploaded $uploaded $subWord to OpenSubtitles" -Indent 1
+    }
+    if ($duplicates -gt 0) {
+        $subWord = Get-SAPluralForm -Count $duplicates -Singular 'subtitle'
+        Write-SAVerbose -Text "$duplicates $subWord already on OpenSubtitles"
+    }
+
+    return [PSCustomObject]@{
+        UploadedCount  = $uploaded
+        DuplicateCount = $duplicates
+        FailedCount    = $failed
+    }
+}
+
+#endregion

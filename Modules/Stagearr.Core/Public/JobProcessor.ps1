@@ -675,15 +675,19 @@ function Invoke-SAStandardJob {
         if (-not $plotEnabled) {
             $omdbData.Plot = $null
         }
+    } elseif ($Context.State.OmdbData) {
+        # Cached from IMDB ID resolution during subtitle upload — reuse to avoid duplicate API call
+        $omdbData = $Context.State.OmdbData
+        Write-SAVerbose -Text "Email metadata: Using cached OMDb data from subtitle upload"
     } elseif ($omdbEnabled) {
         # Auto mode, falling back to OMDb API
         Write-SAVerbose -Text "Email metadata: Falling back to OMDb API"
-        
+
         $releaseInfo = $Context.State.ReleaseInfo
         if ($releaseInfo -and $releaseInfo.Title) {
             $labelType = Get-SALabelType -Label $Job.input.downloadLabel -Config $Context.Config
             $omdbType = if ($labelType -eq 'tv') { 'series' } else { 'movie' }
-            
+
             $omdbData = Get-SAOmdbMetadata `
                 -Title $releaseInfo.Title `
                 -Year $releaseInfo.Year `

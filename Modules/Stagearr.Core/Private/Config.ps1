@@ -51,10 +51,11 @@ $script:SAConfigDefaults = @{
             enabled = $true
         }
         openSubtitles = @{
-            enabled  = $false
-            user     = ''
-            password = ''
-            apiKey   = ''
+            enabled       = $false
+            user          = ''
+            password      = ''
+            apiKey        = ''
+            uploadCleaned = $false
             filters  = @{
                 hearingImpaired   = 'exclude'
                 foreignPartsOnly  = 'exclude'

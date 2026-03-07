@@ -440,7 +440,7 @@ function Get-SAOmdbMetadata {
     
     # Build request URL
     $encodedTitle = [System.Web.HttpUtility]::UrlEncode($Title)
-    $url = "${script:TSOmdbBaseUrl}?apikey=$apiKey&t=$encodedTitle&type=$Type"
+    $url = "${script:SAOmdbBaseUrl}?apikey=$apiKey&t=$encodedTitle&type=$Type"
     
     if (-not [string]::IsNullOrWhiteSpace($Year)) {
         $url += "&y=$Year"

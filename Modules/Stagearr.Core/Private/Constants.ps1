@@ -62,7 +62,13 @@ $script:SAConstants = @{
     
     # Delay between download requests to respect rate limits (seconds)
     OpenSubtitlesRateLimitDelay = 5
-    
+
+    # XML-RPC endpoint for uploads (REST API doesn't support upload yet)
+    OpenSubtitlesXmlRpcUrl = 'https://api.opensubtitles.org:443/xml-rpc'
+
+    # Delay between upload requests (milliseconds)
+    OpenSubtitlesUploadDelayMs = 1500
+
     #endregion
     
     #region SubtitleEdit Defaults

@@ -62,6 +62,8 @@ enabled = true
 user = "your_username"
 password = "your_password"
 apiKey = "your_api_key"
+# Upload cleaned subtitles (extracted/external only) back to OpenSubtitles after processing
+uploadCleaned = false
 
 [subtitles.openSubtitles.filters]
 # Subtitle filtering options: include, exclude, or only
