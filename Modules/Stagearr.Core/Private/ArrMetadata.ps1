@@ -37,7 +37,7 @@ function ConvertTo-SAArrMetadata {
         Handles:
         - Extracting movie/series metadata (title, year, IMDb ID)
         - Normalizing ratings from ratings object (IMDb, Rotten Tomatoes, Metacritic)
-        - Building TMDb poster URL with configurable size
+        - Extracting poster URLs (CDN remote URL and local *arr path)
         - Converting overview to plot
         - Detecting content type (movie vs series)
         
@@ -48,8 +48,6 @@ function ConvertTo-SAArrMetadata {
         - series object (Sonarr)
     .PARAMETER AppType
         The *arr application type: 'Radarr' or 'Sonarr'.
-    .PARAMETER PosterSize
-        TMDb poster size: 'w92', 'w185', 'w500', or 'original' (default: 'w185').
     .PARAMETER PlotMaxLength
         Maximum length for plot/overview text (0 = no truncation, default: 150).
     .OUTPUTS
@@ -76,11 +74,7 @@ function ConvertTo-SAArrMetadata {
         [Parameter(Mandatory = $true)]
         [ValidateSet('Radarr', 'Sonarr')]
         [string]$AppType,
-        
-        [Parameter()]
-        [ValidateSet('w92', 'w185', 'w500', 'original')]
-        [string]$PosterSize = 'w185',
-        
+
         [Parameter()]
         [int]$PlotMaxLength = 150
     )
@@ -162,7 +156,7 @@ function ConvertTo-SAArrMetadata {
         $posterImage = $media.images | Where-Object { $_.coverType -eq 'poster' } | Select-Object -First 1
         if ($null -ne $posterImage) {
             if (-not [string]::IsNullOrWhiteSpace($posterImage.remoteUrl)) {
-                $posterUrl = $posterImage.remoteUrl -replace '/original/', "/$PosterSize/"
+                $posterUrl = $posterImage.remoteUrl
             }
             if (-not [string]::IsNullOrWhiteSpace($posterImage.url)) {
                 $posterLocalPath = $posterImage.url
@@ -670,8 +664,6 @@ function Get-SAArrMetadataFromScan {
         The *arr application type: 'Radarr' or 'Sonarr'.
     .PARAMETER DownloadPoster
         Whether to download the poster image (default: $true).
-    .PARAMETER PosterSize
-        TMDb poster size: 'w92', 'w185', 'w500', or 'original' (default: 'w185').
     .PARAMETER PlotMaxLength
         Maximum length for plot/overview text (0 = no truncation, default: 150).
     .OUTPUTS
@@ -695,11 +687,7 @@ function Get-SAArrMetadataFromScan {
         
         [Parameter()]
         [bool]$DownloadPoster = $true,
-        
-        [Parameter()]
-        [ValidateSet('w92', 'w185', 'w500', 'original')]
-        [string]$PosterSize = 'w185',
-        
+
         [Parameter()]
         [int]$PlotMaxLength = 150,
 
@@ -728,7 +716,7 @@ function Get-SAArrMetadataFromScan {
     }
     
     # Extract metadata
-    $metadata = ConvertTo-SAArrMetadata -ScanResult $fileWithMetadata -AppType $AppType -PosterSize $PosterSize -PlotMaxLength $PlotMaxLength
+    $metadata = ConvertTo-SAArrMetadata -ScanResult $fileWithMetadata -AppType $AppType -PlotMaxLength $PlotMaxLength
     
     if ($null -eq $metadata) {
         return $null
