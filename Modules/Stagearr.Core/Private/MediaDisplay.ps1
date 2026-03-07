@@ -355,7 +355,8 @@ function Get-SAQualityDisplayString {
     
     if (-not [string]::IsNullOrWhiteSpace($hdrDisplay)) {
         # Use bullet separator for HDR in email context
-        return "$baseQuality • $hdrDisplay"
+        $bullet = [char]0x2022
+        return "$baseQuality $bullet $hdrDisplay"
     }
     
     return $baseQuality

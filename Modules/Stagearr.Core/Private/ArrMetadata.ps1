@@ -701,7 +701,8 @@ function Get-SAArrMetadataFromScan {
     $title = if ($metadata.Title) { $metadata.Title } else { 'Unknown' }
     $year = if ($metadata.Year) { " ($($metadata.Year))" } else { '' }
     $rating = if ($metadata.ImdbRating) { "IMDb $($metadata.ImdbRating)" } else { 'no rating' }
-    $poster = if ($metadata.PosterData) { 'poster ✓' } else { 'no poster' }
+    $checkmark = [char]0x2713
+    $poster = if ($metadata.PosterData) { "poster $checkmark" } else { 'no poster' }
     Write-SAVerbose -Label 'TMDb' -Text "Extracted: $title$year - $rating, $poster"
     
     return $metadata

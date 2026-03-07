@@ -1136,7 +1136,7 @@ function Resolve-SAOpenSubtitlesImdbId {
         }
     }
 
-    Write-SAVerbose -Text "Could not resolve IMDB ID — upload may fail"
+    Write-SAVerbose -Text "Could not resolve IMDB ID - upload may fail"
     return ''
 }
 

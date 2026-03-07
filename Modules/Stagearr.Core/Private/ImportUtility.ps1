@@ -96,7 +96,7 @@ function Resolve-SAHostToIPv4 {
             $result.ResolvedHost = $ipv4.IPAddressToString
             $result.WasResolved = $true
             # Log resolution only on first lookup (cached results won't trigger this)
-            Write-SAVerbose -Text "Resolved $Hostname → $($result.ResolvedHost)"
+            Write-SAVerbose -Text "Resolved $Hostname -> $($result.ResolvedHost)"
         }
         
         $script:SAHostnameCache[$Hostname] = $result
