@@ -681,9 +681,12 @@ function Get-SAArrMetadataFromScan {
         [string]$PosterSize = 'w185',
         
         [Parameter()]
-        [int]$PlotMaxLength = 150
+        [int]$PlotMaxLength = 150,
+
+        [Parameter()]
+        [hashtable]$ArrConfig
     )
-    
+
     # Handle null or empty input
     if ($null -eq $ScanResults -or $ScanResults.Count -eq 0) {
         return $null
@@ -711,9 +714,9 @@ function Get-SAArrMetadataFromScan {
         return $null
     }
     
-    # Download poster if enabled and URL available
-    if ($DownloadPoster -and -not [string]::IsNullOrWhiteSpace($metadata.PosterUrl)) {
-        $metadata.PosterData = Get-SAArrPosterData -PosterUrl $metadata.PosterUrl
+    # Download poster if enabled and local path available
+    if ($DownloadPoster -and $null -ne $ArrConfig -and -not [string]::IsNullOrWhiteSpace($metadata.PosterLocalPath)) {
+        $metadata.PosterData = Get-SAArrPosterData -PosterLocalPath $metadata.PosterLocalPath -ArrConfig $ArrConfig
     }
     
     # Log metadata summary
