@@ -267,9 +267,6 @@ See [Email Notifications](Email-Notifications) for subject styles, templates, an
 ```toml
 [notifications.email.metadata]
 source = "auto"    # auto | omdb | none
-
-[notifications.email.metadata.poster]
-size = "w185"      # w92 | w185 | w500 | original
 ```
 
 | Option | Description | Default |

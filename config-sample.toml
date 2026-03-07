@@ -121,7 +121,7 @@ user = "your_smtp_username"
 password = "your_smtp_password_or_app_password"
 
 [notifications.email.metadata]
-# Email metadata enrichment (poster, ratings)
+# auto: merges *arr ratings/genre with OMDb poster; omdb: OMDb only; none: disabled
 source = "auto" # auto | omdb | none
 
 [omdb]

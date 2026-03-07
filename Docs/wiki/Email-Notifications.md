@@ -131,59 +131,31 @@ Enrich emails with posters, ratings, and metadata from multiple sources:
 
 ### Metadata Sources
 
-| Source | Provider | When Used | API Key Required |
-|--------|----------|-----------|------------------|
-| **Radarr/Sonarr** | TMDb (via *arr API) | Movie/TV imports to Radarr or Sonarr | No |
-| **OMDb** | OMDb API | Medusa imports, or when forced via config | Yes (free) |
+| Source | Provides | API Key Required |
+|--------|----------|------------------|
+| **OMDb** | Poster image (~25KB), ratings, IMDB ID | Yes (free) |
+| **Radarr/Sonarr** | Ratings, genre, runtime, plot (from *arr database) | No |
 
-### Source Priority
+### How It Works
 
-```
-Radarr/Sonarr Import          Medusa Import
-        |                            |
-        v                            v
-  +-----------+              +-----------+
-  | TMDb Data |              | OMDb API  |
-  | (auto)    |              | (if on)   |
-  +-----------+              +-----------+
-        |                            |
-        +----------+-----------------+
-                   v
-            +-----------+
-            | Email w/  |
-            | Poster +  |
-            | Ratings   |
-            +-----------+
-```
+In `auto` mode, OMDb is queried early in the pipeline. For Radarr/Sonarr imports, the *arr ratings and genre are merged with the OMDb poster. This gives the best of both: small reliable poster from OMDb, rich metadata from your *arr server.
 
-> **Radarr/Sonarr users:** Metadata enrichment works automatically — no API key needed! The ManualImport API returns TMDb metadata including poster URL, ratings, genre, and runtime.
+> **Recommended:** Enable OMDb for poster support. Get a free API key at [omdbapi.com](https://www.omdbapi.com/apikey.aspx).
 
-> **Medusa users:** Enable OMDb integration to get metadata enrichment (see below).
+> **Without OMDb:** Radarr/Sonarr imports still get ratings/genre in email, just no poster image.
 
 ### Configuration
 
 ```toml
 [notifications.email.metadata]
 source = "auto"    # auto | omdb | none
-
-[notifications.email.metadata.poster]
-size = "w185"      # w92 | w185 | w500 | original
 ```
 
 | Value | Behavior |
 |-------|----------|
-| `auto` | Use Radarr/Sonarr data when available, fall back to OMDb for Medusa |
-| `omdb` | Always use OMDb API (ignores *arr metadata) |
+| `auto` | Merges *arr ratings/genre with OMDb poster (~25KB). Falls back to whichever is available. |
+| `omdb` | Always use OMDb API only (ignores *arr metadata) |
 | `none` | Disable metadata enrichment entirely |
-
-### Poster Sizes
-
-| Size | Dimensions | File Size | Use Case |
-|------|------------|-----------|----------|
-| `w92` | 92px wide | ~10-20KB | Minimal |
-| `w185` | 185px wide | ~30-50KB | Recommended |
-| `w500` | 500px wide | ~100-150KB | High-res displays |
-| `original` | Full resolution | Varies | Maximum quality |
 
 ---
 
