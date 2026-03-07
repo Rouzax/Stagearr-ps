@@ -78,7 +78,7 @@
     Stagearr.ps1 -DownloadPath "C:\Downloads\Movie.2024" -DownloadLabel "Movie" -Force
 
 .NOTES
-    Version: 2.0.0
+    Version: 2.0.1
     Requires: PowerShell 5.1 or 7.x
     External Tools: WinRAR, MKVToolNix, SubtitleEdit
 #>
@@ -152,7 +152,7 @@ if ($PSCmdlet.ParameterSetName -eq 'SyncConfig') {
     Initialize-SAConsoleRenderer -UseColors $true
     
     # Display banner
-    Write-SABanner -Title "Stagearr" -Version "2.0.0"
+    Write-SABanner -Title "Stagearr" -Version "2.0.1"
     
     Write-SAPhaseHeader -Title "Configuration Sync"
     
@@ -185,7 +185,7 @@ if ($PSCmdlet.ParameterSetName -eq 'SyncConfig') {
 # Handle Setup mode BEFORE loading config
 if ($PSCmdlet.ParameterSetName -eq 'Setup') {
     Initialize-SAConsoleRenderer -UseColors $true
-    Write-SABanner -Title "Stagearr" -Version "2.0.0"
+    Write-SABanner -Title "Stagearr" -Version "2.0.1"
     Write-SAPhaseHeader -Title "Setup Wizard"
 
     $samplePath = Join-Path $ScriptRoot 'config-sample.toml'
@@ -219,7 +219,7 @@ $Config['_configPath'] = $ConfigPath
 Initialize-SAConsoleRenderer -UseColors $Config.logging.consoleColors
 
 # Display banner
-Write-SABanner -Title "Stagearr" -Version "2.0.0"
+Write-SABanner -Title "Stagearr" -Version "2.0.1"
 
 # Handle different modes
 switch ($PSCmdlet.ParameterSetName) {
