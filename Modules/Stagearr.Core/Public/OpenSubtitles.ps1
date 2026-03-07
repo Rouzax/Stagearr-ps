@@ -1089,6 +1089,20 @@ function Resolve-SAOpenSubtitlesImdbId {
             if ($VideoFileName) {
                 $queryParams.query = [System.IO.Path]::GetFileNameWithoutExtension($VideoFileName)
             }
+            # Use pre-parsed ReleaseInfo from Context for type filtering
+            # This data comes from GuessIt (more reliable than re-parsing the filename)
+            $releaseInfo = $Context.State.ReleaseInfo
+            if ($releaseInfo) {
+                if ($releaseInfo.Type -eq 'episode') {
+                    $queryParams.type = 'episode'
+                    if ($releaseInfo.Season) { $queryParams.season_number = $releaseInfo.Season }
+                    if ($releaseInfo.Episode) { $queryParams.episode_number = $releaseInfo.Episode }
+                }
+                elseif ($releaseInfo.Type -eq 'movie') {
+                    $queryParams.type = 'movie'
+                    if ($releaseInfo.Year) { $queryParams.year = $releaseInfo.Year }
+                }
+            }
             $queryString = ($queryParams.GetEnumerator() | ForEach-Object {
                 "$($_.Key)=$([System.Uri]::EscapeDataString($_.Value))"
             }) -join '&'
