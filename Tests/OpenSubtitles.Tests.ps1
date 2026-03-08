@@ -466,6 +466,7 @@ Describe 'Start-SAOpenSubtitlesUpload guard integration' {
                 Mock Connect-SAOpenSubtitlesXmlRpc {}
                 Mock Resolve-SAOpenSubtitlesImdbId { return '' }
                 Mock Test-SAUploadableSubtitle { return [PSCustomObject]@{ Allowed = $true; Reason = '' } }
+                Mock Test-SAOpenSubtitlesSubtitleExists { return $false }
 
                 $context = @{
                     Config = @{

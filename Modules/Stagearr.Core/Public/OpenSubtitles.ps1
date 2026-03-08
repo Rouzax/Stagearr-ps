@@ -1321,17 +1321,15 @@ function Start-SAOpenSubtitlesUpload {
         }
 
         # Pre-check: search REST API for existing subtitles in this language
-        if (-not $diagnosticMode) {
-            $existsOnSite = Test-SAOpenSubtitlesSubtitleExists -Config $config `
-                -MovieHash $movieHash `
-                -Language $lang `
-                -VideoFileName $movieFileName
+        $existsOnSite = Test-SAOpenSubtitlesSubtitleExists -Config $config `
+            -MovieHash $movieHash `
+            -Language $lang `
+            -VideoFileName $movieFileName
 
-            if ($existsOnSite) {
-                $duplicates++
-                Write-SAVerbose -Text "Subtitle already exists on OpenSubtitles for '$lang': $srtName"
-                continue
-            }
+        if ($existsOnSite) {
+            $duplicates++
+            Write-SAVerbose -Text "Subtitle already exists on OpenSubtitles for '$lang': $srtName"
+            continue
         }
 
         if ($diagnosticMode) {
