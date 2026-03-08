@@ -1154,6 +1154,67 @@ function Resolve-SAOpenSubtitlesImdbId {
     return ''
 }
 
+function Test-SAUploadableSubtitle {
+    <#
+    .SYNOPSIS
+        Validates whether a subtitle's video filename is safe to upload to OpenSubtitles.
+    .PARAMETER VideoBaseName
+        Video base name (without extension or language suffix).
+    .PARAMETER LabelType
+        Content type: 'tv', 'movie', or 'passthrough'.
+    .OUTPUTS
+        PSCustomObject with Allowed (bool) and Reason (string).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$VideoBaseName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$LabelType
+    )
+
+    $name = $VideoBaseName.Trim()
+
+    # Guard 1: Blocklist - known generic filenames
+    $blocklist = $script:SAConstants.OpenSubtitlesUploadBlockedNames
+    if ($blocklist -contains $name.ToLower()) {
+        return [PSCustomObject]@{ Allowed = $false; Reason = "generic filename '$name'" }
+    }
+
+    # Guard 2: Single-character or numeric-only names
+    if ($name.Length -le 1 -or $name -match '^\d+$') {
+        return [PSCustomObject]@{ Allowed = $false; Reason = "generic filename '$name'" }
+    }
+
+    # Guard 3: Content-type-specific metadata validation
+    switch ($LabelType) {
+        'tv' {
+            # Require season+episode pattern: S01E01, s01e01, 1x01
+            if ($name -notmatch 'S\d{1,2}E\d{1,2}' -and $name -notmatch '\d{1,2}x\d{1,2}') {
+                return [PSCustomObject]@{ Allowed = $false; Reason = "missing episode info in '$name'" }
+            }
+        }
+        'movie' {
+            # Require parseable title: must have either multiple words (dot/space separated)
+            # or a word + year pattern. Strip known technical tokens first.
+            $cleaned = $name -replace '\b(2160p|1080p|720p|480p|BluRay|WEB-DL|WEBRip|HDRip|BRRip|DVDRip|HDTV|REMUX|DTS|DD5|DDP5|AAC|FLAC|x264|x265|H\.?264|H\.?265|HEVC|AVC|HDR|HDR10|DV|Atmos|NF|AMZN|DSNP|HMAX|ATVP|MA)\b', ''
+            $cleaned = $cleaned -replace '[-._]', ' '
+            $cleaned = $cleaned -replace '\s+', ' '
+            $cleaned = $cleaned.Trim()
+            $words = @($cleaned -split '\s' | Where-Object { $_ -and $_.Length -gt 1 })
+            if ($words.Count -lt 2) {
+                return [PSCustomObject]@{ Allowed = $false; Reason = "unparseable title in '$name'" }
+            }
+        }
+        'passthrough' {
+            return [PSCustomObject]@{ Allowed = $false; Reason = "unknown content type for '$name'" }
+        }
+    }
+
+    return [PSCustomObject]@{ Allowed = $true; Reason = '' }
+}
+
 function Start-SAOpenSubtitlesUpload {
     <#
     .SYNOPSIS
