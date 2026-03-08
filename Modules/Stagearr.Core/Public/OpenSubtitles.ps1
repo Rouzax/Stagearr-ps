@@ -1154,6 +1154,68 @@ function Resolve-SAOpenSubtitlesImdbId {
     return ''
 }
 
+function Test-SAUploadableSubtitle {
+    <#
+    .SYNOPSIS
+        Validates whether a subtitle's video filename is safe to upload to OpenSubtitles.
+    .PARAMETER VideoBaseName
+        Video base name (without extension or language suffix).
+    .PARAMETER LabelType
+        Content type: 'tv', 'movie', or 'passthrough'.
+    .OUTPUTS
+        PSCustomObject with Allowed (bool) and Reason (string).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$VideoBaseName,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('tv', 'movie', 'passthrough')]
+        [string]$LabelType
+    )
+
+    $name = $VideoBaseName.Trim()
+
+    # Guard 1: Blocklist - known generic filenames
+    $blocklist = $script:SAConstants.OpenSubtitlesUploadBlockedNames
+    if ($blocklist -contains $name.ToLower()) {
+        return [PSCustomObject]@{ Allowed = $false; Reason = "generic filename '$name'" }
+    }
+
+    # Guard 2: Single-character or numeric-only names
+    if ($name.Length -le 1 -or $name -match '^\d+$') {
+        return [PSCustomObject]@{ Allowed = $false; Reason = "generic filename '$name'" }
+    }
+
+    # Guard 3: Content-type-specific metadata validation
+    switch ($LabelType) {
+        'tv' {
+            # Require season+episode pattern: S01E01, s01e01, 1x01
+            if ($name -notmatch 'S\d{1,2}E\d{1,2}' -and $name -notmatch '\d{1,2}x\d{1,2}') {
+                return [PSCustomObject]@{ Allowed = $false; Reason = "missing episode info in '$name'" }
+            }
+        }
+        'movie' {
+            # Require parseable title: must have either multiple words (dot/space separated)
+            # or a word + year pattern. Strip known technical tokens first.
+            $cleaned = $name -replace '\b(2160p|1080p|720p|480p|BluRay|WEB-DL|WEBRip|HDRip|BRRip|DVDRip|HDTV|REMUX|DTS|DD5|DDP5|AAC|FLAC|x264|x265|H\.?264|H\.?265|HEVC|AVC|HDR|HDR10|DV|Atmos|NF|AMZN|DSNP|HMAX|ATVP|MA)\b', ''
+            $cleaned = $cleaned -replace '[-._]', ' '
+            $cleaned = $cleaned -replace '\s+', ' '
+            $cleaned = $cleaned.Trim()
+            $words = @($cleaned -split '\s' | Where-Object { $_ -and $_.Length -gt 1 })
+            if ($words.Count -lt 2) {
+                return [PSCustomObject]@{ Allowed = $false; Reason = "unparseable title in '$name'" }
+            }
+        }
+        'passthrough' {
+            return [PSCustomObject]@{ Allowed = $false; Reason = "unknown content type for '$name'" }
+        }
+    }
+
+    return [PSCustomObject]@{ Allowed = $true; Reason = '' }
+}
+
 function Start-SAOpenSubtitlesUpload {
     <#
     .SYNOPSIS
@@ -1185,6 +1247,8 @@ function Start-SAOpenSubtitlesUpload {
     )
 
     $config = $Context.Config.subtitles.openSubtitles
+    $diagnosticMode = $config.uploadDiagnosticMode -eq $true
+    $labelType = Get-SALabelType -Label $Context.State.ProcessingLabel -Config $Context.Config
 
     # ZLibStream requires .NET 6+ (PowerShell 7+)
     if ($PSVersionTable.PSVersion.Major -lt 7) {
@@ -1196,11 +1260,14 @@ function Start-SAOpenSubtitlesUpload {
     $duplicates = 0
     $failed = 0
 
-    # Login via XML-RPC
-    $token = Connect-SAOpenSubtitlesXmlRpc -Config $config
-    if (-not $token) {
-        Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "Upload login failed - skipping uploads" -Indent 1 -ConsoleOnly
-        return [PSCustomObject]@{ UploadedCount = 0; DuplicateCount = 0; FailedCount = $SubtitlePaths.Count }
+    $token = $null
+    if (-not $diagnosticMode) {
+        # Login via XML-RPC
+        $token = Connect-SAOpenSubtitlesXmlRpc -Config $config
+        if (-not $token) {
+            Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "Upload login failed - skipping uploads" -Indent 1 -ConsoleOnly
+            return [PSCustomObject]@{ UploadedCount = 0; DuplicateCount = 0; FailedCount = $SubtitlePaths.Count }
+        }
     }
 
     # Resolve IMDB ID once for the batch (using first video's hash + filename)
@@ -1213,7 +1280,11 @@ function Start-SAOpenSubtitlesUpload {
     }
 
     $subWord = Get-SAPluralForm -Count $SubtitlePaths.Count -Singular 'subtitle'
-    Write-SAProgress -Label "OpenSubs" -Text "Uploading $($SubtitlePaths.Count) cleaned $subWord to OpenSubtitles..." -Indent 1
+    if ($diagnosticMode) {
+        Write-SAProgress -Label "OpenSubs" -Text "Diagnostic mode: checking $($SubtitlePaths.Count) $subWord for upload eligibility..." -Indent 1
+    } else {
+        Write-SAProgress -Label "OpenSubs" -Text "Uploading $($SubtitlePaths.Count) cleaned $subWord to OpenSubtitles..." -Indent 1
+    }
 
     foreach ($srtPath in $SubtitlePaths) {
         $srtName = Split-Path -Path $srtPath -Leaf
@@ -1241,15 +1312,31 @@ function Start-SAOpenSubtitlesUpload {
         $movieSize = if ($VideoSizeMap.ContainsKey($videoBaseName)) { $VideoSizeMap[$videoBaseName] } else { [long]0 }
         $movieFileName = "$videoBaseName.mkv"
 
-        # Pre-check: search REST API for existing subtitles in this language
-        $existsOnSite = Test-SAOpenSubtitlesSubtitleExists -Config $config `
-            -MovieHash $movieHash `
-            -Language $lang `
-            -VideoFileName $movieFileName
+        # Guard: validate filename is suitable for upload
+        $uploadCheck = Test-SAUploadableSubtitle -VideoBaseName $videoBaseName -LabelType $labelType
+        if (-not $uploadCheck.Allowed) {
+            $failed++
+            Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "Skipped upload for '$srtName' ($($uploadCheck.Reason))" -Indent 1 -ConsoleOnly
+            continue
+        }
 
-        if ($existsOnSite) {
-            $duplicates++
-            Write-SAVerbose -Text "Subtitle already exists on OpenSubtitles for '$lang': $srtName"
+        # Pre-check: search REST API for existing subtitles in this language
+        if (-not $diagnosticMode) {
+            $existsOnSite = Test-SAOpenSubtitlesSubtitleExists -Config $config `
+                -MovieHash $movieHash `
+                -Language $lang `
+                -VideoFileName $movieFileName
+
+            if ($existsOnSite) {
+                $duplicates++
+                Write-SAVerbose -Text "Subtitle already exists on OpenSubtitles for '$lang': $srtName"
+                continue
+            }
+        }
+
+        if ($diagnosticMode) {
+            $uploaded++
+            Write-SAVerbose -Text "Diagnostic: would upload $srtName (lang=$lang, hash=$movieHash, imdb=$batchImdbId, video=$movieFileName)"
             continue
         }
 
@@ -1287,7 +1374,11 @@ function Start-SAOpenSubtitlesUpload {
     }
 
     # Batch summary
-    if ($uploaded -gt 0) {
+    if ($diagnosticMode -and $uploaded -gt 0) {
+        $subWord = Get-SAPluralForm -Count $uploaded -Singular 'subtitle'
+        Write-SAOutcome -Level Success -Label "OpenSubs" -Text "Diagnostic mode - would have uploaded $uploaded $subWord" -Indent 1
+    }
+    elseif ($uploaded -gt 0) {
         $subWord = Get-SAPluralForm -Count $uploaded -Singular 'subtitle'
         Write-SAOutcome -Level Success -Label "OpenSubs" -Text "Uploaded $uploaded $subWord to OpenSubtitles" -Indent 1
     }

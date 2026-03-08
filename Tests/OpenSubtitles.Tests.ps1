@@ -337,3 +337,210 @@ Describe 'Resolve-SAOpenSubtitlesImdbId' {
         }
     }
 }
+
+Describe 'Test-SAUploadableSubtitle' {
+
+    Context 'Filename blocklist' {
+
+        It 'should reject _unpack (case-insensitive)' {
+            InModuleScope 'Stagearr.Core' {
+                $result = Test-SAUploadableSubtitle -VideoBaseName '_Unpack' -LabelType 'tv'
+                $result.Allowed | Should -BeFalse
+                $result.Reason | Should -Match 'generic filename'
+            }
+        }
+
+        It 'should reject "video"' {
+            InModuleScope 'Stagearr.Core' {
+                $result = Test-SAUploadableSubtitle -VideoBaseName 'video' -LabelType 'movie'
+                $result.Allowed | Should -BeFalse
+                $result.Reason | Should -Match 'generic filename'
+            }
+        }
+
+        It 'should reject "output"' {
+            InModuleScope 'Stagearr.Core' {
+                $result = Test-SAUploadableSubtitle -VideoBaseName 'Output' -LabelType 'movie'
+                $result.Allowed | Should -BeFalse
+                $result.Reason | Should -Match 'generic filename'
+            }
+        }
+
+        It 'should reject single-character names' {
+            InModuleScope 'Stagearr.Core' {
+                $result = Test-SAUploadableSubtitle -VideoBaseName 'a' -LabelType 'tv'
+                $result.Allowed | Should -BeFalse
+                $result.Reason | Should -Match 'generic filename'
+            }
+        }
+
+        It 'should reject numeric-only names' {
+            InModuleScope 'Stagearr.Core' {
+                $result = Test-SAUploadableSubtitle -VideoBaseName '001' -LabelType 'tv'
+                $result.Allowed | Should -BeFalse
+                $result.Reason | Should -Match 'generic filename'
+            }
+        }
+    }
+
+    Context 'TV metadata validation' {
+
+        It 'should reject TV subtitle without season/episode in filename' {
+            InModuleScope 'Stagearr.Core' {
+                $result = Test-SAUploadableSubtitle -VideoBaseName 'The Dinosaurs 2160p NF WEB-DL' -LabelType 'tv'
+                $result.Allowed | Should -BeFalse
+                $result.Reason | Should -Match 'missing episode info'
+            }
+        }
+
+        It 'should allow TV subtitle with S01E01 pattern' {
+            InModuleScope 'Stagearr.Core' {
+                $result = Test-SAUploadableSubtitle -VideoBaseName 'The.Dinosaurs.S01E01.2160p.NF.WEB-DL.DDP5.1.Atmos.DV.HDR.H.265-BiOMA' -LabelType 'tv'
+                $result.Allowed | Should -BeTrue
+            }
+        }
+
+        It 'should allow TV subtitle with s01e01 lowercase pattern' {
+            InModuleScope 'Stagearr.Core' {
+                $result = Test-SAUploadableSubtitle -VideoBaseName 'show.s01e01.720p' -LabelType 'tv'
+                $result.Allowed | Should -BeTrue
+            }
+        }
+
+        It 'should allow TV subtitle with 1x01 pattern' {
+            InModuleScope 'Stagearr.Core' {
+                $result = Test-SAUploadableSubtitle -VideoBaseName 'Show.1x01.720p' -LabelType 'tv'
+                $result.Allowed | Should -BeTrue
+            }
+        }
+    }
+
+    Context 'Movie metadata validation' {
+
+        It 'should reject movie subtitle with single-word name and no year' {
+            InModuleScope 'Stagearr.Core' {
+                $result = Test-SAUploadableSubtitle -VideoBaseName 'Dinosaurs' -LabelType 'movie'
+                $result.Allowed | Should -BeFalse
+                $result.Reason | Should -Match 'unparseable title'
+            }
+        }
+
+        It 'should allow movie subtitle with multi-word title' {
+            InModuleScope 'Stagearr.Core' {
+                $result = Test-SAUploadableSubtitle -VideoBaseName 'The.Dinosaurs.2024.1080p.BluRay-GROUP' -LabelType 'movie'
+                $result.Allowed | Should -BeTrue
+            }
+        }
+
+        It 'should allow movie subtitle with title and year' {
+            InModuleScope 'Stagearr.Core' {
+                $result = Test-SAUploadableSubtitle -VideoBaseName 'Gladiator.2000.1080p' -LabelType 'movie'
+                $result.Allowed | Should -BeTrue
+            }
+        }
+    }
+
+    Context 'Passthrough label type' {
+
+        It 'should reject passthrough content (unknown label)' {
+            InModuleScope 'Stagearr.Core' {
+                $result = Test-SAUploadableSubtitle -VideoBaseName 'Some.File.720p' -LabelType 'passthrough'
+                $result.Allowed | Should -BeFalse
+                $result.Reason | Should -Match 'unknown content type'
+            }
+        }
+    }
+}
+
+Describe 'Start-SAOpenSubtitlesUpload guard integration' {
+
+    Context 'Diagnostic mode' {
+
+        It 'should not call XML-RPC login in diagnostic mode' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Write-SAProgress {}
+                Mock Write-SAOutcome {}
+                Mock Get-SAPluralForm { return 'subtitle' }
+                Mock Get-SALabelType { return 'tv' }
+                Mock Connect-SAOpenSubtitlesXmlRpc {}
+                Mock Resolve-SAOpenSubtitlesImdbId { return '' }
+                Mock Test-SAUploadableSubtitle { return [PSCustomObject]@{ Allowed = $true; Reason = '' } }
+
+                $context = @{
+                    Config = @{
+                        subtitles = @{
+                            openSubtitles = @{
+                                uploadDiagnosticMode = $true
+                            }
+                        }
+                    }
+                    State = @{
+                        ProcessingLabel = 'TV'
+                    }
+                }
+
+                $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) (New-Guid)
+                New-Item -ItemType Directory -Path $tmpDir | Out-Null
+                $srtPath = Join-Path $tmpDir 'Show.S01E01.en.srt'
+                Set-Content -Path $srtPath -Value 'test'
+
+                try {
+                    $result = Start-SAOpenSubtitlesUpload -Context $context -SubtitlePaths @($srtPath) `
+                        -VideoHashMap @{ 'Show.S01E01' = 'abc123' } `
+                        -VideoSizeMap @{ 'Show.S01E01' = [long]1000 }
+
+                    Should -Invoke Connect-SAOpenSubtitlesXmlRpc -Times 0
+                    $result.UploadedCount | Should -Be 1
+                } finally {
+                    Remove-Item $tmpDir -Recurse -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+
+    Context 'Blocked filenames' {
+
+        It 'should skip upload and warn for _unpack subtitle' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Write-SAProgress {}
+                Mock Write-SAOutcome {}
+                Mock Get-SAPluralForm { return 'subtitle' }
+                Mock Get-SALabelType { return 'tv' }
+                Mock Connect-SAOpenSubtitlesXmlRpc { return 'token' }
+                Mock Resolve-SAOpenSubtitlesImdbId { return '' }
+
+                $context = @{
+                    Config = @{
+                        subtitles = @{
+                            openSubtitles = @{
+                                uploadDiagnosticMode = $false
+                            }
+                        }
+                    }
+                    State = @{
+                        ProcessingLabel = 'TV'
+                    }
+                }
+
+                $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) (New-Guid)
+                New-Item -ItemType Directory -Path $tmpDir | Out-Null
+                $srtPath = Join-Path $tmpDir '_unpack.en.srt'
+                Set-Content -Path $srtPath -Value 'test'
+
+                try {
+                    $result = Start-SAOpenSubtitlesUpload -Context $context -SubtitlePaths @($srtPath) `
+                        -VideoHashMap @{ '_unpack' = 'abc123' } `
+                        -VideoSizeMap @{ '_unpack' = [long]1000 }
+
+                    $result.UploadedCount | Should -Be 0
+                    $result.FailedCount | Should -Be 1
+                    Should -Invoke Write-SAOutcome -ParameterFilter { $Level -eq 'Warning' -and $Text -match 'generic filename' }
+                } finally {
+                    Remove-Item $tmpDir -Recurse -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+}

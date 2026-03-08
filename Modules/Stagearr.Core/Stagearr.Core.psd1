@@ -74,6 +74,7 @@
         'Invoke-SASubtitleProcessing'
         'Get-SAOpenSubtitlesToken'
         'Start-SASubtitleCleanup'
+        'Test-SAUploadableSubtitle'
         
         # --- Import (media servers) ---
         'Invoke-SAImport'

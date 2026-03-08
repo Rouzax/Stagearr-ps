@@ -64,6 +64,8 @@ password = "your_password"
 apiKey = "your_api_key"
 # Upload cleaned subtitles (extracted/external only) back to OpenSubtitles after processing
 uploadCleaned = false
+# Diagnostic mode: logs what would be uploaded without actually uploading. Use to verify guards before going live.
+uploadDiagnosticMode = false
 
 [subtitles.openSubtitles.filters]
 # Subtitle filtering options: include, exclude, or only
