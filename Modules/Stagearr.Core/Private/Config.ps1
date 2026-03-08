@@ -56,6 +56,7 @@ $script:SAConfigDefaults = @{
             password      = ''
             apiKey        = ''
             uploadCleaned = $false
+            uploadDiagnosticMode = $false
             filters  = @{
                 hearingImpaired   = 'exclude'
                 foreignPartsOnly  = 'exclude'
