@@ -1247,6 +1247,8 @@ function Start-SAOpenSubtitlesUpload {
     )
 
     $config = $Context.Config.subtitles.openSubtitles
+    $diagnosticMode = $config.uploadDiagnosticMode -eq $true
+    $labelType = Get-SALabelType -Label $Context.State.ProcessingLabel -Config $Context.Config
 
     # ZLibStream requires .NET 6+ (PowerShell 7+)
     if ($PSVersionTable.PSVersion.Major -lt 7) {
@@ -1258,11 +1260,14 @@ function Start-SAOpenSubtitlesUpload {
     $duplicates = 0
     $failed = 0
 
-    # Login via XML-RPC
-    $token = Connect-SAOpenSubtitlesXmlRpc -Config $config
-    if (-not $token) {
-        Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "Upload login failed - skipping uploads" -Indent 1 -ConsoleOnly
-        return [PSCustomObject]@{ UploadedCount = 0; DuplicateCount = 0; FailedCount = $SubtitlePaths.Count }
+    $token = $null
+    if (-not $diagnosticMode) {
+        # Login via XML-RPC
+        $token = Connect-SAOpenSubtitlesXmlRpc -Config $config
+        if (-not $token) {
+            Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "Upload login failed - skipping uploads" -Indent 1 -ConsoleOnly
+            return [PSCustomObject]@{ UploadedCount = 0; DuplicateCount = 0; FailedCount = $SubtitlePaths.Count }
+        }
     }
 
     # Resolve IMDB ID once for the batch (using first video's hash + filename)
@@ -1275,7 +1280,11 @@ function Start-SAOpenSubtitlesUpload {
     }
 
     $subWord = Get-SAPluralForm -Count $SubtitlePaths.Count -Singular 'subtitle'
-    Write-SAProgress -Label "OpenSubs" -Text "Uploading $($SubtitlePaths.Count) cleaned $subWord to OpenSubtitles..." -Indent 1
+    if ($diagnosticMode) {
+        Write-SAProgress -Label "OpenSubs" -Text "Diagnostic mode: checking $($SubtitlePaths.Count) $subWord for upload eligibility..." -Indent 1
+    } else {
+        Write-SAProgress -Label "OpenSubs" -Text "Uploading $($SubtitlePaths.Count) cleaned $subWord to OpenSubtitles..." -Indent 1
+    }
 
     foreach ($srtPath in $SubtitlePaths) {
         $srtName = Split-Path -Path $srtPath -Leaf
@@ -1303,15 +1312,31 @@ function Start-SAOpenSubtitlesUpload {
         $movieSize = if ($VideoSizeMap.ContainsKey($videoBaseName)) { $VideoSizeMap[$videoBaseName] } else { [long]0 }
         $movieFileName = "$videoBaseName.mkv"
 
-        # Pre-check: search REST API for existing subtitles in this language
-        $existsOnSite = Test-SAOpenSubtitlesSubtitleExists -Config $config `
-            -MovieHash $movieHash `
-            -Language $lang `
-            -VideoFileName $movieFileName
+        # Guard: validate filename is suitable for upload
+        $uploadCheck = Test-SAUploadableSubtitle -VideoBaseName $videoBaseName -LabelType $labelType
+        if (-not $uploadCheck.Allowed) {
+            $failed++
+            Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "Skipped upload for '$srtName' ($($uploadCheck.Reason))" -Indent 1 -ConsoleOnly
+            continue
+        }
 
-        if ($existsOnSite) {
-            $duplicates++
-            Write-SAVerbose -Text "Subtitle already exists on OpenSubtitles for '$lang': $srtName"
+        # Pre-check: search REST API for existing subtitles in this language
+        if (-not $diagnosticMode) {
+            $existsOnSite = Test-SAOpenSubtitlesSubtitleExists -Config $config `
+                -MovieHash $movieHash `
+                -Language $lang `
+                -VideoFileName $movieFileName
+
+            if ($existsOnSite) {
+                $duplicates++
+                Write-SAVerbose -Text "Subtitle already exists on OpenSubtitles for '$lang': $srtName"
+                continue
+            }
+        }
+
+        if ($diagnosticMode) {
+            $uploaded++
+            Write-SAVerbose -Text "Diagnostic: would upload $srtName (lang=$lang, hash=$movieHash, imdb=$batchImdbId, video=$movieFileName)"
             continue
         }
 
@@ -1349,7 +1374,11 @@ function Start-SAOpenSubtitlesUpload {
     }
 
     # Batch summary
-    if ($uploaded -gt 0) {
+    if ($diagnosticMode -and $uploaded -gt 0) {
+        $subWord = Get-SAPluralForm -Count $uploaded -Singular 'subtitle'
+        Write-SAOutcome -Level Success -Label "OpenSubs" -Text "Diagnostic mode - would have uploaded $uploaded $subWord" -Indent 1
+    }
+    elseif ($uploaded -gt 0) {
         $subWord = Get-SAPluralForm -Count $uploaded -Singular 'subtitle'
         Write-SAOutcome -Level Success -Label "OpenSubs" -Text "Uploaded $uploaded $subWord to OpenSubtitles" -Indent 1
     }
