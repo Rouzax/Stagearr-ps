@@ -451,3 +451,96 @@ Describe 'Test-SAUploadableSubtitle' {
         }
     }
 }
+
+Describe 'Start-SAOpenSubtitlesUpload guard integration' {
+
+    Context 'Diagnostic mode' {
+
+        It 'should not call XML-RPC login in diagnostic mode' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Write-SAProgress {}
+                Mock Write-SAOutcome {}
+                Mock Get-SAPluralForm { return 'subtitle' }
+                Mock Get-SALabelType { return 'tv' }
+                Mock Connect-SAOpenSubtitlesXmlRpc {}
+                Mock Resolve-SAOpenSubtitlesImdbId { return '' }
+                Mock Test-SAUploadableSubtitle { return [PSCustomObject]@{ Allowed = $true; Reason = '' } }
+
+                $context = @{
+                    Config = @{
+                        subtitles = @{
+                            openSubtitles = @{
+                                uploadDiagnosticMode = $true
+                            }
+                        }
+                    }
+                    State = @{
+                        ProcessingLabel = 'TV'
+                    }
+                }
+
+                $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) (New-Guid)
+                New-Item -ItemType Directory -Path $tmpDir | Out-Null
+                $srtPath = Join-Path $tmpDir 'Show.S01E01.en.srt'
+                Set-Content -Path $srtPath -Value 'test'
+
+                try {
+                    $result = Start-SAOpenSubtitlesUpload -Context $context -SubtitlePaths @($srtPath) `
+                        -VideoHashMap @{ 'Show.S01E01' = 'abc123' } `
+                        -VideoSizeMap @{ 'Show.S01E01' = [long]1000 }
+
+                    Should -Invoke Connect-SAOpenSubtitlesXmlRpc -Times 0
+                    $result.UploadedCount | Should -Be 1
+                } finally {
+                    Remove-Item $tmpDir -Recurse -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+
+    Context 'Blocked filenames' {
+
+        It 'should skip upload and warn for _unpack subtitle' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Write-SAProgress {}
+                Mock Write-SAOutcome {}
+                Mock Get-SAPluralForm { return 'subtitle' }
+                Mock Get-SALabelType { return 'tv' }
+                Mock Connect-SAOpenSubtitlesXmlRpc { return 'token' }
+                Mock Resolve-SAOpenSubtitlesImdbId { return '' }
+
+                $context = @{
+                    Config = @{
+                        subtitles = @{
+                            openSubtitles = @{
+                                uploadDiagnosticMode = $false
+                            }
+                        }
+                    }
+                    State = @{
+                        ProcessingLabel = 'TV'
+                    }
+                }
+
+                $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) (New-Guid)
+                New-Item -ItemType Directory -Path $tmpDir | Out-Null
+                $srtPath = Join-Path $tmpDir '_unpack.en.srt'
+                Set-Content -Path $srtPath -Value 'test'
+
+                try {
+                    $result = Start-SAOpenSubtitlesUpload -Context $context -SubtitlePaths @($srtPath) `
+                        -VideoHashMap @{ '_unpack' = 'abc123' } `
+                        -VideoSizeMap @{ '_unpack' = [long]1000 }
+
+                    $result.UploadedCount | Should -Be 0
+                    $result.FailedCount | Should -Be 1
+                    Should -Invoke Write-SAOutcome -ParameterFilter { $Level -eq 'Warning' -and $Text -match 'generic filename' }
+                } finally {
+                    Remove-Item $tmpDir -Recurse -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+}
