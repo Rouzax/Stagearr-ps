@@ -1171,6 +1171,7 @@ function Test-SAUploadableSubtitle {
         [string]$VideoBaseName,
 
         [Parameter(Mandatory = $true)]
+        [ValidateSet('tv', 'movie', 'passthrough')]
         [string]$LabelType
     )
 
