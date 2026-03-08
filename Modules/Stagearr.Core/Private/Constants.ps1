@@ -69,6 +69,9 @@ $script:SAConstants = @{
     # Delay between upload requests (milliseconds)
     OpenSubtitlesUploadDelayMs = 1500
 
+    # Filenames too generic for OpenSubtitles upload (case-insensitive, matched against base name without extension)
+    OpenSubtitlesUploadBlockedNames = @('_unpack', 'video', 'output', 'movie', 'film')
+
     #endregion
     
     #region SubtitleEdit Defaults
