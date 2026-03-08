@@ -1316,7 +1316,7 @@ function Start-SAOpenSubtitlesUpload {
         $uploadCheck = Test-SAUploadableSubtitle -VideoBaseName $videoBaseName -LabelType $labelType
         if (-not $uploadCheck.Allowed) {
             $failed++
-            Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "Skipped upload for '$srtName' ($($uploadCheck.Reason))" -Indent 1 -ConsoleOnly
+            Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "Skipped upload for '$srtName' ($($uploadCheck.Reason))" -Indent 1
             continue
         }
 
