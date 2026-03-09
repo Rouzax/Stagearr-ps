@@ -28,9 +28,11 @@ Describe 'Get-SAArrQueueRecords' {
                 }
 
                 $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
-                $result = Get-SAArrQueueRecords -Config $config -DownloadId 'ABC123'
+                $result = Get-SAArrQueueRecords -AppType 'Sonarr' -Config $config -DownloadId 'ABC123'
 
                 $script:CapturedUri | Should -Match 'downloadId=ABC123'
+                $script:CapturedUri | Should -Match 'includeSeries=true'
+                $script:CapturedUri | Should -Match 'includeEpisode=true'
                 $result.Count | Should -Be 1
                 $result[0].seriesId | Should -Be 380
             }
@@ -45,7 +47,7 @@ Describe 'Get-SAArrQueueRecords' {
                 Mock Invoke-SAWebRequest {}
 
                 $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
-                $result = Get-SAArrQueueRecords -Config $config -DownloadId ''
+                $result = Get-SAArrQueueRecords -AppType 'Sonarr' -Config $config -DownloadId ''
 
                 $result | Should -BeNullOrEmpty
                 Should -Invoke Invoke-SAWebRequest -Times 0
@@ -63,7 +65,7 @@ Describe 'Get-SAArrQueueRecords' {
                 }
 
                 $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
-                $result = Get-SAArrQueueRecords -Config $config -DownloadId 'ABC123'
+                $result = Get-SAArrQueueRecords -AppType 'Sonarr' -Config $config -DownloadId 'ABC123'
 
                 $result | Should -BeNullOrEmpty
             }

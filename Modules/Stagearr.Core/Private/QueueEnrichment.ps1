@@ -21,6 +21,10 @@ function Get-SAArrQueueRecords {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
+        [ValidateSet('Radarr', 'Sonarr')]
+        [string]$AppType,
+
+        [Parameter(Mandatory = $true)]
         [hashtable]$Config,
 
         [Parameter()]
@@ -33,7 +37,12 @@ function Get-SAArrQueueRecords {
 
     $urlInfo = Get-SAImporterBaseUrl -Config $Config
     $baseUrl = $urlInfo.Url
-    $uri = "$baseUrl/api/v3/queue?downloadId=$DownloadId&pageSize=100"
+    $includeParams = if ($AppType -eq 'Sonarr') {
+        '&includeSeries=true&includeEpisode=true'
+    } else {
+        '&includeMovie=true'
+    }
+    $uri = "$baseUrl/api/v3/queue?downloadId=$DownloadId&pageSize=100$includeParams"
 
     $headers = @{
         'X-Api-Key' = $Config.apiKey
@@ -103,7 +112,7 @@ function Invoke-SAArrQueueEnrichment {
         return , $ScanResults
     }
 
-    $queueRecords = Get-SAArrQueueRecords -Config $Config -DownloadId $DownloadId
+    $queueRecords = Get-SAArrQueueRecords -AppType $AppType -Config $Config -DownloadId $DownloadId
     if ($null -eq $queueRecords -or @($queueRecords).Count -eq 0) {
         return , $ScanResults
     }
