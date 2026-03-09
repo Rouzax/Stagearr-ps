@@ -161,12 +161,26 @@ function Update-SASonarrScanFromQueue {
             $file.series = $seriesData
             $enrichedCount++
 
-            # Match episodes by season/episode number
+            # Match episodes by season/episode number from scan data
             if ($null -ne $file.episodes -and @($file.episodes).Count -gt 0) {
                 foreach ($scanEp in @($file.episodes)) {
                     $key = "$($scanEp.seasonNumber):$($scanEp.episodeNumber)"
                     if ($episodeLookup.ContainsKey($key)) {
                         $scanEp.id = $episodeLookup[$key].episode.id
+                    }
+                }
+            } else {
+                # Scan returned no episodes (Unknown Series = no parsing).
+                # Parse S01E01 from filename and match to queue episode data.
+                $fileName = Split-Path -Path $file.path -Leaf
+                if ($fileName -match '[Ss](\d+)[Ee](\d+)') {
+                    $parsedSeason = [int]$Matches[1]
+                    $parsedEpisode = [int]$Matches[2]
+                    $key = "$($parsedSeason):$($parsedEpisode)"
+                    if ($episodeLookup.ContainsKey($key)) {
+                        $queueEp = $episodeLookup[$key].episode
+                        $file.episodes = @($queueEp)
+                        Write-SAVerbose -Text "Queue enrichment: matched $fileName to S${parsedSeason}E${parsedEpisode}"
                     }
                 }
             }

@@ -239,4 +239,49 @@ Describe 'Invoke-SAArrQueueEnrichment' {
             }
         }
     }
+
+    Context 'Sonarr: episodes null - parse from filename' {
+
+        It 'should parse S01E01 from filename and inject episode from queue' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Get-SAArrQueueRecords {
+                    return @(
+                        @{ seriesId = 380; episodeId = 9766; seasonNumber = 1; episode = @{ id = 9766; seasonNumber = 1; episodeNumber = 1 }; series = @{ id = 380; title = 'Vanished' } }
+                        @{ seriesId = 380; episodeId = 9767; seasonNumber = 1; episode = @{ id = 9767; seasonNumber = 1; episodeNumber = 2 }; series = @{ id = 380; title = 'Vanished' } }
+                    )
+                }
+
+                # Real-world scenario: scan returns null episodes for Unknown Series
+                $scanResults = @(
+                    @{
+                        path       = '\\server\staging\Vanised.2026.S01E01.Rosefinch.2160p.AMZN.WEB-DL.DDP5.1.HDR.H.265-FLUX.mkv'
+                        series     = $null
+                        episodes   = $null
+                        quality    = @{ quality = @{ name = 'WEBDL-2160p' } }
+                        languages  = @(@{ name = 'English' })
+                        rejections = @(@{ type = 'permanent'; reason = 'Unknown Series' })
+                    }
+                    @{
+                        path       = '\\server\staging\Vanised.2026.S01E02.Limerence.2160p.AMZN.WEB-DL.DDP5.1.HDR.H.265-FLUX.mkv'
+                        series     = $null
+                        episodes   = $null
+                        quality    = @{ quality = @{ name = 'WEBDL-2160p' } }
+                        languages  = @(@{ name = 'English' })
+                        rejections = @(@{ type = 'permanent'; reason = 'Unknown Series' })
+                    }
+                )
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $result = Invoke-SAArrQueueEnrichment -AppType 'Sonarr' -Config $config `
+                    -ScanResults $scanResults -DownloadId 'ABC123'
+
+                $result[0].series.id | Should -Be 380
+                $result[0].episodes | Should -Not -BeNullOrEmpty
+                $result[0].episodes[0].id | Should -Be 9766
+                $result[1].episodes[0].id | Should -Be 9767
+                $result[0].rejections | Where-Object { $_.reason -match 'Unknown Series' } | Should -BeNullOrEmpty
+            }
+        }
+    }
 }
