@@ -7,6 +7,22 @@
     then injects that data into scan results where the filename parser failed.
 #>
 
+function Set-SAScanResultProperty {
+    <#
+    .SYNOPSIS
+        Safely sets a property on a PSCustomObject (from JSON deserialization).
+    .DESCRIPTION
+        ManualImport scan results are PSCustomObjects where null JSON fields may
+        not exist as properties. Direct assignment throws; this uses Add-Member.
+    #>
+    param($Object, [string]$Name, $Value)
+    if ($Object.PSObject.Properties[$Name]) {
+        $Object.$Name = $Value
+    } else {
+        $Object | Add-Member -NotePropertyName $Name -NotePropertyValue $Value -Force
+    }
+}
+
 function Get-SAArrQueueRecords {
     <#
     .SYNOPSIS
@@ -158,7 +174,7 @@ function Update-SASonarrScanFromQueue {
         $needsSeries = ($null -eq $file.series -or $null -eq $file.series.id -or $file.series.id -eq 0)
 
         if ($needsSeries -and $null -ne $seriesData) {
-            $file.series = $seriesData
+            Set-SAScanResultProperty $file 'series' $seriesData
             $enrichedCount++
 
             # Match episodes by season/episode number from scan data
@@ -179,16 +195,17 @@ function Update-SASonarrScanFromQueue {
                     $key = "$($parsedSeason):$($parsedEpisode)"
                     if ($episodeLookup.ContainsKey($key)) {
                         $queueEp = $episodeLookup[$key].episode
-                        $file.episodes = @($queueEp)
+                        Set-SAScanResultProperty $file 'episodes' @($queueEp)
                         Write-SAVerbose -Text "Queue enrichment: matched $fileName to S${parsedSeason}E${parsedEpisode}"
                     }
                 }
             }
 
             # Remove "Unknown Series" rejections
-            $file.rejections = @($file.rejections | Where-Object {
+            $filtered = @($file.rejections | Where-Object {
                 $_.reason -notmatch 'Unknown Series'
             })
+            Set-SAScanResultProperty $file 'rejections' $filtered
         }
     }
 
@@ -220,13 +237,14 @@ function Update-SARadarrScanFromQueue {
         $needsMovie = ($null -eq $file.movie -or $null -eq $file.movie.id -or $file.movie.id -eq 0)
 
         if ($needsMovie -and $null -ne $movieData) {
-            $file.movie = $movieData
+            Set-SAScanResultProperty $file 'movie' $movieData
             $enrichedCount++
 
             # Remove "Unknown Movie" rejections
-            $file.rejections = @($file.rejections | Where-Object {
+            $filtered = @($file.rejections | Where-Object {
                 $_.reason -notmatch 'Unknown Movie'
             })
+            Set-SAScanResultProperty $file 'rejections' $filtered
         }
     }
 

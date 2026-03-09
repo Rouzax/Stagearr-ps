@@ -284,4 +284,38 @@ Describe 'Invoke-SAArrQueueEnrichment' {
             }
         }
     }
+
+    Context 'Sonarr: PSCustomObject scan results (real API shape)' {
+
+        It 'should handle PSCustomObject where null properties do not exist' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Get-SAArrQueueRecords {
+                    return @(
+                        @{ seriesId = 380; episodeId = 9766; seasonNumber = 1; episode = @{ id = 9766; seasonNumber = 1; episodeNumber = 1 }; series = @{ id = 380; title = 'Vanished' } }
+                    )
+                }
+
+                # Simulate real API response: PSCustomObject with null series/episodes
+                $scanResults = @(
+                    [PSCustomObject]@{
+                        path       = '\\server\staging\Vanised.2026.S01E01.Rosefinch.mkv'
+                        series     = $null
+                        episodes   = $null
+                        quality    = [PSCustomObject]@{ quality = [PSCustomObject]@{ name = 'WEBDL-2160p' } }
+                        languages  = @([PSCustomObject]@{ name = 'English' })
+                        rejections = @([PSCustomObject]@{ type = 'permanent'; reason = 'Unknown Series' })
+                    }
+                )
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $result = Invoke-SAArrQueueEnrichment -AppType 'Sonarr' -Config $config `
+                    -ScanResults $scanResults -DownloadId 'ABC123'
+
+                $result[0].series.id | Should -Be 380
+                $result[0].episodes | Should -Not -BeNullOrEmpty
+                $result[0].episodes[0].id | Should -Be 9766
+            }
+        }
+    }
 }
