@@ -220,6 +220,18 @@ function Invoke-SAArrImport {
             ArrMetadata   = $null
         }
     }
+
+    # ==========================================================================
+    # STEP 1.5: ENRICH - Use queue data to fill missing series/movie info
+    # ==========================================================================
+    # When *arr grabs a torrent, it records which series/movie it belongs to.
+    # If the scan couldn't match files (e.g., misspelled release name), we use
+    # the queue to inject the correct identity before filtering.
+    if (-not [string]::IsNullOrWhiteSpace($DownloadId)) {
+        $scanItems = @(Invoke-SAArrQueueEnrichment -AppType $AppType -Config $Config `
+            -ScanResults $scanItems -DownloadId $DownloadId)
+    }
+
     $arrMetadata = ConvertTo-SAArrMetadata -ScanResult $scanItems[0] -AppType $AppType
     
     # ==========================================================================
