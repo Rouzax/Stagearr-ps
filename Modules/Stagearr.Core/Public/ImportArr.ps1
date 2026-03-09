@@ -205,7 +205,7 @@ function Invoke-SAArrImport {
     }
     
     # ==========================================================================
-    # STEP 2: EXTRACT - Get metadata early (available even on rejection/failure)
+    # STEP 2: ENRICH - Use queue data to fill missing series/movie info
     # ==========================================================================
     # Wrap in @() for PS5.1 single-element array safety
     $scanItems = @($scanResult.ScanResults)
@@ -221,9 +221,6 @@ function Invoke-SAArrImport {
         }
     }
 
-    # ==========================================================================
-    # STEP 1.5: ENRICH - Use queue data to fill missing series/movie info
-    # ==========================================================================
     # When *arr grabs a torrent, it records which series/movie it belongs to.
     # If the scan couldn't match files (e.g., misspelled release name), we use
     # the queue to inject the correct identity before filtering.
@@ -232,10 +229,13 @@ function Invoke-SAArrImport {
             -ScanResults $scanItems -DownloadId $DownloadId)
     }
 
-    $arrMetadata = ConvertTo-SAArrMetadata -ScanResult $scanItems[0] -AppType $AppType
-    
     # ==========================================================================
-    # STEP 3: FILTER - Identify importable files vs rejected files
+    # STEP 3: EXTRACT - Get metadata early (available even on rejection/failure)
+    # ==========================================================================
+    $arrMetadata = ConvertTo-SAArrMetadata -ScanResult $scanItems[0] -AppType $AppType
+
+    # ==========================================================================
+    # STEP 4: FILTER - Identify importable files vs rejected files
     # ==========================================================================
     $importableFiles = Get-SAImportableFiles -ScanResults $scanItems
     $rejectionSummary = Get-SARejectionSummary -ScanResults $scanItems
@@ -254,7 +254,7 @@ function Invoke-SAArrImport {
     }
     
     # ==========================================================================
-    # STEP 4: HANDLE REJECTIONS
+    # STEP 5: HANDLE REJECTIONS
     # ==========================================================================
     
     # Map rejection reasons to error types for hint compatibility
@@ -297,7 +297,7 @@ function Invoke-SAArrImport {
     }
     
     # ==========================================================================
-    # STEP 5: IMPORT - Execute ManualImport for filtered files
+    # STEP 6: IMPORT - Execute ManualImport for filtered files
     # ==========================================================================
     Write-SAProgress -Label $label -Text "Sending for import..." -Indent 1
     
@@ -315,7 +315,7 @@ function Invoke-SAArrImport {
     }
     
     # ==========================================================================
-    # STEP 6: BUILD RESULT
+    # STEP 7: BUILD RESULT
     # ==========================================================================
     
     if ($importResult.Success) {
