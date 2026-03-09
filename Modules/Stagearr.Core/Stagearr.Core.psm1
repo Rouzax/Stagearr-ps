@@ -44,6 +44,7 @@ $PrivateLoadOrder = @(
     'ImportUtility.ps1'           # Import utilities (hostname resolution, URL building, path translation)
     'ImportResultParser.ps1'      # Import result parsing (error categorization, hints)
     'ArrMetadata.ps1'             # *arr metadata extraction and normalization (ManualImport scan results)
+    'QueueEnrichment.ps1'         # Queue-based enrichment for ManualImport scan results
 )
 
 # Define load order for public functions
