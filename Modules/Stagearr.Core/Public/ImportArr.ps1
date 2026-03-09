@@ -225,8 +225,8 @@ function Invoke-SAArrImport {
     # If the scan couldn't match files (e.g., misspelled release name), we use
     # the queue to inject the correct identity before filtering.
     if (-not [string]::IsNullOrWhiteSpace($DownloadId)) {
-        $scanItems = @(Invoke-SAArrQueueEnrichment -AppType $AppType -Config $Config `
-            -ScanResults $scanItems -DownloadId $DownloadId)
+        $scanItems = Invoke-SAArrQueueEnrichment -AppType $AppType -Config $Config `
+            -ScanResults $scanItems -DownloadId $DownloadId
     }
 
     # ==========================================================================
