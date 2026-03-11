@@ -508,16 +508,72 @@ function Invoke-SAStandardJob {
         Write-SAVerbose -Text "Quality: $($qualityParts -join ', ')"
     }
 
-    # Query OMDb early — caches poster, ratings, and IMDB ID for subtitle upload and email
+    # Early *arr queue lookup — get IMDB ID and metadata before OMDb query
+    # This avoids OMDb title-based ambiguity (e.g., anime vs live-action "One Piece")
+    # and caches queue records for reuse during import (no duplicate API call)
+    $labelType = Get-SALabelType -Label $Job.input.downloadLabel -Config $Context.Config
+    $omdbType = if ($labelType -eq 'tv') { 'series' } else { 'movie' }
+
+    if ($labelType -ne 'passthrough' -and -not [string]::IsNullOrWhiteSpace($Job.input.torrentHash)) {
+        $arrAppType = if ($labelType -eq 'tv') { 'Sonarr' } else { 'Radarr' }
+        $arrConfig = $Context.Config.importers.($arrAppType.ToLower())
+
+        if ($null -ne $arrConfig -and $arrConfig.enabled) {
+            try {
+                $queueRecords = Get-SAArrQueueRecords -AppType $arrAppType -Config $arrConfig `
+                    -DownloadId $Job.input.torrentHash
+
+                if ($queueRecords -and $queueRecords.Count -gt 0) {
+                    # Cache for reuse during import (avoids duplicate API call)
+                    $Context.State.EarlyQueueRecords = $queueRecords
+
+                    # Extract metadata from first record's series/movie object
+                    $mediaObj = if ($arrAppType -eq 'Sonarr') { $queueRecords[0].series } else { $queueRecords[0].movie }
+
+                    if ($null -ne $mediaObj) {
+                        if (-not [string]::IsNullOrWhiteSpace($mediaObj.imdbId)) {
+                            $Context.State.ArrImdbId = $mediaObj.imdbId
+                        }
+                        if (-not [string]::IsNullOrWhiteSpace($mediaObj.title)) {
+                            $Context.State.ArrTitle = $mediaObj.title
+                        }
+                        if ($mediaObj.year -gt 0) {
+                            $Context.State.ArrYear = [string]$mediaObj.year
+                        }
+
+                        $arrDesc = @()
+                        if ($Context.State.ArrTitle) { $arrDesc += "`"$($Context.State.ArrTitle)`"" }
+                        if ($Context.State.ArrYear) { $arrDesc += "($($Context.State.ArrYear))" }
+                        if ($Context.State.ArrImdbId) { $arrDesc += "[$($Context.State.ArrImdbId)]" }
+                        Write-SAVerbose -Text "$arrAppType queue: $($arrDesc -join ' ')"
+                    }
+                }
+            } catch {
+                Write-SAVerbose -Text "$arrAppType queue lookup failed: $($_.Exception.Message)"
+            }
+        }
+    }
+
+    # Query OMDb — uses *arr IMDB ID for exact lookup, or falls back to title search
     if (Test-SAFeatureEnabled -Feature 'omdb' -Config $Context.Config) {
-        if ($releaseInfo -and $releaseInfo.Title) {
-            $labelType = Get-SALabelType -Label $Job.input.downloadLabel -Config $Context.Config
-            $omdbType = if ($labelType -eq 'tv') { 'series' } else { 'movie' }
-            $Context.State.OmdbData = Get-SAOmdbMetadata `
-                -Title $releaseInfo.Title `
-                -Year $releaseInfo.Year `
-                -Type $omdbType `
-                -Config $Context.Config.omdb
+        $omdbParams = @{
+            Config = $Context.Config.omdb
+            Type   = $omdbType
+        }
+        if ($Context.State.ArrImdbId) {
+            # Tier 1: Exact IMDB ID lookup (most reliable)
+            $omdbParams.ImdbId = $Context.State.ArrImdbId
+        } else {
+            # Tier 2/3: Title search — prefer *arr title/year over filename-parsed
+            $omdbTitle = if ($Context.State.ArrTitle) { $Context.State.ArrTitle } else { if ($releaseInfo) { $releaseInfo.Title } }
+            $omdbYear = if ($Context.State.ArrYear) { $Context.State.ArrYear } else { if ($releaseInfo) { $releaseInfo.Year } }
+            if (-not [string]::IsNullOrWhiteSpace($omdbTitle)) {
+                $omdbParams.Title = $omdbTitle
+                $omdbParams.Year = $omdbYear
+            }
+        }
+        if ($omdbParams.ImdbId -or $omdbParams.Title) {
+            $Context.State.OmdbData = Get-SAOmdbMetadata @omdbParams
         }
     }
 

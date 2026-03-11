@@ -75,6 +75,68 @@ Describe 'Get-SAArrQueueRecords' {
 
 Describe 'Invoke-SAArrQueueEnrichment' {
 
+    Context 'CachedQueueRecords: should skip API call when cached records provided' {
+
+        It 'should use cached records and not call Get-SAArrQueueRecords' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Get-SAArrQueueRecords {}
+
+                $cachedRecords = @(
+                    @{ seriesId = 380; episodeId = 9766; series = @{ id = 380; title = 'Vanished'; year = 2026 }; episode = @{ id = 9766; seasonNumber = 1; episodeNumber = 1 } }
+                )
+
+                $scanResults = @(
+                    @{
+                        path       = '\\server\staging\Vanised.S01E01.mkv'
+                        series     = $null
+                        episodes   = @(@{ id = 0; seasonNumber = 1; episodeNumber = 1 })
+                        quality    = @{ quality = @{ name = 'WEBDL-2160p' } }
+                        languages  = @(@{ name = 'English' })
+                        rejections = @(@{ type = 'permanent'; reason = 'Unknown Series' })
+                    }
+                )
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $result = Invoke-SAArrQueueEnrichment -AppType 'Sonarr' -Config $config `
+                    -ScanResults $scanResults -DownloadId 'ABC123' -CachedQueueRecords $cachedRecords
+
+                Should -Invoke Get-SAArrQueueRecords -Times 0
+                $result[0].series.id | Should -Be 380
+                $result[0].series.title | Should -Be 'Vanished'
+            }
+        }
+
+        It 'should fall back to API call when cached records is empty' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Get-SAArrQueueRecords {
+                    return @(
+                        @{ seriesId = 380; episodeId = 9766; series = @{ id = 380; title = 'Vanished'; year = 2026 }; episode = @{ id = 9766; seasonNumber = 1; episodeNumber = 1 } }
+                    )
+                }
+
+                $scanResults = @(
+                    @{
+                        path       = '\\server\staging\Vanised.S01E01.mkv'
+                        series     = $null
+                        episodes   = @(@{ id = 0; seasonNumber = 1; episodeNumber = 1 })
+                        quality    = @{ quality = @{ name = 'WEBDL-2160p' } }
+                        languages  = @(@{ name = 'English' })
+                        rejections = @(@{ type = 'permanent'; reason = 'Unknown Series' })
+                    }
+                )
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $result = Invoke-SAArrQueueEnrichment -AppType 'Sonarr' -Config $config `
+                    -ScanResults $scanResults -DownloadId 'ABC123' -CachedQueueRecords @()
+
+                Should -Invoke Get-SAArrQueueRecords -Times 1
+                $result[0].series.id | Should -Be 380
+            }
+        }
+    }
+
     Context 'Sonarr: scan results missing series data' {
 
         It 'should inject seriesId and series object from queue into unmatched files' {

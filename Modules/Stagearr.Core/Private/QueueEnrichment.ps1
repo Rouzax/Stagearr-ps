@@ -105,6 +105,9 @@ function Invoke-SAArrQueueEnrichment {
         Array of file objects from Invoke-SAArrManualImportScan.
     .PARAMETER DownloadId
         Download client ID (torrent hash).
+    .PARAMETER CachedQueueRecords
+        Pre-fetched queue records from early pipeline lookup. When provided,
+        skips the queue API call to avoid duplicate requests.
     .OUTPUTS
         Array of enriched scan result objects.
     #>
@@ -121,19 +124,28 @@ function Invoke-SAArrQueueEnrichment {
         [array]$ScanResults,
 
         [Parameter()]
-        [string]$DownloadId
+        [string]$DownloadId,
+
+        [Parameter()]
+        [array]$CachedQueueRecords
     )
 
-    if ([string]::IsNullOrWhiteSpace($DownloadId)) {
-        return , $ScanResults
-    }
+    # Use cached records if available, otherwise fetch from API
+    if ($null -ne $CachedQueueRecords -and @($CachedQueueRecords).Count -gt 0) {
+        Write-SAVerbose -Text "Queue enrichment: using cached queue data ($(@($CachedQueueRecords).Count) records)"
+        $queueRecords = @($CachedQueueRecords)
+    } else {
+        if ([string]::IsNullOrWhiteSpace($DownloadId)) {
+            return , $ScanResults
+        }
 
-    $queueRecords = Get-SAArrQueueRecords -AppType $AppType -Config $Config -DownloadId $DownloadId
-    if ($null -eq $queueRecords -or @($queueRecords).Count -eq 0) {
-        return , $ScanResults
-    }
+        $queueRecords = Get-SAArrQueueRecords -AppType $AppType -Config $Config -DownloadId $DownloadId
+        if ($null -eq $queueRecords -or @($queueRecords).Count -eq 0) {
+            return , $ScanResults
+        }
 
-    $queueRecords = @($queueRecords)
+        $queueRecords = @($queueRecords)
+    }
 
     if ($AppType -eq 'Sonarr') {
         return , (Update-SASonarrScanFromQueue -ScanResults $ScanResults -QueueRecords $queueRecords)

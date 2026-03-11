@@ -125,7 +125,9 @@ function Invoke-SAImport {
                 return Invoke-SAMedusaImport -Config $config.importers.medusa -StagingPath $stagingPath -StagingRoot $stagingRoot
             }
             elseif ($config.importers.sonarr.enabled) {
-                return Invoke-SASonarrImport -Config $config.importers.sonarr -StagingPath $stagingPath -StagingRoot $stagingRoot -DownloadId $Context.Job.input.torrentHash
+                return Invoke-SASonarrImport -Config $config.importers.sonarr -StagingPath $stagingPath `
+                    -StagingRoot $stagingRoot -DownloadId $Context.Job.input.torrentHash `
+                    -CachedQueueRecords $Context.State.EarlyQueueRecords
             }
             else {
                 Write-SAOutcome -Level Warning -Label "Import" -Text "No TV importer configured" -Indent 1
@@ -135,7 +137,9 @@ function Invoke-SAImport {
         
         'movie' {
             if ($config.importers.radarr.enabled) {
-                return Invoke-SARadarrImport -Config $config.importers.radarr -StagingPath $stagingPath -StagingRoot $stagingRoot -DownloadId $Context.Job.input.torrentHash
+                return Invoke-SARadarrImport -Config $config.importers.radarr -StagingPath $stagingPath `
+                    -StagingRoot $stagingRoot -DownloadId $Context.Job.input.torrentHash `
+                    -CachedQueueRecords $Context.State.EarlyQueueRecords
             }
             else {
                 Write-SAOutcome -Level Warning -Label "Import" -Text "Radarr not configured" -Indent 1

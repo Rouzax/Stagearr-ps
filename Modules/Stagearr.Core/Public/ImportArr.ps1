@@ -95,6 +95,9 @@ function Invoke-SAArrImport {
         Root staging folder for relative path calculation.
     .PARAMETER DownloadId
         Optional download client ID (torrent hash). Passed to ManualImport to associate the import with the download client history entry.
+    .PARAMETER CachedQueueRecords
+        Pre-fetched queue records from early pipeline lookup. When provided,
+        passed to queue enrichment to avoid a duplicate API call.
     .OUTPUTS
         PSCustomObject with:
         - Success: Boolean indicating if import completed (or was intentionally skipped)
@@ -118,18 +121,21 @@ function Invoke-SAArrImport {
         [Parameter(Mandatory = $true)]
         [ValidateSet('Radarr', 'Sonarr')]
         [string]$AppType,
-        
+
         [Parameter(Mandatory = $true)]
         [hashtable]$Config,
-        
+
         [Parameter(Mandatory = $true)]
         [string]$StagingPath,
-        
+
         [Parameter()]
         [string]$StagingRoot,
-        
+
         [Parameter()]
-        [string]$DownloadId
+        [string]$DownloadId,
+
+        [Parameter()]
+        [array]$CachedQueueRecords
     )
     
     $startTime = Get-Date
@@ -225,8 +231,16 @@ function Invoke-SAArrImport {
     # If the scan couldn't match files (e.g., misspelled release name), we use
     # the queue to inject the correct identity before filtering.
     if (-not [string]::IsNullOrWhiteSpace($DownloadId)) {
-        $scanItems = Invoke-SAArrQueueEnrichment -AppType $AppType -Config $Config `
-            -ScanResults $scanItems -DownloadId $DownloadId
+        $enrichParams = @{
+            AppType     = $AppType
+            Config      = $Config
+            ScanResults = $scanItems
+            DownloadId  = $DownloadId
+        }
+        if ($null -ne $CachedQueueRecords -and @($CachedQueueRecords).Count -gt 0) {
+            $enrichParams.CachedQueueRecords = $CachedQueueRecords
+        }
+        $scanItems = Invoke-SAArrQueueEnrichment @enrichParams
     }
 
     # ==========================================================================
@@ -917,6 +931,8 @@ function Invoke-SARadarrImport {
         Root staging folder for relative path calculation.
     .PARAMETER DownloadId
         Optional download client ID (torrent hash) for download history association.
+    .PARAMETER CachedQueueRecords
+        Pre-fetched queue records from early pipeline lookup.
     .OUTPUTS
         PSCustomObject with:
         - Success: Boolean (skips are considered success)
@@ -939,18 +955,22 @@ function Invoke-SARadarrImport {
     param(
         [Parameter(Mandatory = $true)]
         [hashtable]$Config,
-        
+
         [Parameter(Mandatory = $true)]
         [string]$StagingPath,
-        
+
         [Parameter()]
         [string]$StagingRoot,
-        
+
         [Parameter()]
-        [string]$DownloadId
+        [string]$DownloadId,
+
+        [Parameter()]
+        [array]$CachedQueueRecords
     )
-    
-    return Invoke-SAArrImport -AppType 'Radarr' -Config $Config -StagingPath $StagingPath -StagingRoot $StagingRoot -DownloadId $DownloadId
+
+    return Invoke-SAArrImport -AppType 'Radarr' -Config $Config -StagingPath $StagingPath `
+        -StagingRoot $StagingRoot -DownloadId $DownloadId -CachedQueueRecords $CachedQueueRecords
 }
 
 function Test-SARadarrConnection {
@@ -1088,6 +1108,8 @@ function Invoke-SASonarrImport {
         Root staging folder for relative path calculation.
     .PARAMETER DownloadId
         Optional download client ID (torrent hash) for download history association.
+    .PARAMETER CachedQueueRecords
+        Pre-fetched queue records from early pipeline lookup.
     .OUTPUTS
         PSCustomObject with:
         - Success: Boolean (skips are considered success)
@@ -1110,18 +1132,22 @@ function Invoke-SASonarrImport {
     param(
         [Parameter(Mandatory = $true)]
         [hashtable]$Config,
-        
+
         [Parameter(Mandatory = $true)]
         [string]$StagingPath,
-        
+
         [Parameter()]
         [string]$StagingRoot,
-        
+
         [Parameter()]
-        [string]$DownloadId
+        [string]$DownloadId,
+
+        [Parameter()]
+        [array]$CachedQueueRecords
     )
-    
-    return Invoke-SAArrImport -AppType 'Sonarr' -Config $Config -StagingPath $StagingPath -StagingRoot $StagingRoot -DownloadId $DownloadId
+
+    return Invoke-SAArrImport -AppType 'Sonarr' -Config $Config -StagingPath $StagingPath `
+        -StagingRoot $StagingRoot -DownloadId $DownloadId -CachedQueueRecords $CachedQueueRecords
 }
 
 function Test-SASonarrConnection {

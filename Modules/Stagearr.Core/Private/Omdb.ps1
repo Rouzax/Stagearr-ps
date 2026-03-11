@@ -372,16 +372,19 @@ function Get-SAOmdbMetadata {
     .DESCRIPTION
         Main entry point for OMDb integration. Fetches metadata including ratings,
         genre, runtime, and optionally downloads the poster as base64.
-        
-        Lookup strategy:
-        1. Try exact title + year match
-        2. If fails, return $null (graceful degradation)
-        
+
+        Lookup strategy (in priority order):
+        1. If ImdbId provided: exact lookup by IMDB ID (most reliable)
+        2. If Title provided: search by title + optional year
+        3. If neither: return $null
+
         Returns $null on any failure - email renders normally without OMDb data.
+    .PARAMETER ImdbId
+        IMDB ID for exact lookup (e.g., "tt11737520"). Takes priority over Title.
     .PARAMETER Title
-        Movie or TV show title to search for.
+        Movie or TV show title to search for. Used when ImdbId is not available.
     .PARAMETER Year
-        Release year (optional but recommended for accuracy).
+        Release year (optional but recommended for accuracy with title search).
     .PARAMETER Type
         Content type: 'movie' or 'series' (default: movie).
     .PARAMETER Config
@@ -394,23 +397,26 @@ function Get-SAOmdbMetadata {
     .OUTPUTS
         Hashtable with metadata, or $null on failure.
     .EXAMPLE
-        $omdb = Get-SAOmdbMetadata -Title "Inception" -Year "2010" -Config $config.omdb
+        $omdb = Get-SAOmdbMetadata -ImdbId "tt11737520" -Type "series" -Config $config.omdb
     .EXAMPLE
-        $omdb = Get-SAOmdbMetadata -Title "Breaking Bad" -Type "series" -Config $config.omdb
+        $omdb = Get-SAOmdbMetadata -Title "Inception" -Year "2010" -Config $config.omdb
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
     param(
-        [Parameter(Mandatory = $true)]
+        [Parameter()]
+        [string]$ImdbId,
+
+        [Parameter()]
         [string]$Title,
-        
+
         [Parameter()]
         [string]$Year,
-        
+
         [Parameter()]
         [ValidateSet('movie', 'series')]
         [string]$Type = 'movie',
-        
+
         [Parameter()]
         [hashtable]$Config
     )
@@ -438,26 +444,42 @@ function Get-SAOmdbMetadata {
     $plotEnabled = if ($null -ne $Config.display -and $null -ne $Config.display.plot) { $Config.display.plot } else { $false }
     $plotMaxLength = if ($null -ne $Config.display -and $Config.display.plotMaxLength -gt 0) { $Config.display.plotMaxLength } else { 150 }
     
-    # Build request URL
-    $encodedTitle = [System.Web.HttpUtility]::UrlEncode($Title)
-    $url = "${script:SAOmdbBaseUrl}?apikey=$apiKey&t=$encodedTitle&type=$Type"
-    
-    if (-not [string]::IsNullOrWhiteSpace($Year)) {
-        $url += "&y=$Year"
+    # Validate: need at least ImdbId or Title
+    $hasImdbId = -not [string]::IsNullOrWhiteSpace($ImdbId)
+    $hasTitle = -not [string]::IsNullOrWhiteSpace($Title)
+
+    if (-not $hasImdbId -and -not $hasTitle) {
+        Write-SAVerbose -Label 'OMDb' -Text 'No IMDB ID or title provided'
+        return $null
     }
-    
+
+    # Build request URL — IMDB ID lookup takes priority
+    if ($hasImdbId) {
+        # Ensure tt prefix
+        $normalizedId = if ($ImdbId -match '^tt') { $ImdbId } else { "tt$ImdbId" }
+        $url = "${script:SAOmdbBaseUrl}?apikey=$apiKey&i=$normalizedId&type=$Type"
+        $searchDesc = "$normalizedId"
+    } else {
+        $encodedTitle = [System.Web.HttpUtility]::UrlEncode($Title)
+        $url = "${script:SAOmdbBaseUrl}?apikey=$apiKey&t=$encodedTitle&type=$Type"
+        if (-not [string]::IsNullOrWhiteSpace($Year)) {
+            $url += "&y=$Year"
+        }
+        $searchDesc = if (-not [string]::IsNullOrWhiteSpace($Year)) { "`"$Title`" ($Year)" } else { "`"$Title`"" }
+    }
+
     # Add plot if enabled
     if ($plotEnabled) {
         $url += '&plot=short'
     }
-    
-    # Log search
-    $searchDesc = if (-not [string]::IsNullOrWhiteSpace($Year)) { "`"$Title`" ($Year)" } else { "`"$Title`"" }
-    Write-SAVerbose -Label 'OMDb' -Text "Fetching metadata for $searchDesc"
-    
+
+    # Log search with full query parameters
+    $lookupMethod = if ($hasImdbId) { 'by IMDB ID' } else { 'by title' }
+    Write-SAVerbose -Label 'OMDb' -Text "Fetching metadata ${lookupMethod}: $searchDesc (type=$Type)"
+
     # Make API request
     $response = Invoke-SAOmdbRequest -Uri $url -TimeoutSeconds $timeoutSeconds
-    
+
     if ($null -eq $response) {
         Write-SAVerbose -Label 'OMDb' -Text "No match found for $searchDesc"
         return $null
@@ -477,10 +499,14 @@ function Get-SAOmdbMetadata {
         $displayData.Plot = $null
     }
     
-    # Log success
+    # Log success with full details for troubleshooting mismatches
     $ratingInfo = if ($displayData.ImdbRating) { "IMDb $($displayData.ImdbRating)" } else { 'no rating' }
     $genreInfo = if ($displayData.Genre) { $displayData.Genre } else { 'unknown genre' }
-    Write-SAVerbose -Label 'OMDb' -Text "Found - $ratingInfo, $genreInfo"
+    $returnedTitle = if ($displayData.Title) { $displayData.Title } else { '?' }
+    $returnedYear = if ($displayData.Year) { $displayData.Year } else { '?' }
+    $returnedImdb = if ($displayData.ImdbId) { $displayData.ImdbId } else { '?' }
+    $returnedType = if ($displayData.Type) { $displayData.Type } else { '?' }
+    Write-SAVerbose -Label 'OMDb' -Text "Found `"$returnedTitle`" ($returnedYear) [$returnedType] - $returnedImdb, $ratingInfo, $genreInfo"
     
     # Download poster if enabled
     if ($posterEnabled -and $displayData.Poster) {
