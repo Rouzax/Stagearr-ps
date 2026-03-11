@@ -1105,7 +1105,7 @@ function Get-SAEmailFooter {
     # Get version from module manifest if available
     $version = 'v2.0.0'
     try {
-        $manifestPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'Stagearr.Core.psd1'
+        $manifestPath = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'Stagearr.Core.psd1'
         if (Test-Path $manifestPath) {
             $manifest = Import-PowerShellDataFile -Path $manifestPath -ErrorAction SilentlyContinue
             if ($manifest.ModuleVersion) {
