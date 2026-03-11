@@ -73,6 +73,126 @@ Describe 'Get-SAArrQueueRecords' {
     }
 }
 
+Describe 'Get-SAArrHistoryRecords' {
+
+    Context 'When history contains records for the download ID' {
+
+        It 'should return series object from Sonarr history' {
+            InModuleScope 'Stagearr.Core' {
+                $script:CapturedUri = $null
+
+                Mock Write-SAVerbose {}
+                Mock Invoke-SAWebRequest {
+                    $script:CapturedUri = $Uri
+                    return @{
+                        Success = $true
+                        Data    = @{
+                            records = @(
+                                @{
+                                    eventType  = 'grabbed'
+                                    downloadId = 'ABC123'
+                                    series     = @{ id = 174; title = 'ONE PIECE (2023)'; year = 2023; imdbId = 'tt11737520' }
+                                    episode    = @{ id = 9001; seasonNumber = 2; episodeNumber = 1 }
+                                }
+                            )
+                        }
+                    }
+                }
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $result = Get-SAArrHistoryRecords -AppType 'Sonarr' -Config $config -DownloadId 'ABC123'
+
+                $script:CapturedUri | Should -Match 'history\?downloadId=ABC123'
+                $script:CapturedUri | Should -Match 'pageSize=1'
+                $script:CapturedUri | Should -Match 'includeSeries=true'
+                $result | Should -Not -BeNullOrEmpty
+                $result.title | Should -Be 'ONE PIECE (2023)'
+                $result.imdbId | Should -Be 'tt11737520'
+            }
+        }
+
+        It 'should return movie object from Radarr history' {
+            InModuleScope 'Stagearr.Core' {
+                $script:CapturedUri = $null
+
+                Mock Write-SAVerbose {}
+                Mock Invoke-SAWebRequest {
+                    $script:CapturedUri = $Uri
+                    return @{
+                        Success = $true
+                        Data    = @{
+                            records = @(
+                                @{
+                                    eventType  = 'grabbed'
+                                    downloadId = 'DEF456'
+                                    movie      = @{ id = 42; title = 'Some Movie'; year = 2024; imdbId = 'tt9999999' }
+                                }
+                            )
+                        }
+                    }
+                }
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 7878; ssl = $false; urlRoot = '' }
+                $result = Get-SAArrHistoryRecords -AppType 'Radarr' -Config $config -DownloadId 'DEF456'
+
+                $script:CapturedUri | Should -Match 'includeMovie=true'
+                $result.title | Should -Be 'Some Movie'
+                $result.imdbId | Should -Be 'tt9999999'
+            }
+        }
+    }
+
+    Context 'When history is empty' {
+
+        It 'should return null' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Invoke-SAWebRequest {
+                    return @{ Success = $true; Data = @{ records = @() } }
+                }
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $result = Get-SAArrHistoryRecords -AppType 'Sonarr' -Config $config -DownloadId 'UNKNOWN'
+
+                $result | Should -BeNullOrEmpty
+            }
+        }
+    }
+
+    Context 'When DownloadId is empty' {
+
+        It 'should return null without calling API' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Invoke-SAWebRequest {}
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $result = Get-SAArrHistoryRecords -AppType 'Sonarr' -Config $config -DownloadId ''
+
+                $result | Should -BeNullOrEmpty
+                Should -Invoke Invoke-SAWebRequest -Times 0
+            }
+        }
+    }
+
+    Context 'When API call fails' {
+
+        It 'should return null and not throw' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Invoke-SAWebRequest {
+                    return @{ Success = $false; ErrorMessage = 'Connection refused' }
+                }
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $result = Get-SAArrHistoryRecords -AppType 'Sonarr' -Config $config -DownloadId 'ABC123'
+
+                $result | Should -BeNullOrEmpty
+            }
+        }
+    }
+}
+
 Describe 'Invoke-SAArrQueueEnrichment' {
 
     Context 'CachedQueueRecords: should skip API call when cached records provided' {

@@ -89,6 +89,88 @@ function Get-SAArrQueueRecords {
     return , $records
 }
 
+function Get-SAArrHistoryRecords {
+    <#
+    .SYNOPSIS
+        Queries the *arr history API for the series/movie associated with a download ID.
+    .DESCRIPTION
+        Fallback for when Get-SAArrQueueRecords returns empty (torrent already finished
+        and removed from queue). The history API retains records indefinitely.
+        Returns the series or movie object from the first history record.
+    .PARAMETER AppType
+        The *arr application type: 'Radarr' or 'Sonarr'.
+    .PARAMETER Config
+        Application configuration hashtable (host, port, apiKey, etc.).
+    .PARAMETER DownloadId
+        Download client ID (torrent hash) to filter by.
+    .OUTPUTS
+        Series or movie object from history, or $null on failure/empty.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Radarr', 'Sonarr')]
+        [string]$AppType,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config,
+
+        [Parameter()]
+        [string]$DownloadId
+    )
+
+    if ([string]::IsNullOrWhiteSpace($DownloadId)) {
+        return $null
+    }
+
+    $urlInfo = Get-SAImporterBaseUrl -Config $Config
+    $baseUrl = $urlInfo.Url
+    $includeParams = if ($AppType -eq 'Sonarr') {
+        '&includeSeries=true&includeEpisode=true'
+    } else {
+        '&includeMovie=true'
+    }
+    $uri = "$baseUrl/api/v3/history?downloadId=$DownloadId&pageSize=1$includeParams"
+
+    $headers = @{
+        'X-Api-Key' = $Config.apiKey
+        'Accept'    = 'application/json'
+    }
+    if ($urlInfo.HostHeader) {
+        $headers['Host'] = $urlInfo.HostHeader
+    }
+
+    Write-SAVerbose -Text "History lookup for download ID: $DownloadId"
+
+    $result = Invoke-SAWebRequest -Uri $uri -Method GET -Headers $headers -TimeoutSeconds 15
+    if (-not $result.Success) {
+        Write-SAVerbose -Text "History lookup failed: $($result.ErrorMessage)"
+        return $null
+    }
+
+    $records = @()
+    if ($null -ne $result.Data -and $null -ne $result.Data.records) {
+        $records = @($result.Data.records)
+    }
+
+    if ($records.Count -eq 0) {
+        Write-SAVerbose -Text "History lookup: no records found"
+        return $null
+    }
+
+    # Extract the series/movie object from the first history record
+    $mediaObj = if ($AppType -eq 'Sonarr') { $records[0].series } else { $records[0].movie }
+
+    if ($null -ne $mediaObj) {
+        $title = if ($mediaObj.title) { $mediaObj.title } else { '?' }
+        Write-SAVerbose -Text "History lookup: found `"$title`""
+    } else {
+        Write-SAVerbose -Text "History lookup: record found but no media data"
+    }
+
+    return $mediaObj
+}
+
 function Invoke-SAArrQueueEnrichment {
     <#
     .SYNOPSIS

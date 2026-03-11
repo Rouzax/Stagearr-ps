@@ -520,36 +520,45 @@ function Invoke-SAStandardJob {
 
         if ($null -ne $arrConfig -and $arrConfig.enabled) {
             try {
+                # Try queue first (active downloads), then history (completed downloads)
+                $mediaObj = $null
+                $mediaSource = $null
+
                 $queueRecords = Get-SAArrQueueRecords -AppType $arrAppType -Config $arrConfig `
                     -DownloadId $Job.input.torrentHash
 
                 if ($queueRecords -and $queueRecords.Count -gt 0) {
                     # Cache for reuse during import (avoids duplicate API call)
                     $Context.State.EarlyQueueRecords = $queueRecords
-
-                    # Extract metadata from first record's series/movie object
                     $mediaObj = if ($arrAppType -eq 'Sonarr') { $queueRecords[0].series } else { $queueRecords[0].movie }
+                    $mediaSource = 'queue'
+                } else {
+                    # Queue empty (torrent finished) — fall back to history API
+                    $mediaObj = Get-SAArrHistoryRecords -AppType $arrAppType -Config $arrConfig `
+                        -DownloadId $Job.input.torrentHash
+                    $mediaSource = 'history'
+                }
 
-                    if ($null -ne $mediaObj) {
-                        if (-not [string]::IsNullOrWhiteSpace($mediaObj.imdbId)) {
-                            $Context.State.ArrImdbId = $mediaObj.imdbId
-                        }
-                        if (-not [string]::IsNullOrWhiteSpace($mediaObj.title)) {
-                            $Context.State.ArrTitle = $mediaObj.title
-                        }
-                        if ($mediaObj.year -gt 0) {
-                            $Context.State.ArrYear = [string]$mediaObj.year
-                        }
-
-                        $arrDesc = @()
-                        if ($Context.State.ArrTitle) { $arrDesc += "`"$($Context.State.ArrTitle)`"" }
-                        if ($Context.State.ArrYear) { $arrDesc += "($($Context.State.ArrYear))" }
-                        if ($Context.State.ArrImdbId) { $arrDesc += "[$($Context.State.ArrImdbId)]" }
-                        Write-SAVerbose -Text "$arrAppType queue: $($arrDesc -join ' ')"
+                # Extract metadata from series/movie object
+                if ($null -ne $mediaObj) {
+                    if (-not [string]::IsNullOrWhiteSpace($mediaObj.imdbId)) {
+                        $Context.State.ArrImdbId = $mediaObj.imdbId
                     }
+                    if (-not [string]::IsNullOrWhiteSpace($mediaObj.title)) {
+                        $Context.State.ArrTitle = $mediaObj.title
+                    }
+                    if ($mediaObj.year -gt 0) {
+                        $Context.State.ArrYear = [string]$mediaObj.year
+                    }
+
+                    $arrDesc = @()
+                    if ($Context.State.ArrTitle) { $arrDesc += "`"$($Context.State.ArrTitle)`"" }
+                    if ($Context.State.ArrYear) { $arrDesc += "($($Context.State.ArrYear))" }
+                    if ($Context.State.ArrImdbId) { $arrDesc += "[$($Context.State.ArrImdbId)]" }
+                    Write-SAVerbose -Text "$arrAppType ${mediaSource}: $($arrDesc -join ' ')"
                 }
             } catch {
-                Write-SAVerbose -Text "$arrAppType queue lookup failed: $($_.Exception.Message)"
+                Write-SAVerbose -Text "$arrAppType lookup failed: $($_.Exception.Message)"
             }
         }
     }
