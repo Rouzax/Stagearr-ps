@@ -25,3 +25,6 @@ Desktop.ini
 .claude/
 CLAUDE.md
 .worktrees/
+
+# Design and implementation plans (local only)
+Docs/plans/
