@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stagearr — Automated Media Processing Pipeline</title>
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Stagearr — Automated Media Processing Pipeline">
+  <meta property="og:description" content="Automated post-processing for qBittorrent. Extract, remux, subtitle, import — zero manual steps.">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    /* ── Custom Properties ── */
+    :root {
+      --bg-page: #0f172a;
+      --bg-card: #1e293b;
+      --bg-card-hover: #253347;
+      --green: #22c55e;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --blue: #60a5fa;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --border: #334155;
+      --imdb-yellow: #f5c518;
+      --tomato-red: #fa320a;
+      --metacritic-green: #66cc33;
+    }
+
+    /* ── CSS Reset ── */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-page);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    img, svg { display: block; max-width: 100%; }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; cursor: pointer; border: none; background: none; }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    section {
+      padding: 5rem 0;
+    }
+
+    /* ── Animation System ── */
+    [data-animate] {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+      transition-delay: var(--delay, 0s);
+    }
+
+    [data-animate].visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── Hero Section ── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      padding: 2rem 0;
+    }
+
+    .hero-glow {
+      position: absolute;
+      top: 30%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 800px;
+      height: 500px;
+      background: radial-gradient(ellipse at center,
+        rgba(34, 197, 94, 0.10) 0%,
+        rgba(96, 165, 250, 0.08) 40%,
+        transparent 70%);
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.75rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 1.25rem;
+    }
+
+    .hero-subtitle {
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      color: var(--text-secondary);
+      max-width: 560px;
+      margin: 0 auto 3rem;
+      line-height: 1.7;
+    }
+
+    /* ── Pipeline Teaser ── */
+    .pipeline-teaser {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 2.5rem;
+      flex-wrap: wrap;
+      position: relative;
+    }
+
+    .pipeline-teaser .pill {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.4rem 1rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      position: relative;
+      z-index: 1;
+    }
+
+    .pipeline-teaser .arrow {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    /* Flowing dot */
+    .pipeline-track {
+      position: absolute;
+      top: 50%;
+      left: 5%;
+      width: 90%;
+      height: 2px;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .pipeline-dot {
+      position: absolute;
+      top: -3px;
+      left: -8px;
+      width: 8px;
+      height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      box-shadow: 0 0 12px var(--green);
+      animation: flowDot 3s ease-in-out infinite;
+    }
+
+    @keyframes flowDot {
+      0%   { left: -8px; opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { left: 100%; opacity: 0; }
+    }
+
+    /* ── CTA Buttons ── */
+    .cta-group {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem 2rem;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .btn-primary {
+      background: var(--green);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(34, 197, 94, 0.3);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 28px rgba(34, 197, 94, 0.45);
+    }
+
+    .btn-outline {
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .btn-outline:hover {
+      border-color: var(--text-secondary);
+      color: var(--text-primary);
+    }
+
+    /* ── Section Titles ── */
+    .section-title {
+      text-align: center;
+      font-size: clamp(1.5rem, 3.5vw, 2.5rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+
+    .section-subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      max-width: 520px;
+      margin: 0 auto 3.5rem;
+      font-size: 1.05rem;
+    }
+
+    /* ── Pipeline Visualization ── */
+    .pipeline-section {
+      padding: 6rem 0;
+    }
+
+    .phase-row {
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 2.5rem;
+    }
+
+    .phase-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: center;
+      flex: 1;
+      max-width: 200px;
+      transition: border-color 0.3s ease;
+    }
+
+    .phase-card:hover {
+      border-color: var(--green);
+    }
+
+    .phase-icon {
+      font-size: 1.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .phase-name {
+      font-weight: 700;
+      font-size: 0.95rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .phase-desc {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .phase-arrow {
+      display: flex;
+      align-items: center;
+      padding: 0 0.5rem;
+      color: var(--text-muted);
+      font-size: 1.25rem;
+      flex-shrink: 0;
+      animation: arrowPulse 2s ease-in-out infinite;
+    }
+
+    @keyframes arrowPulse {
+      0%, 100% { opacity: 0.4; }
+      50%      { opacity: 1; }
+    }
+
+    .pipeline-note {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    /* ── Feature Cards ── */
+    .features-section {
+      padding: 6rem 0;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2rem;
+      transition: transform 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--green);
+      background: var(--bg-card-hover);
+    }
+
+    .feature-icon {
+      font-size: 1.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .feature-name {
+      font-weight: 700;
+      font-size: 1.05rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .feature-desc {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    /* ── Responsive ── */
+
+    /* Tablet: 768px */
+    @media (max-width: 768px) {
+      .feature-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .phase-row {
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
+      }
+
+      .phase-card {
+        max-width: 280px;
+        width: 100%;
+      }
+
+      .phase-arrow {
+        transform: rotate(90deg);
+        padding: 0.35rem 0;
+      }
+
+      .cta-group {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .btn {
+        width: 100%;
+        max-width: 280px;
+      }
+    }
+
+    /* Mobile: below 768px single col for features handled above,
+       below 480px tighten up */
+    @media (max-width: 480px) {
+      .feature-grid {
+        grid-template-columns: 1fr;
+      }
+
+      section {
+        padding: 3.5rem 0;
+      }
+
+      .pipeline-section,
+      .features-section {
+        padding: 4rem 0;
+      }
+    }
+
+    /* Desktop: above 1024px — defaults are fine */
+  </style>
+</head>
+<body>
+
+  <!-- ════════════════════════════════════════════
+       HERO
+       ════════════════════════════════════════════ -->
+  <section class="hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="hero-content">
+      <h1 data-animate>Torrent completes → library ready</h1>
+      <p class="hero-subtitle" data-animate style="--delay: 0.1s">
+        Automated post-processing for qBittorrent. Extract, remux, subtitle, import — zero manual steps.
+      </p>
+
+      <div class="pipeline-teaser" data-animate style="--delay: 0.2s">
+        <span class="pill">qBittorrent</span>
+        <span class="arrow">→</span>
+        <span class="pill">Extract</span>
+        <span class="arrow">→</span>
+        <span class="pill">Process</span>
+        <span class="arrow">→</span>
+        <span class="pill">Import</span>
+        <span class="arrow">→</span>
+        <span class="pill">Notify</span>
+        <div class="pipeline-track" aria-hidden="true">
+          <div class="pipeline-dot"></div>
+        </div>
+      </div>
+
+      <div class="cta-group" data-animate style="--delay: 0.35s">
+        <a href="#" class="btn btn-primary">Get Started</a>
+        <a href="#" class="btn btn-outline">View on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════
+       PIPELINE VISUALIZATION
+       ════════════════════════════════════════════ -->
+  <section class="pipeline-section">
+    <div class="container">
+      <h2 class="section-title" data-animate>Six phases. Fully automated.</h2>
+
+      <div class="phase-row">
+        <div class="phase-card" data-animate style="--delay: 0.05s">
+          <div class="phase-icon">&#x1F4C2;</div>
+          <div class="phase-name">Stage</div>
+          <div class="phase-desc">Copy &amp; extract files to staging</div>
+        </div>
+        <div class="phase-arrow" aria-hidden="true">→</div>
+
+        <div class="phase-card" data-animate style="--delay: 0.15s">
+          <div class="phase-icon">&#x1F3AC;</div>
+          <div class="phase-name">Video</div>
+          <div class="phase-desc">RAR extract, MP4→MKV remux</div>
+        </div>
+        <div class="phase-arrow" aria-hidden="true">→</div>
+
+        <div class="phase-card" data-animate style="--delay: 0.25s">
+          <div class="phase-icon">&#x1F4AC;</div>
+          <div class="phase-name">Subtitles</div>
+          <div class="phase-desc">Extract, download &amp; clean</div>
+        </div>
+        <div class="phase-arrow" aria-hidden="true">→</div>
+
+        <div class="phase-card" data-animate style="--delay: 0.35s">
+          <div class="phase-icon">&#x1F4E5;</div>
+          <div class="phase-name">Import</div>
+          <div class="phase-desc">Send to Radarr, Sonarr or Medusa</div>
+        </div>
+        <div class="phase-arrow" aria-hidden="true">→</div>
+
+        <div class="phase-card" data-animate style="--delay: 0.45s">
+          <div class="phase-icon">&#x1F4E7;</div>
+          <div class="phase-name">Notify</div>
+          <div class="phase-desc">Email with posters &amp; ratings</div>
+        </div>
+      </div>
+
+      <p class="pipeline-note" data-animate style="--delay: 0.55s">
+        Crash-safe. File-backed queue with global locking survives reboots.
+      </p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════
+       FEATURE CARDS
+       ════════════════════════════════════════════ -->
+  <section class="features-section">
+    <div class="container">
+      <h2 class="section-title" data-animate>Everything between download and library</h2>
+      <div style="margin-bottom: 3.5rem"></div>
+
+      <div class="feature-grid">
+        <div class="feature-card" data-animate style="--delay: 0.05s">
+          <div class="feature-icon">&#x1F4E6;</div>
+          <div class="feature-name">RAR Extraction</div>
+          <div class="feature-desc">Detects and extracts nested archives automatically</div>
+        </div>
+
+        <div class="feature-card" data-animate style="--delay: 0.1s">
+          <div class="feature-icon">&#x1F3AC;</div>
+          <div class="feature-name">Video Processing</div>
+          <div class="feature-desc">MP4→MKV remux and subtitle track stripping via MKVToolNix</div>
+        </div>
+
+        <div class="feature-card" data-animate style="--delay: 0.15s">
+          <div class="feature-icon">&#x1F4AC;</div>
+          <div class="feature-name">Subtitle Intelligence</div>
+          <div class="feature-desc">Extract from MKV, download from OpenSubtitles, clean with SubtitleEdit</div>
+        </div>
+
+        <div class="feature-card" data-animate style="--delay: 0.2s">
+          <div class="feature-icon">&#x1F4E5;</div>
+          <div class="feature-name">Multi-Server Import</div>
+          <div class="feature-desc">Radarr, Sonarr, and Medusa via ManualImport API with polling</div>
+        </div>
+
+        <div class="feature-card" data-animate style="--delay: 0.25s">
+          <div class="feature-icon">&#x1F4E7;</div>
+          <div class="feature-name">Rich Notifications</div>
+          <div class="feature-desc">Dark-themed HTML emails with posters, ratings, and status badges</div>
+        </div>
+
+        <div class="feature-card" data-animate style="--delay: 0.3s">
+          <div class="feature-icon">&#x1F3F7;&#xFE0F;</div>
+          <div class="feature-name">Label Routing</div>
+          <div class="feature-desc">qBittorrent labels automatically route to the right media server</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- IntersectionObserver for scroll animations -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.1 });
+
+      document.querySelectorAll('[data-animate]').forEach(el => observer.observe(el));
+    });
+  </script>
+
+</body>
+</html>
