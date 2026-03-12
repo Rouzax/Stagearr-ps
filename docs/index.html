@@ -419,6 +419,381 @@
     }
 
     /* Desktop: above 1024px — defaults are fine */
+
+    /* ── Email Showcase ── */
+    .email-section {
+      padding: 6rem 0;
+    }
+
+    .email-showcase {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .email-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      max-width: 360px;
+      width: 100%;
+      transition: transform 0.4s ease;
+    }
+
+    .email-card:hover {
+      transform: perspective(800px) rotateY(2deg) scale(1.02);
+    }
+
+    .email-card--success {
+      box-shadow: 0 0 60px rgba(34, 197, 94, 0.12);
+    }
+
+    .email-card--warning {
+      box-shadow: 0 0 60px rgba(245, 158, 11, 0.12);
+    }
+
+    .email-card--failed {
+      box-shadow: 0 0 60px rgba(239, 68, 68, 0.12);
+    }
+
+    /* Badge */
+    .email-badge {
+      display: inline-block;
+      padding: 0.3rem 1rem;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 0.8125rem;
+      letter-spacing: 0.05em;
+      color: #fff;
+      text-align: center;
+      margin: 0 auto 1.25rem;
+    }
+
+    .email-badge-wrap {
+      text-align: center;
+    }
+
+    .email-badge--success { background: var(--green); }
+    .email-badge--warning { background: var(--amber); }
+    .email-badge--failed  { background: var(--red); }
+
+    /* Metadata row */
+    .email-meta {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .email-poster {
+      width: 80px;
+      min-width: 80px;
+      border-radius: 6px;
+      object-fit: cover;
+    }
+
+    .email-meta-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .email-title {
+      font-weight: 700;
+      font-size: 1rem;
+      line-height: 1.3;
+      margin-bottom: 0.3rem;
+    }
+
+    .email-ratings {
+      font-size: 0.8rem;
+      margin-bottom: 0.2rem;
+    }
+
+    .email-ratings .imdb  { color: var(--imdb-yellow); }
+    .email-ratings .rt    { color: var(--tomato-red); }
+    .email-ratings .mc    { color: var(--metacritic-green); }
+
+    .email-genre,
+    .email-label-info {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .email-link {
+      font-size: 0.8rem;
+      color: var(--blue);
+    }
+
+    /* Details inner card */
+    .email-details {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .email-details-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+    }
+
+    .email-detail-row {
+      display: flex;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+
+    .email-detail-row:last-child {
+      border-bottom: none;
+    }
+
+    .email-detail-key {
+      width: 80px;
+      min-width: 80px;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    .email-detail-val {
+      flex: 1;
+      min-width: 0;
+      font-weight: 600;
+    }
+
+    .email-detail-val--source {
+      font-weight: 400;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      word-break: break-all;
+    }
+
+    .email-detail-val--green {
+      color: var(--green);
+    }
+
+    .email-detail-val--amber {
+      color: var(--amber);
+    }
+
+    .email-detail-val--red {
+      color: var(--red);
+    }
+
+    /* Notes section */
+    .email-notes {
+      border-left: 3px solid var(--amber);
+      padding-left: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .email-notes-header {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--amber);
+      text-transform: uppercase;
+      margin-bottom: 0.35rem;
+    }
+
+    .email-notes-item {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* What happened / What to check (failed card) */
+    .email-what-happened {
+      border-left: 3px solid var(--red);
+      padding-left: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .email-what-happened-header {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--red);
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+
+    .email-what-to-check {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .email-what-to-check-header {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+
+    .email-check-item {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    /* Failed card centered title */
+    .email-failed-title {
+      text-align: center;
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-bottom: 0.2rem;
+    }
+
+    .email-failed-subtitle {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+    }
+
+    /* Log + footer */
+    .email-log {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .email-log-label {
+      min-width: 50px;
+    }
+
+    .email-log-path {
+      word-break: break-all;
+      opacity: 0.7;
+    }
+
+    .email-footer {
+      text-align: center;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .email-tagline {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 2.5rem;
+    }
+
+    /* Email responsive */
+    @media (max-width: 768px) {
+      .email-showcase {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .email-card {
+        max-width: none;
+      }
+    }
+
+    /* ── Integration Logos ── */
+    .integrations-section {
+      padding: 5rem 0;
+    }
+
+    .integrations {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 3rem;
+      align-items: center;
+    }
+
+    .integration-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      text-decoration: none;
+    }
+
+    .integration-item svg {
+      height: 40px;
+      width: 40px;
+      fill: var(--text-muted);
+      opacity: 0.5;
+      filter: grayscale(100%);
+      transition: 0.3s;
+    }
+
+    .integration-item:hover svg {
+      opacity: 1;
+      filter: grayscale(0%);
+      fill: var(--text-primary);
+    }
+
+    .integration-item span {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      transition: color 0.3s;
+    }
+
+    .integration-item:hover span {
+      color: var(--text-primary);
+    }
+
+    @media (max-width: 768px) {
+      .integrations {
+        gap: 2rem;
+      }
+    }
+
+    /* ── Footer ── */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 2rem 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+      margin-right: 1.5rem;
+    }
+
+    .footer a:hover {
+      color: var(--text-primary);
+    }
+
+    .footer-right {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 768px) {
+      .footer {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+      }
+
+      .footer a {
+        margin-right: 0;
+        margin: 0 0.75rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -450,8 +825,8 @@
       </div>
 
       <div class="cta-group" data-animate style="--delay: 0.35s">
-        <a href="#" class="btn btn-primary">Get Started</a>
-        <a href="#" class="btn btn-outline">View on GitHub</a>
+        <a href="https://github.com/Rouzax/TorrentScript/wiki" class="btn btn-primary">Get Started</a>
+        <a href="https://github.com/Rouzax/TorrentScript" class="btn btn-outline">View on GitHub</a>
       </div>
     </div>
   </section>
@@ -461,7 +836,7 @@
        ════════════════════════════════════════════ -->
   <section class="pipeline-section">
     <div class="container">
-      <h2 class="section-title" data-animate>Six phases. Fully automated.</h2>
+      <h2 class="section-title" data-animate>Five phases. Fully automated.</h2>
 
       <div class="phase-row">
         <div class="phase-card" data-animate style="--delay: 0.05s">
@@ -552,6 +927,296 @@
       </div>
     </div>
   </section>
+
+  <!-- ════════════════════════════════════════════
+       EMAIL SHOWCASE
+       ════════════════════════════════════════════ -->
+  <section class="email-section">
+    <div class="container">
+      <h2 class="section-title" data-animate>Know exactly what happened</h2>
+      <div style="margin-bottom: 3.5rem"></div>
+
+      <div class="email-showcase">
+
+        <!-- ── Success Email ── -->
+        <div class="email-card email-card--success" data-animate style="--delay: 0.05s">
+          <div class="email-badge-wrap">
+            <span class="email-badge email-badge--success">&#x2713; SUCCESS</span>
+          </div>
+
+          <div class="email-meta">
+            <img class="email-poster" src="https://m.media-amazon.com/images/M/MV5BNzRhNTE4ZTYtNTM0Mi00MzU3LTk4MTktYWE3MzQ2NTU0MDNlXkEyXkFqcGc@._V1_SX300.jpg" alt="Wicked: For Good poster">
+            <div class="email-meta-text">
+              <div class="email-title">Wicked: For Good (2025)</div>
+              <div class="email-ratings">
+                <span class="imdb">&#x2B50; 6.7</span> &middot;
+                <span class="rt">&#x1F345; 66%</span> &middot;
+                <span class="mc">&#x24C2; 58</span>
+              </div>
+              <div class="email-genre">Drama, Family, Fantasy &middot; 137 min</div>
+              <div class="email-label-info">Movie &middot; Radarr</div>
+              <a href="#" class="email-link">&#x21B3; View on IMDb</a>
+            </div>
+          </div>
+
+          <div class="email-details">
+            <div class="email-details-label">Details</div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Source</span>
+              <span class="email-detail-val email-detail-val--source">Wicked.For.Good.2025.2160p.REMUX.DV.HDR.DDP.5.1.Atmos-GROUP</span>
+            </div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Quality</span>
+              <span class="email-detail-val">2160p Remux &middot; Dolby Vision</span>
+            </div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Files</span>
+              <span class="email-detail-val">1 video (70.0 GB)</span>
+            </div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Subtitles</span>
+              <span class="email-detail-val email-detail-val--green">&#x2713; English, Dutch</span>
+            </div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Import</span>
+              <span class="email-detail-val email-detail-val--green">Imported to library</span>
+            </div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Duration</span>
+              <span class="email-detail-val">3m 12s</span>
+            </div>
+          </div>
+
+          <div class="email-log">
+            <span class="email-log-label">Log file</span>
+            <span class="email-log-path">C:\Stagearr\logs\2025-06-14_Wicked.For.Good.log</span>
+          </div>
+          <div class="email-footer">Stagearr v2.0.2</div>
+        </div>
+
+        <!-- ── Warning Email ── -->
+        <div class="email-card email-card--warning" data-animate style="--delay: 0.15s">
+          <div class="email-badge-wrap">
+            <span class="email-badge email-badge--warning">! WARNING</span>
+          </div>
+
+          <div class="email-meta">
+            <img class="email-poster" src="https://m.media-amazon.com/images/M/MV5BZGY4YjY5MGItNzM2NS00Y2M1LWFkYTYtZjI0ZDk3NTE0NmE0XkEyXkFqcGc@._V1_SX300.jpg" alt="Dexter: New Blood poster">
+            <div class="email-meta-text">
+              <div class="email-title">Dexter: New Blood (2021)</div>
+              <div class="email-ratings">
+                <span class="imdb">&#x2B50; 8.0</span>
+              </div>
+              <div class="email-genre">Crime, Drama, Mystery &middot; 1 season</div>
+              <div class="email-label-info">TV &middot; Sonarr</div>
+            </div>
+          </div>
+
+          <div class="email-details">
+            <div class="email-details-label">Details</div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Source</span>
+              <span class="email-detail-val email-detail-val--source">Dexter.New.Blood.S01.1080p.WEB-DL.DDP5.1.H.264-NTb</span>
+            </div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Quality</span>
+              <span class="email-detail-val">1080p WEB</span>
+            </div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Files</span>
+              <span class="email-detail-val">10 episodes (8.2 GB)</span>
+            </div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Subtitles</span>
+              <span class="email-detail-val">English <span class="email-detail-val--amber" style="font-weight:400">(unavailable: Dutch)</span></span>
+            </div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Import</span>
+              <span class="email-detail-val email-detail-val--green">Imported to library</span>
+            </div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Duration</span>
+              <span class="email-detail-val">4m 12s</span>
+            </div>
+          </div>
+
+          <div class="email-notes">
+            <div class="email-notes-header">Notes</div>
+            <div class="email-notes-item">&middot; Dutch subtitles not found on OpenSubtitles</div>
+          </div>
+
+          <div class="email-log">
+            <span class="email-log-label">Log file</span>
+            <span class="email-log-path">C:\Stagearr\logs\2025-06-14_Dexter.New.Blood.S01.log</span>
+          </div>
+          <div class="email-footer">Stagearr v2.0.2</div>
+        </div>
+
+        <!-- ── Failed Email ── -->
+        <div class="email-card email-card--failed" data-animate style="--delay: 0.25s">
+          <div class="email-badge-wrap">
+            <span class="email-badge email-badge--failed">&#x2715; FAILED</span>
+          </div>
+
+          <div class="email-failed-title">Cars (2006)</div>
+          <div class="email-failed-subtitle">Movie &middot; Radarr</div>
+
+          <div class="email-what-happened">
+            <div class="email-what-happened-header">What Happened</div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Source</span>
+              <span class="email-detail-val email-detail-val--source">Cars.2006.2160p.UHD.BluRay.x265-CiNEPHiLES</span>
+            </div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Phase</span>
+              <span class="email-detail-val">Import</span>
+            </div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Error</span>
+              <span class="email-detail-val email-detail-val--red" style="font-weight:400">Folder is not accessible: path does not exist or permission denied</span>
+            </div>
+            <div class="email-detail-row">
+              <span class="email-detail-key">Path</span>
+              <span class="email-detail-val email-detail-val--source">\\nas\media\staging\Cars.2006.2160p</span>
+            </div>
+          </div>
+
+          <div class="email-what-to-check">
+            <div class="email-what-to-check-header">What to Check</div>
+            <div class="email-check-item">&middot; Is the network drive mounted?</div>
+            <div class="email-check-item">&middot; Check Remote Path Mapping in Radarr</div>
+            <div class="email-check-item">&middot; Does Radarr have read access to the folder?</div>
+          </div>
+
+          <div class="email-log">
+            <span class="email-log-label">Log file</span>
+            <span class="email-log-path">C:\Stagearr\logs\2025-06-14_Cars.2006.log</span>
+          </div>
+          <div class="email-footer">Stagearr v2.0.2</div>
+        </div>
+
+      </div>
+
+      <p class="email-tagline" data-animate style="--delay: 0.35s">
+        Metadata powered by OMDb — posters, ratings, genres, and IMDb links.
+      </p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════
+       INTEGRATION LOGOS
+       ════════════════════════════════════════════ -->
+  <section class="integrations-section">
+    <div class="container">
+      <h2 class="section-title" data-animate>Plugs into your stack</h2>
+      <div style="margin-bottom: 3.5rem"></div>
+
+      <div class="integrations" data-animate style="--delay: 0.1s">
+
+        <!-- qBittorrent -->
+        <a href="https://www.qbittorrent.org/" class="integration-item" target="_blank" rel="noopener">
+          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-width="2" style="stroke: var(--text-muted)"/>
+            <path d="M20 10 L20 26 M14 20 L20 26 L26 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="stroke: var(--text-muted)"/>
+          </svg>
+          <span>qBittorrent</span>
+        </a>
+
+        <!-- Radarr -->
+        <a href="https://radarr.video/" class="integration-item" target="_blank" rel="noopener">
+          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+            <rect x="8" y="12" width="24" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2" style="stroke: var(--text-muted)"/>
+            <circle cx="20" cy="21" r="5" fill="none" stroke="currentColor" stroke-width="2" style="stroke: var(--text-muted)"/>
+            <circle cx="20" cy="21" r="1.5"/>
+            <rect x="16" y="8" width="8" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="2" style="stroke: var(--text-muted)"/>
+          </svg>
+          <span>Radarr</span>
+        </a>
+
+        <!-- Sonarr -->
+        <a href="https://sonarr.tv/" class="integration-item" target="_blank" rel="noopener">
+          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+            <rect x="6" y="10" width="28" height="20" rx="2" fill="none" stroke="currentColor" stroke-width="2" style="stroke: var(--text-muted)"/>
+            <line x1="16" y1="34" x2="24" y2="34" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="stroke: var(--text-muted)"/>
+            <line x1="20" y1="30" x2="20" y2="34" stroke="currentColor" stroke-width="2" style="stroke: var(--text-muted)"/>
+            <polyline points="12,24 17,18 22,22 28,15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="stroke: var(--text-muted)"/>
+          </svg>
+          <span>Sonarr</span>
+        </a>
+
+        <!-- Medusa -->
+        <a href="https://pymedusa.com/" class="integration-item" target="_blank" rel="noopener">
+          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 8 Q12 8 12 16 Q12 24 20 32 Q28 24 28 16 Q28 8 20 8Z" fill="none" stroke="currentColor" stroke-width="2" style="stroke: var(--text-muted)"/>
+            <circle cx="17" cy="17" r="1.5"/>
+            <circle cx="23" cy="17" r="1.5"/>
+            <path d="M8 10 Q12 6 16 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="stroke: var(--text-muted)"/>
+            <path d="M24 10 Q28 6 32 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="stroke: var(--text-muted)"/>
+            <path d="M10 7 Q14 3 18 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="stroke: var(--text-muted)"/>
+            <path d="M22 8 Q26 3 30 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="stroke: var(--text-muted)"/>
+          </svg>
+          <span>Medusa</span>
+        </a>
+
+        <!-- OpenSubtitles -->
+        <a href="https://www.opensubtitles.com/" class="integration-item" target="_blank" rel="noopener">
+          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 20 Q6 10 20 10 Q34 10 34 20 Q34 30 24 30 L18 35 L18 30 Q6 30 6 20Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="stroke: var(--text-muted)"/>
+            <line x1="13" y1="17" x2="27" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="stroke: var(--text-muted)"/>
+            <line x1="13" y1="22" x2="23" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="stroke: var(--text-muted)"/>
+          </svg>
+          <span>OpenSubtitles</span>
+        </a>
+
+        <!-- OMDb -->
+        <a href="https://www.omdbapi.com/" class="integration-item" target="_blank" rel="noopener">
+          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="20,6 24,15 34,16 27,23 29,33 20,28 11,33 13,23 6,16 16,15" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="stroke: var(--text-muted)"/>
+          </svg>
+          <span>OMDb</span>
+        </a>
+
+        <!-- MKVToolNix -->
+        <a href="https://mkvtoolnix.download/" class="integration-item" target="_blank" rel="noopener">
+          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+            <rect x="8" y="6" width="24" height="28" rx="2" fill="none" stroke="currentColor" stroke-width="2" style="stroke: var(--text-muted)"/>
+            <polyline points="22,6 22,14 30,14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="stroke: var(--text-muted)"/>
+            <polygon points="16,20 16,28 24,24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" style="stroke: var(--text-muted)"/>
+          </svg>
+          <span>MKVToolNix</span>
+        </a>
+
+        <!-- WinRAR -->
+        <a href="https://www.win-rar.com/" class="integration-item" target="_blank" rel="noopener">
+          <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+            <rect x="8" y="4" width="24" height="32" rx="2" fill="none" stroke="currentColor" stroke-width="2" style="stroke: var(--text-muted)"/>
+            <rect x="17" y="8" width="6" height="4" rx="0.5" fill="none" stroke="currentColor" stroke-width="1.5" style="stroke: var(--text-muted)"/>
+            <rect x="17" y="14" width="6" height="4" rx="0.5" fill="none" stroke="currentColor" stroke-width="1.5" style="stroke: var(--text-muted)"/>
+            <rect x="17" y="20" width="6" height="4" rx="0.5" fill="none" stroke="currentColor" stroke-width="1.5" style="stroke: var(--text-muted)"/>
+            <rect x="14" y="26" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5" style="stroke: var(--text-muted)"/>
+            <line x1="18" y1="29" x2="22" y2="29" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="stroke: var(--text-muted)"/>
+          </svg>
+          <span>WinRAR</span>
+        </a>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════
+       FOOTER
+       ════════════════════════════════════════════ -->
+  <footer>
+    <div class="container">
+      <div class="footer">
+        <div class="footer-links">
+          <a href="https://github.com/Rouzax/TorrentScript/wiki">Documentation</a>
+          <a href="https://github.com/Rouzax/TorrentScript">GitHub</a>
+        </div>
+        <div class="footer-right">Stagearr v2.0.2 &middot; MIT License</div>
+      </div>
+    </div>
+  </footer>
 
   <!-- IntersectionObserver for scroll animations -->
   <script>
