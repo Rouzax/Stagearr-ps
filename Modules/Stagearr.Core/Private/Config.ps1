@@ -137,6 +137,10 @@ $script:SAConfigDefaults = @{
         dateFormat    = 'yyyy.MM.dd_HH.mm.ss'
         consoleColors = $true
     }
+    updates = @{
+        mode               = 'off'
+        checkIntervalHours = 24
+    }
 }
 
 function Read-SAConfig {

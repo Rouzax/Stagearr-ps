@@ -139,6 +139,15 @@ enabled = true
 plot = false # Include plot synopsis in email (adds length)
 plotMaxLength = 150
 
+[updates]
+# Auto-update from GitHub Releases
+# "auto" = download and apply updates via git pull
+# "notify" = show update available in email/console
+# "off" = disable update checking
+mode = "off"
+# Hours between update checks (0 = check every run)
+checkIntervalHours = 24
+
 [logging]
 dateFormat = "yyyy-MM-dd HH:mm:ss"
 consoleColors = true

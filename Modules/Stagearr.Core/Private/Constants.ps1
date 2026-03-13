@@ -114,6 +114,22 @@ $script:SAConstants = @{
     HostnameCacheTtlMinutes = 30
 
     #endregion
+
+    #region Update Defaults
+
+    # GitHub repository for update checks
+    UpdateGitHubRepo = 'Rouzax/Stagearr-ps'
+
+    # Default hours between update checks
+    DefaultUpdateCheckIntervalHours = 24
+
+    # Update check timeout (seconds) - keep short to not delay processing
+    UpdateCheckTimeoutSeconds = 10
+
+    # Timestamp file name
+    UpdateTimestampFile = 'lastUpdateCheck.json'
+
+    #endregion
 }
 
 # Make constants read-only after initialization
