@@ -51,6 +51,7 @@ Modules/Stagearr.Core/
 │   ├── Omdb.ps1                     # OMDb API client (metadata, poster download)
 │   ├── PathSecurity.ps1             # Path validation, traversal prevention
 │   ├── Process.ps1                  # External process execution
+│   ├── Update.ps1                   # Auto-update check via GitHub Releases
 │   └── Utility.ps1                  # Hash, platform detection, misc
 └── Public/                          # Exported API
     ├── Import.ps1                   # Main import dispatcher
@@ -197,6 +198,8 @@ Modules/Stagearr.Core/
 | Sync config with sample | `Sync-SAConfig` | ConfigSync.ps1 |
 | Compare config schemas | `Compare-SAConfigSchema` | ConfigSync.ps1 |
 | Generate config sync report | `Get-SAConfigSyncReport` | ConfigSync.ps1 |
+| Check for updates | `Invoke-SAUpdateCheck` | Update.ps1 |
+| Compare version strings | `Compare-SAVersions` | Update.ps1 |
 
 ---
 
@@ -677,6 +680,18 @@ These aren't exported but are heavily used internally:
 | `Write-SAMedusaEpisodeOutcome` | Write episode-level outcome to console | ImportMedusa.ps1 |
 | `Format-SAImportEpisodeNote` | Format episode details for email notes | JobProcessor.ps1 |
 
+### Update Check
+
+| Function | Purpose | File |
+|----------|---------|------|
+| `Invoke-SAUpdateCheck` | Main entry — check GitHub Releases for updates, optionally apply via git pull | Update.ps1 |
+| `Compare-SAVersions` | Compare two version strings, returns -1/0/1 | Update.ps1 |
+| `Test-SAUpdateCheckDue` | Check if update check interval has elapsed | Update.ps1 |
+| `Get-SALatestRelease` | Query GitHub Releases API for latest release | Update.ps1 |
+| `Get-SAUpdateState` | Get current update state hashtable for email rendering | Update.ps1 |
+| `Reset-SAUpdateState` | Reset update state to defaults | Update.ps1 |
+| `Get-SAEmailUpdateSection` | Email section builder — HTML card for update notification | Output/EmailSections.ps1 |
+
 ### Email Rendering
 
 | Function | Purpose | File |
@@ -759,6 +774,8 @@ These have no I/O — input → output only:
 **ImportMedusa.ps1:** `Get-SAMedusaSeasonFromFiles`
 
 **ConfigSync.ps1:** `Compare-SAConfigSchema`, `Get-SAConfigDescription`, `Merge-SAConfigFromSample`, `Remove-SAConfigComments` (config schema comparison and merging)
+
+**Update.ps1:** `Compare-SAVersions` (version string comparison)
 
 ---
 
