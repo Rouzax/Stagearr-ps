@@ -262,7 +262,7 @@ function Invoke-SAUpdateCheck {
         }
     } else {
         # Notify mode
-        Write-SAOutcome -Level Info -Label "Update" -Text "v$($release.Version) available — run 'git pull' to update"
+        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available — run 'git pull' to update"
     }
 
     Save-SAUpdateTimestamp -QueueRoot $queueRoot
