@@ -215,3 +215,86 @@ Describe 'Get-SAEmailUpdateSection' {
         }
     }
 }
+
+Describe 'Get-SAFileLogHeader update status' {
+    BeforeEach {
+        InModuleScope 'Stagearr.Core' {
+            Initialize-SAFileLogRenderer -LogFolder ([System.IO.Path]::GetTempPath()) -JobName 'test'
+        }
+    }
+
+    AfterEach {
+        InModuleScope 'Stagearr.Core' {
+            Reset-SAUpdateState
+            Reset-SAFileLogRenderer
+        }
+    }
+
+    It 'includes version line in header' {
+        InModuleScope 'Stagearr.Core' {
+            $header = Get-SAFileLogHeader -JobMetadata @{ StartTime = Get-Date; Name = 'test'; Label = 'TV' }
+            $header -join "`n" | Should -Match 'Version:'
+        }
+    }
+
+    It 'shows Up to date when check performed with no update' {
+        InModuleScope 'Stagearr.Core' {
+            $script:SAUpdateState = @{
+                CheckPerformed  = $true
+                UpdateAvailable = $false
+                UpdateApplied   = $false
+                OldVersion      = '2.0.5'
+                NewVersion      = ''
+                ReleaseUrl      = ''
+                ErrorMessage    = ''
+            }
+
+            $header = Get-SAFileLogHeader -JobMetadata @{ StartTime = Get-Date; Name = 'test'; Label = 'TV' }
+            $header -join "`n" | Should -Match 'Update:.*Up to date'
+        }
+    }
+
+    It 'shows updated version when auto-update applied' {
+        InModuleScope 'Stagearr.Core' {
+            $script:SAUpdateState = @{
+                CheckPerformed  = $true
+                UpdateAvailable = $true
+                UpdateApplied   = $true
+                OldVersion      = '2.0.3'
+                NewVersion      = '2.0.5'
+                ReleaseUrl      = ''
+                ErrorMessage    = ''
+            }
+
+            $header = Get-SAFileLogHeader -JobMetadata @{ StartTime = Get-Date; Name = 'test'; Label = 'TV' }
+            $joined = $header -join "`n"
+            $joined | Should -Match 'Update:.*Updated from v2\.0\.3 to v2\.0\.5'
+        }
+    }
+
+    It 'shows available version in notify mode' {
+        InModuleScope 'Stagearr.Core' {
+            $script:SAUpdateState = @{
+                CheckPerformed  = $true
+                UpdateAvailable = $true
+                UpdateApplied   = $false
+                OldVersion      = '2.0.3'
+                NewVersion      = '2.1.0'
+                ReleaseUrl      = ''
+                ErrorMessage    = ''
+            }
+
+            $header = Get-SAFileLogHeader -JobMetadata @{ StartTime = Get-Date; Name = 'test'; Label = 'TV' }
+            $header -join "`n" | Should -Match 'Update:.*v2\.1\.0 available'
+        }
+    }
+
+    It 'omits update line when no check performed' {
+        InModuleScope 'Stagearr.Core' {
+            Reset-SAUpdateState
+
+            $header = Get-SAFileLogHeader -JobMetadata @{ StartTime = Get-Date; Name = 'test'; Label = 'TV' }
+            $header -join "`n" | Should -Not -Match 'Update:'
+        }
+    }
+}

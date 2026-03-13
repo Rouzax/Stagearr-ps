@@ -425,7 +425,13 @@ function Get-SAFileLogHeader {
     $lines += $separator
     $lines += "Stagearr Job Log"
     $lines += $separator
-    
+
+    # Version
+    $moduleVersion = (Get-Module -Name 'Stagearr.Core').Version
+    if ($null -ne $moduleVersion) {
+        $lines += "Version:  $($moduleVersion.ToString())"
+    }
+
     # Job info
     $meta = if ($null -ne $JobMetadata) { $JobMetadata } else { Get-SAJobMetadata }
     
@@ -464,6 +470,16 @@ function Get-SAFileLogHeader {
         $lines += "Source:   $($meta.SourcePath)"
     }
     
+    # Update status (read from module state, same approach as email section)
+    $updateState = Get-SAUpdateState
+    if ($updateState.UpdateApplied) {
+        $lines += "Update:   Updated from v$($updateState.OldVersion) to v$($updateState.NewVersion)"
+    } elseif ($updateState.UpdateAvailable) {
+        $lines += "Update:   v$($updateState.NewVersion) available"
+    } elseif ($updateState.CheckPerformed) {
+        $lines += "Update:   Up to date"
+    }
+
     # External tool versions (per OUTPUT-STYLE-GUIDE: invaluable for troubleshooting)
     if ($script:SAFileLogState.ToolVersions -and $script:SAFileLogState.ToolVersions.Count -gt 0) {
         $lines += ""
