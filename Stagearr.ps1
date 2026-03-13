@@ -78,7 +78,7 @@
     Stagearr.ps1 -DownloadPath "C:\Downloads\Movie.2024" -DownloadLabel "Movie" -Force
 
 .NOTES
-    Version: 2.0.1
+    Version: 2.0.3
     Requires: PowerShell 5.1 or 7.x
     External Tools: WinRAR, MKVToolNix, SubtitleEdit
 #>
