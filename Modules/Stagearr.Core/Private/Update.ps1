@@ -259,11 +259,11 @@ function Invoke-SAUpdateCheck {
             Write-SAOutcome -Level Success -Label "Update" -Text "Updated to v$($release.Version)"
         } else {
             $script:SAUpdateState.ErrorMessage = 'git pull failed'
-            Write-SAOutcome -Level Warning -Label "Update" -Text "Update to v$($release.Version) failed — run 'git pull' manually"
+            Write-SAOutcome -Level Warning -Label "Update" -Text "Update to v$($release.Version) failed - run 'git pull' manually"
         }
     } else {
         # Notify mode
-        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available — run 'git pull' to update"
+        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - run 'git pull' to update"
     }
 
     Save-SAUpdateTimestamp -QueueRoot $queueRoot
