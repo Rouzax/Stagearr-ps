@@ -97,7 +97,10 @@ function Get-SAEmailHtmlDocument {
             [void]$html.AppendLine((Get-SAEmailNotesSection -Exceptions $Summary.Exceptions -Result $Summary.Result))
         }
     }
-    
+
+    # Update section (only if update activity occurred)
+    [void]$html.AppendLine((Get-SAEmailUpdateSection))
+
     # Log path section (always)
     [void]$html.AppendLine((Get-SAEmailLogSection))
     
@@ -1043,6 +1046,83 @@ function Get-SAEmailTroubleshootingSuggestions {
     }
     
     return $suggestions | Select-Object -First 3
+}
+
+#endregion
+
+#region Update Section
+
+function Get-SAEmailUpdateSection {
+    <#
+    .SYNOPSIS
+        Generates the Update notification card section.
+    .DESCRIPTION
+        Creates an update card shown between Notes and Log File sections.
+        Green left bar for successful auto-update, amber for notify-only.
+        Only rendered when there is update activity to report.
+    .OUTPUTS
+        HTML string for the update card, or empty string if no update activity.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+
+    $state = Get-SAUpdateState
+    if (-not $state.UpdateAvailable -and -not $state.UpdateApplied) {
+        return ''
+    }
+
+    $colors = $script:SAEmailColors
+
+    # Determine styling based on update result
+    if ($state.UpdateApplied) {
+        $borderColor = $colors.SuccessGreen
+        $headerColor = $colors.SuccessGreen
+        $headerText = 'Updated'
+        $messageText = "Updated from v$($state.OldVersion) to v$($state.NewVersion)"
+    } else {
+        $borderColor = $colors.WarningAmber
+        $headerColor = $colors.WarningAmber
+        $headerText = 'Update Available'
+        $messageText = "v$($state.NewVersion) is available"
+    }
+
+    $html = [System.Text.StringBuilder]::new()
+
+    # Card wrapper with accent border
+    [void]$html.AppendLine('                    <tr>')
+    [void]$html.AppendLine('                        <td style="padding: 0 16px 16px 16px;">')
+    [void]$html.AppendLine("                            <table role=`"presentation`" cellspacing=`"0`" cellpadding=`"0`" border=`"0`" width=`"100%`" style=`"background-color: $($colors.BackgroundDark); border-radius: 12px; overflow: hidden; border-left: 3px solid $borderColor;`">")
+
+    # Header
+    [void]$html.AppendLine('                                <tr>')
+    [void]$html.AppendLine("                                    <td style=`"padding: 16px 20px 12px 20px; border-bottom: 1px solid $($colors.BorderColor);`">")
+    [void]$html.AppendLine("                                        <span style=`"color: $headerColor; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;`">$headerText</span>")
+    [void]$html.AppendLine('                                    </td>')
+    [void]$html.AppendLine('                                </tr>')
+
+    # Message row
+    [void]$html.AppendLine('                                <tr>')
+    [void]$html.AppendLine("                                    <td style=`"padding: 12px 20px 8px 20px;`">")
+    [void]$html.AppendLine("                                        <span style=`"color: $($colors.TextPrimary); font-size: 15px;`">$(ConvertTo-SAHtmlSafe $messageText)</span>")
+    [void]$html.AppendLine('                                    </td>')
+    [void]$html.AppendLine('                                </tr>')
+
+    # Release link row
+    if (-not [string]::IsNullOrWhiteSpace($state.ReleaseUrl)) {
+        [void]$html.AppendLine('                                <tr>')
+        [void]$html.AppendLine("                                    <td style=`"padding: 0 20px 12px 20px;`">")
+        [void]$html.AppendLine("                                        <a href=`"$(ConvertTo-SAHtmlSafe $state.ReleaseUrl)`" style=`"color: $($colors.TextSecondary); font-size: 13px; text-decoration: underline;`">View release notes</a>")
+        [void]$html.AppendLine('                                    </td>')
+        [void]$html.AppendLine('                                </tr>')
+    }
+
+    # Close card
+    [void]$html.AppendLine('                            </table>')
+    [void]$html.AppendLine('                        </td>')
+    [void]$html.AppendLine('                    </tr>')
+
+    return $html.ToString()
 }
 
 #endregion
