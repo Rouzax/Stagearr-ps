@@ -40,6 +40,9 @@
         'Get-SAConfigSyncReport'
         'Compare-SAConfigSchema'
 
+        # --- Updates ---
+        'Invoke-SAUpdateCheck'
+
         # --- Setup ---
         'Invoke-SASetup'
         

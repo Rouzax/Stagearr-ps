@@ -217,6 +217,9 @@ try {
 $Config['_scriptRoot'] = $ScriptRoot
 $Config['_configPath'] = $ConfigPath
 
+# Check for updates (respects interval and mode config)
+Invoke-SAUpdateCheck -Config $Config -LocalVersion $StagearrVersion -ScriptRoot $ScriptRoot
+
 # Initialize console renderer
 Initialize-SAConsoleRenderer -UseColors $Config.logging.consoleColors
 
