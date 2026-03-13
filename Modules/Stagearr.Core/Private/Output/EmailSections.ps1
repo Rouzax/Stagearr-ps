@@ -1058,17 +1058,17 @@ function Get-SAEmailUpdateSection {
         Generates the Update notification card section.
     .DESCRIPTION
         Creates an update card shown between Notes and Log File sections.
-        Green left bar for successful auto-update, amber for notify-only.
-        Only rendered when there is update activity to report.
+        Green left bar for successful auto-update, amber for notify-only,
+        gray for up-to-date confirmation. Only rendered when a check was performed.
     .OUTPUTS
-        HTML string for the update card, or empty string if no update activity.
+        HTML string for the update card, or empty string if no check was performed.
     #>
     [CmdletBinding()]
     [OutputType([string])]
     param()
 
     $state = Get-SAUpdateState
-    if (-not $state.UpdateAvailable -and -not $state.UpdateApplied) {
+    if (-not $state.CheckPerformed) {
         return ''
     }
 
@@ -1080,11 +1080,16 @@ function Get-SAEmailUpdateSection {
         $headerColor = $colors.SuccessGreen
         $headerText = 'Updated'
         $messageText = "Updated from v$($state.OldVersion) to v$($state.NewVersion)"
-    } else {
+    } elseif ($state.UpdateAvailable) {
         $borderColor = $colors.WarningAmber
         $headerColor = $colors.WarningAmber
         $headerText = 'Update Available'
         $messageText = "v$($state.NewVersion) is available"
+    } else {
+        $borderColor = $colors.TextSecondary
+        $headerColor = $colors.TextSecondary
+        $headerText = 'Up to Date'
+        $messageText = "Running v$($state.OldVersion)"
     }
 
     $html = [System.Text.StringBuilder]::new()

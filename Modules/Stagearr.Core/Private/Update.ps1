@@ -239,6 +239,7 @@ function Invoke-SAUpdateCheck {
 
     $comparison = Compare-SAVersions -LocalVersion $LocalVersion -RemoteVersion $release.Version
     if ($comparison -ge 0) {
+        $script:SAUpdateState.OldVersion = $LocalVersion
         Write-SAVerbose -Text "Update check: up to date (local $LocalVersion, remote $($release.Version))"
         Save-SAUpdateTimestamp -QueueRoot $queueRoot
         return
