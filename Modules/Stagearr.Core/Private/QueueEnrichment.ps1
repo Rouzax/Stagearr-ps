@@ -85,6 +85,15 @@ function Get-SAArrQueueRecords {
         }
     }
 
+    # Client-side filter: the queue API may return all records regardless of downloadId parameter
+    if ($records.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($DownloadId)) {
+        $filtered = @($records | Where-Object { $_.downloadId -eq $DownloadId })
+        if ($filtered.Count -ne $records.Count) {
+            Write-SAVerbose -Text "Queue lookup: $($records.Count) record(s) returned, $($filtered.Count) match download ID"
+        }
+        $records = $filtered
+    }
+
     Write-SAVerbose -Text "Queue lookup: $($records.Count) record(s) found"
     return , $records
 }
