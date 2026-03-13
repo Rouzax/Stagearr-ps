@@ -35,6 +35,7 @@ $PrivateLoadOrder = @(
     'Process.ps1'                 # External process runner
     'ErrorHandling.ps1'           # User-friendly error translation (depends on Process)
     'Http.ps1'                    # HTTP client with retry
+    'Update.ps1'                  # Auto-update check and apply (depends on Http)
     'Omdb.ps1'                    # OMDb API client (metadata, poster download)
     'Toml.ps1'                    # TOML parser and writer (load before Config)
     'ConfigSync.ps1'              # Config sync detection and merge (load before Config)
