@@ -116,13 +116,21 @@ Go to **Tools → Options → Downloads** and set **Run external program on torr
 powershell.exe -ExecutionPolicy Bypass -File "C:\Stagearr-ps\Stagearr.ps1" -DownloadPath "%F" -DownloadLabel "%L" -TorrentHash "%I"
 ```
 
-### 4. Install Optional Modules
+### 4. Set Up Radarr / Sonarr
+
+Stagearr handles imports via the ManualImport API, so Radarr/Sonarr must **not** auto-import downloads themselves. Without this step, the *arr app will import raw files before Stagearr can process them.
+
+**Recommended:** In the *arr app, point the download client's root folder to an empty folder (e.g., `C:\Empty`) so it never finds completed downloads. Alternatively, disable **Completed Download Handling** under Settings > Download Clients.
+
+> 📖 **Full details:** [Importer Prerequisites](https://github.com/rouzax/Stagearr-ps/wiki/Configuration-Reference#importer-prerequisites) in the wiki.
+
+### 5. Install Optional Modules
 
 ```powershell
 Install-Module Mailozaurr -AllowPrerelease
 ```
 
-### 5. Upgrading
+### 6. Upgrading
 
 When updating Stagearr, check for new config settings:
 

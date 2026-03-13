@@ -142,6 +142,28 @@ See [Subtitle Processing](Subtitle-Processing) for details on how these filters 
 
 ---
 
+## Importer Prerequisites
+
+Stagearr uses the ManualImport API to send **processed** files (with cleaned subtitles, stripped tracks, etc.) to Sonarr/Radarr. If Completed Download Handling is active, the *arr app will auto-import the **raw** torrent files before Stagearr has a chance to process them. You must prevent this.
+
+### Option A — Bogus Download Folder (Recommended)
+
+1. In Sonarr/Radarr, go to **Settings > Download Clients** and select your qBittorrent client
+2. Set the **download folder** (or root folder path) to an empty folder that will never contain downloads (e.g., `C:\Empty` or `/data/empty`)
+3. If you use **Remote Path Mapping** in the *arr app, map the download client's path to this empty folder
+4. The *arr app will look for completed downloads there, find nothing, and never auto-import
+
+This is the preferred approach because it preserves the *arr app's ability to track download progress and display queue status, while still preventing auto-import. Stagearr bypasses this entirely by using the ManualImport API with explicit file paths.
+
+### Option B — Disable Completed Download Handling
+
+1. In Sonarr/Radarr, go to **Settings > Download Clients**
+2. Disable **Completed Download Handling**
+
+This prevents the *arr app from monitoring the download client for completed downloads entirely.
+
+---
+
 ## Importers
 
 ### Radarr (Movies)
