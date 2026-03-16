@@ -66,6 +66,10 @@ apiKey = "your_api_key"
 uploadCleaned = false
 # Diagnostic mode: logs what would be uploaded without actually uploading. Use to verify guards before going live.
 uploadDiagnosticMode = false
+# Shows/movies to never upload subtitles for (e.g. shows with bad embedded subs).
+# Accepts IMDB IDs (e.g. "tt2140481") or show titles (e.g. "Last Week Tonight with John Oliver").
+# Title matching is case-insensitive against the OMDb/Sonarr/Radarr title.
+uploadExclude = []
 
 [subtitles.openSubtitles.filters]
 # Subtitle filtering options: include, exclude, or only
