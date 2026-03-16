@@ -193,6 +193,7 @@ Modules/Stagearr.Core/
 | Validate RAR entries | `Test-SARarEntriesSafe` | RarExtraction.ps1 |
 | Get OpenSubtitles token | `Get-SAOpenSubtitlesToken` | OpenSubtitles.ps1 |
 | Download from OpenSubtitles | `Start-SAOpenSubtitlesDownload` | OpenSubtitles.ps1 |
+| Upload to OpenSubtitles | `Start-SAOpenSubtitlesUpload` | OpenSubtitles.ps1 |
 | Clean subtitles with SubtitleEdit | `Start-SASubtitleCleanup` | SubtitleProcessing.ps1 |
 | Check if config needs sync | `Test-SAConfigSync` | ConfigSync.ps1 |
 | Sync config with sample | `Sync-SAConfig` | ConfigSync.ps1 |
@@ -484,6 +485,10 @@ Multiple labels can be configured to route downloads to the correct importer.
 | `Search-SAOpenSubtitles` | Search for subtitle matches | OpenSubtitles.ps1 |
 | `Get-SAOpenSubtitlesDownload` | Download individual subtitle | OpenSubtitles.ps1 |
 | `Start-SAOpenSubtitlesDownload` | **Main entry** - download subtitles | OpenSubtitles.ps1 |
+| `Start-SAOpenSubtitlesUpload` | **Main entry** - batch upload cleaned subtitles (respects `uploadExclude`) | OpenSubtitles.ps1 |
+| `Test-SAOpenSubtitlesSubtitleExists` | Check if subtitle exists on OpenSubtitles for a hash/language | OpenSubtitles.ps1 |
+| `Test-SAUploadableSubtitle` | Validate filename is safe for upload | OpenSubtitles.ps1 |
+| `Resolve-SAOpenSubtitlesImdbId` | Resolve IMDB ID from OMDb cache or API | OpenSubtitles.ps1 |
 
 ### Subtitle Processing
 
