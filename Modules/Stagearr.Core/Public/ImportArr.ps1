@@ -860,6 +860,11 @@ function Invoke-SAArrManualImportExecute {
             $importFile.releaseType = $file.releaseType
         }
 
+        # Download ID for tracked download path (enables proper queue clearing)
+        if (-not [string]::IsNullOrWhiteSpace($DownloadId)) {
+            $importFile.downloadId = $DownloadId
+        }
+
         $importFiles += $importFile
         
         $fileName = Split-Path -Path $file.path -Leaf
@@ -867,13 +872,13 @@ function Invoke-SAArrManualImportExecute {
     }
     
     # Build command body
+    # Note: downloadId is set per-file (not on the command), because ManualImportCommand
+    # only has Files and ImportMode properties. Per-file downloadId enables the tracked
+    # download path in Sonarr/Radarr, which provides proper queue clearing and history.
     $commandBody = @{
         name       = 'ManualImport'
         files      = $importFiles
         importMode = $ImportMode
-    }
-    if (-not [string]::IsNullOrWhiteSpace($DownloadId)) {
-        $commandBody.downloadId = $DownloadId
     }
     
     Write-SAVerbose -Text "$label ManualImport: Sending command..."
@@ -1064,6 +1069,8 @@ function Invoke-SARadarrManualImportExecute {
         Array of file objects from Invoke-SARadarrManualImportScan.
     .PARAMETER ImportMode
         How to handle source files: 'move' or 'copy' (default: 'move').
+    .PARAMETER DownloadId
+        Optional download client ID (torrent hash) for tracked download association.
     .OUTPUTS
         PSCustomObject with Success, Message, Duration, and CommandId.
     #>
@@ -1071,16 +1078,19 @@ function Invoke-SARadarrManualImportExecute {
     param(
         [Parameter(Mandatory = $true)]
         [hashtable]$Config,
-        
+
         [Parameter(Mandatory = $true)]
         [array]$Files,
-        
+
         [Parameter()]
         [ValidateSet('move', 'copy')]
-        [string]$ImportMode = 'move'
+        [string]$ImportMode = 'move',
+
+        [Parameter()]
+        [string]$DownloadId
     )
-    
-    return Invoke-SAArrManualImportExecute -AppType 'Radarr' -Config $Config -Files $Files -ImportMode $ImportMode
+
+    return Invoke-SAArrManualImportExecute -AppType 'Radarr' -Config $Config -Files $Files -ImportMode $ImportMode -DownloadId $DownloadId
 }
 
 #endregion
@@ -1241,6 +1251,8 @@ function Invoke-SASonarrManualImportExecute {
         Array of file objects from Invoke-SASonarrManualImportScan.
     .PARAMETER ImportMode
         How to handle source files: 'move' or 'copy' (default: 'move').
+    .PARAMETER DownloadId
+        Optional download client ID (torrent hash) for tracked download association.
     .OUTPUTS
         PSCustomObject with Success, Message, Duration, and CommandId.
     #>
@@ -1248,16 +1260,19 @@ function Invoke-SASonarrManualImportExecute {
     param(
         [Parameter(Mandatory = $true)]
         [hashtable]$Config,
-        
+
         [Parameter(Mandatory = $true)]
         [array]$Files,
-        
+
         [Parameter()]
         [ValidateSet('move', 'copy')]
-        [string]$ImportMode = 'move'
+        [string]$ImportMode = 'move',
+
+        [Parameter()]
+        [string]$DownloadId
     )
-    
-    return Invoke-SAArrManualImportExecute -AppType 'Sonarr' -Config $Config -Files $Files -ImportMode $ImportMode
+
+    return Invoke-SAArrManualImportExecute -AppType 'Sonarr' -Config $Config -Files $Files -ImportMode $ImportMode -DownloadId $DownloadId
 }
 
 #endregion
