@@ -529,7 +529,7 @@ function Start-SAOpenSubtitlesDownload {
     $searchResults = Search-SAOpenSubtitles @searchParams
     
     if ($searchResults.Count -eq 0) {
-        Write-SAProgress -Label "OpenSubs" -Text "No subtitles found for $($Languages -join ', ')"
+        Write-SAVerbose -Label "OpenSubs" -Text "No subtitles found for $($Languages -join ', ')"
         return @()
     }
     
