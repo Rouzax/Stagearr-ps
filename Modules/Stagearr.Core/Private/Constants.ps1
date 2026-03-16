@@ -69,6 +69,10 @@ $script:SAConstants = @{
     # Delay between upload requests (milliseconds)
     OpenSubtitlesUploadDelayMs = 1500
 
+    # Delay between API calls (search, existence checks) to respect rate limits (milliseconds)
+    # OpenSubtitles allows 40 requests/10 seconds = 250ms minimum spacing
+    OpenSubtitlesApiDelayMs = 250
+
     # Filenames too generic for OpenSubtitles upload (case-insensitive, matched against base name without extension)
     OpenSubtitlesUploadBlockedNames = @('_unpack', 'video', 'output', 'movie', 'film')
 

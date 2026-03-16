@@ -527,7 +527,9 @@ function Start-SAOpenSubtitlesDownload {
         $searchParams.MovieHash = $MovieHash
     }
     $searchResults = Search-SAOpenSubtitles @searchParams
-    
+    # Rate limit between search API calls (season packs make one call per video)
+    Start-Sleep -Milliseconds $script:SAConstants.OpenSubtitlesApiDelayMs
+
     if ($searchResults.Count -eq 0) {
         Write-SAVerbose -Label "OpenSubs" -Text "No subtitles found for $($Languages -join ', ')"
         return @()
@@ -1325,6 +1327,8 @@ function Start-SAOpenSubtitlesUpload {
             -MovieHash $movieHash `
             -Language $lang `
             -VideoFileName $movieFileName
+        # Rate limit between existence check API calls
+        Start-Sleep -Milliseconds $script:SAConstants.OpenSubtitlesApiDelayMs
 
         if ($existsOnSite) {
             $duplicates++
