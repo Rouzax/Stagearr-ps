@@ -634,6 +634,34 @@
       line-height: 1.5;
     }
 
+    /* Update notification card (inside email) */
+    .email-update {
+      border-left: 3px solid var(--amber);
+      padding-left: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .email-update-header {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--amber);
+      text-transform: uppercase;
+      margin-bottom: 0.35rem;
+    }
+
+    .email-update-message {
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      margin-bottom: 0.25rem;
+    }
+
+    .email-update-link {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-decoration: underline;
+    }
+
     /* What happened / What to check (failed card) */
     .email-what-happened {
       border-left: 3px solid var(--red);
@@ -1034,6 +1062,12 @@
               <span class="email-detail-key">Duration</span>
               <span class="email-detail-val">3m 12s</span>
             </div>
+          </div>
+
+          <div class="email-update">
+            <div class="email-update-header">Update Available</div>
+            <div class="email-update-message">v2.1.0 is available</div>
+            <a href="#" class="email-update-link">View release notes</a>
           </div>
 
           <div class="email-log">
