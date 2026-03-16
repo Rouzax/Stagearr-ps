@@ -2,11 +2,11 @@ BeforeAll {
     Import-Module "$PSScriptRoot/../Modules/Stagearr.Core/Stagearr.Core.psd1" -Force
 }
 
-Describe 'Invoke-SAArrManualImportExecute per-file downloadId' {
+Describe 'Invoke-SAArrManualImportExecute downloadId placement' {
 
-    Context 'When DownloadId is provided' {
+    Context 'Sonarr: DownloadId goes per-file' {
 
-        It 'should include downloadId on each file in the command body' {
+        It 'should include downloadId on each file, not on the command body' {
             InModuleScope 'Stagearr.Core' {
                 $script:CapturedBody = $null
 
@@ -68,9 +68,56 @@ Describe 'Invoke-SAArrManualImportExecute per-file downloadId' {
         }
     }
 
+    Context 'Radarr: DownloadId goes on the command body' {
+
+        It 'should include downloadId on command body, not on files' {
+            InModuleScope 'Stagearr.Core' {
+                $script:CapturedBody = $null
+
+                Mock Write-SAVerbose {}
+                Mock Invoke-SAWebRequest {
+                    if ($Method -eq 'POST') {
+                        $script:CapturedBody = $Body
+                        return @{
+                            Success = $true
+                            Data    = @{ id = 12345 }
+                        }
+                    }
+                    return @{
+                        Success = $true
+                        Data    = @{ status = 'completed'; result = 'successful' }
+                    }
+                }
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 7878; ssl = $false; urlRoot = ''; timeoutMinutes = 1 }
+                $files = @(
+                    @{
+                        path     = 'C:\Test\Movie.mkv'
+                        quality  = @{ quality = @{ id = 3 }; revision = @{ version = 1 } }
+                        movie    = @{ id = 50 }
+                        movieId  = 50
+                    }
+                )
+
+                $null = Invoke-SAArrManualImportExecute -AppType 'Radarr' -Config $config -Files $files -DownloadId 'CCDD5678'
+
+                $body = $script:CapturedBody
+                if ($body -is [string]) {
+                    $body = $body | ConvertFrom-Json
+                }
+
+                # downloadId should be on the command body (Radarr's ManualImportCommand has it)
+                $body.downloadId | Should -Be 'CCDD5678'
+
+                # Files should NOT have downloadId (Radarr's ManualImportFile doesn't have it)
+                $body.files[0].PSObject.Properties.Name | Should -Not -Contain 'downloadId'
+            }
+        }
+    }
+
     Context 'When DownloadId is not provided' {
 
-        It 'should not include downloadId on files' {
+        It 'should not include downloadId anywhere' {
             InModuleScope 'Stagearr.Core' {
                 $script:CapturedBody = $null
 
@@ -106,6 +153,7 @@ Describe 'Invoke-SAArrManualImportExecute per-file downloadId' {
                     $body = $body | ConvertFrom-Json
                 }
 
+                $body.PSObject.Properties.Name | Should -Not -Contain 'downloadId'
                 $body.files[0].PSObject.Properties.Name | Should -Not -Contain 'downloadId'
             }
         }

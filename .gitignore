@@ -1,5 +1,6 @@
 # User configuration (contains API keys, SMTP credentials)
 config.toml
+config.toml.backup-*
 
 # Log and queue runtime data
 logs/

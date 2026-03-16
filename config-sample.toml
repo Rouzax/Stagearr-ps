@@ -148,7 +148,7 @@ plotMaxLength = 150
 # "auto" = download and apply updates via git pull
 # "notify" = show update available in email/console
 # "off" = disable update checking
-mode = "off"
+mode = "auto"
 # Hours between update checks (0 = check every run)
 checkIntervalHours = 24
 
