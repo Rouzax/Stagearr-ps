@@ -1,7 +1,7 @@
 @{
     # Module identification
     RootModule        = 'Stagearr.Core.psm1'
-    ModuleVersion     = '2.0.7'
+    ModuleVersion     = '2.1.0'
     GUID              = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
     Author            = 'Rouzax'
     Description       = 'Core module for Stagearr - qBittorrent post-processing automation'
@@ -36,12 +36,14 @@
         
         # --- Configuration Sync ---
         'Sync-SAConfig'
+        'Invoke-SAConfigSync'
         'Test-SAConfigSync'
         'Get-SAConfigSyncReport'
         'Compare-SAConfigSchema'
 
         # --- Updates ---
         'Invoke-SAUpdateCheck'
+        'Invoke-SAInteractiveUpdate'
 
         # --- Setup ---
         'Invoke-SASetup'

@@ -133,7 +133,8 @@ Modules/Stagearr.Core/
 | `-Worker` | `Start-SAWorker` → process pending jobs |
 | `-Status` | Show queue counts, running job details (phase/activity/elapsed), completed/failed history |
 | `-Requeue` | Move stale running jobs back to pending |
-| `-SyncConfig` | Sync config.toml with config-sample.toml (add/remove settings) |
+| `-SyncConfig` | Compare config against sample, offer to apply missing/extra changes |
+| `-Update` | Check for updates and apply (auto or prompted based on config) |
 
 ### Job Pipeline (`Invoke-SAJobProcessing`)
 
@@ -197,9 +198,11 @@ Modules/Stagearr.Core/
 | Clean subtitles with SubtitleEdit | `Start-SASubtitleCleanup` | SubtitleProcessing.ps1 |
 | Check if config needs sync | `Test-SAConfigSync` | ConfigSync.ps1 |
 | Sync config with sample | `Sync-SAConfig` | ConfigSync.ps1 |
+| Interactive config sync (compare + apply) | `Invoke-SAConfigSync` | ConfigSync.ps1 |
 | Compare config schemas | `Compare-SAConfigSchema` | ConfigSync.ps1 |
 | Generate config sync report | `Get-SAConfigSyncReport` | ConfigSync.ps1 |
 | Check for updates | `Invoke-SAUpdateCheck` | Update.ps1 |
+| Interactive update (check + prompt + apply) | `Invoke-SAInteractiveUpdate` | Update.ps1 |
 | Compare version strings | `Compare-SAVersions` | Update.ps1 |
 
 ---
@@ -342,7 +345,8 @@ If `PosterData` is null but `PosterBase64` exists, falls back to the deprecated 
 |----------|---------|------|
 | `Read-SAConfig` | Load config from JSON | Config.ps1 |
 | `Test-SAFeatureEnabled` | Check if optional feature is enabled | Config.ps1 |
-| `Sync-SAConfig` | Sync user config with sample (add/remove settings) | ConfigSync.ps1 |
+| `Sync-SAConfig` | Report missing/extra settings (read-only) | ConfigSync.ps1 |
+| `Invoke-SAConfigSync` | Compare config against sample, prompt to apply changes | ConfigSync.ps1 |
 | `Test-SAConfigSync` | Check if config needs synchronization | ConfigSync.ps1 |
 | `Get-SAConfigSyncReport` | Generate detailed sync report | ConfigSync.ps1 |
 | `Compare-SAConfigSchema` | Find missing/extra keys between configs | ConfigSync.ps1 |
@@ -690,6 +694,7 @@ These aren't exported but are heavily used internally:
 | Function | Purpose | File |
 |----------|---------|------|
 | `Invoke-SAUpdateCheck` | Main entry — check GitHub Releases for updates, optionally apply via git pull | Update.ps1 |
+| `Invoke-SAInteractiveUpdate` | Interactive update flow for -Update CLI flag (check + prompt + apply) | Update.ps1 |
 | `Compare-SAVersions` | Compare two version strings, returns -1/0/1 | Update.ps1 |
 | `Test-SAUpdateCheckDue` | Check if update check interval has elapsed | Update.ps1 |
 | `Get-SALatestRelease` | Query GitHub Releases API for latest release | Update.ps1 |

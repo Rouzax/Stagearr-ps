@@ -44,11 +44,15 @@
     Show queue status and exit.
 
 .PARAMETER SyncConfig
-    Compare config.toml against config-sample.toml and report
-    missing or extra settings.
+    Compare config.toml against config-sample.toml and offer to
+    apply missing or remove deprecated settings.
 
 .PARAMETER Setup
     Run interactive setup wizard to create or edit config.toml.
+
+.PARAMETER Update
+    Check for updates and apply if available. Auto mode applies
+    immediately; notify/off mode prompts for confirmation.
 
 .PARAMETER ConfigPath
     Path to config.toml (default: same directory as script).
@@ -72,6 +76,10 @@
 .EXAMPLE
     # Interactive setup wizard:
     Stagearr.ps1 -Setup
+
+.EXAMPLE
+    # Check for updates:
+    Stagearr.ps1 -Update
 
 .EXAMPLE
     # Re-run a previously completed/failed job:
@@ -115,6 +123,9 @@ param(
 
     [Parameter(ParameterSetName = 'Setup')]
     [switch]$Setup,
+
+    [Parameter(ParameterSetName = 'Update')]
+    [switch]$Update,
 
     [Parameter()]
     [string]$ConfigPath
@@ -171,16 +182,7 @@ if ($PSCmdlet.ParameterSetName -eq 'SyncConfig') {
         exit 1
     }
 
-    # Run sync report
-    $result = Sync-SAConfig -ConfigPath $ConfigPath -SamplePath $samplePath
-
-    if ($result.MissingCount -eq 0 -and $result.ExtraCount -eq 0) {
-        Write-SAOutcome -Level Success -Label "Status" -Text "Configuration is up to date"
-    }
-    else {
-        Write-SAProgress -Label "Status" -Text $result.Message
-    }
-    
+    Invoke-SAConfigSync -ConfigPath $ConfigPath -SamplePath $samplePath
     exit 0
 }
 
@@ -217,8 +219,10 @@ try {
 $Config['_scriptRoot'] = $ScriptRoot
 $Config['_configPath'] = $ConfigPath
 
-# Check for updates (respects interval and mode config)
-Invoke-SAUpdateCheck -Config $Config -LocalVersion $StagearrVersion -ScriptRoot $ScriptRoot
+# Check for updates (respects interval and mode config) — skip if -Update handles it
+if ($PSCmdlet.ParameterSetName -ne 'Update') {
+    Invoke-SAUpdateCheck -Config $Config -LocalVersion $StagearrVersion -ScriptRoot $ScriptRoot
+}
 
 # Initialize console renderer
 Initialize-SAConsoleRenderer -UseColors $Config.logging.consoleColors
@@ -228,6 +232,12 @@ Write-SABanner -Title "Stagearr" -Version $StagearrVersion
 
 # Handle different modes
 switch ($PSCmdlet.ParameterSetName) {
+    'Update' {
+        Write-SAPhaseHeader -Title "Update Check"
+        Invoke-SAInteractiveUpdate -Config $Config -LocalVersion $StagearrVersion -ScriptRoot $ScriptRoot
+        exit 0
+    }
+
     'Status' {
         # Show queue status
         Write-SAPhaseHeader -Title "Queue Status"

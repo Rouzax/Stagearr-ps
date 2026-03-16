@@ -3,9 +3,9 @@
 .SYNOPSIS
     Configuration synchronization for Stagearr
 .DESCRIPTION
-    Compares user config.toml against config-sample.toml and reports
-    missing or extra settings. Report-only — users manually add settings
-    from config-sample.toml.
+    Compares user config.toml against config-sample.toml. Sync-SAConfig
+    reports differences (read-only). Invoke-SAConfigSync offers to apply
+    changes interactively (add missing settings, remove deprecated ones).
 #>
 
 function Compare-SAConfigSchema {
@@ -307,6 +307,126 @@ function Test-SAConfigSync {
             MissingCount = 0
             ExtraCount   = 0
             Message      = "Error checking config: $_"
+        }
+    }
+}
+
+function Invoke-SAConfigSync {
+    <#
+    .SYNOPSIS
+        Compares config against sample and offers to apply changes.
+    .DESCRIPTION
+        Reports missing and extra settings, then prompts the user to apply.
+        Missing settings are added with sample defaults. Extra/deprecated
+        settings are removed. A timestamped backup is created before writing.
+    .PARAMETER ConfigPath
+        Path to user's config.toml.
+    .PARAMETER SamplePath
+        Path to config-sample.toml.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ConfigPath,
+
+        [Parameter()]
+        [string]$SamplePath
+    )
+
+    $ConfigPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ConfigPath)
+
+    if (-not $SamplePath) {
+        $configDir = Split-Path -Parent $ConfigPath
+        $SamplePath = Join-Path $configDir 'config-sample.toml'
+    }
+
+    # Parse both configs
+    try {
+        $userContent = Get-Content -LiteralPath $ConfigPath -Raw
+        $userConfig = ConvertFrom-SAToml -Content $userContent
+    }
+    catch {
+        Write-SAOutcome -Level Error -Label "Config" -Text "Failed to parse config.toml: $_"
+        return
+    }
+
+    try {
+        $sampleContent = Get-Content -LiteralPath $SamplePath -Raw
+        $sampleConfig = ConvertFrom-SAToml -Content $sampleContent
+    }
+    catch {
+        Write-SAOutcome -Level Error -Label "Sample" -Text "Failed to parse config-sample.toml: $_"
+        return
+    }
+
+    # Compare
+    $comparison = Compare-SAConfigSchema -UserConfig $userConfig -SampleConfig $sampleConfig
+    $hasMissing = $comparison.MissingKeys.Count -gt 0
+    $hasExtra = $comparison.ExtraKeys.Count -gt 0
+
+    if (-not $hasMissing -and -not $hasExtra) {
+        Write-SAOutcome -Level Success -Label "Status" -Text "Configuration is up to date"
+        return
+    }
+
+    # Display missing settings
+    if ($hasMissing) {
+        Write-SAProgress -Label "Missing" -Text "$($comparison.MissingKeys.Count) new setting(s) available"
+        foreach ($item in $comparison.MissingKeys) {
+            $valuePreview = if ($item.DefaultValue -is [hashtable] -or $item.DefaultValue -is [PSCustomObject]) {
+                '{...}'
+            }
+            elseif ($item.DefaultValue -is [array]) {
+                "[$(($item.DefaultValue | Select-Object -First 2) -join ', ')...]"
+            }
+            else {
+                "$($item.DefaultValue)"
+            }
+            Write-SAKeyValue -Key "  + $($item.Path)" -Value $valuePreview
+        }
+    }
+
+    # Display extra/deprecated settings
+    if ($hasExtra) {
+        Write-SAProgress -Label "Extra" -Text "$($comparison.ExtraKeys.Count) unknown setting(s) will be removed"
+        foreach ($item in $comparison.ExtraKeys) {
+            $valuePreview = if ($item.UserValue -is [hashtable] -or $item.UserValue -is [PSCustomObject]) {
+                '{...}'
+            }
+            elseif ($item.UserValue -is [array]) {
+                "[$(($item.UserValue | Select-Object -First 2) -join ', ')...]"
+            }
+            else {
+                "$($item.UserValue)"
+            }
+            Write-SAKeyValue -Key "  - $($item.Path)" -Value $valuePreview
+        }
+    }
+
+    # Prompt user
+    $answer = Read-Host -Prompt "  Apply changes? [Y/n]"
+    if ($answer -match '^[Nn]') {
+        Write-SAProgress -Label "Status" -Text "No changes made"
+        return
+    }
+
+    # Create backup and write updated config
+    try {
+        $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+        $backupPath = "$ConfigPath.backup-$timestamp"
+        Copy-Item -LiteralPath $ConfigPath -Destination $backupPath -Force -ErrorAction Stop
+        Write-SAProgress -Label "Backup" -Text $backupPath
+
+        # Sample template drives output: missing keys get sample defaults, extra keys are dropped
+        $toml = ConvertTo-SAToml -Config $userConfig -SamplePath $SamplePath
+        Set-Content -LiteralPath $ConfigPath -Value $toml -Encoding UTF8 -Force -ErrorAction Stop
+
+        Write-SAOutcome -Level Success -Label "Status" -Text "Configuration updated ($($comparison.MissingKeys.Count) added, $($comparison.ExtraKeys.Count) removed)"
+    }
+    catch {
+        Write-SAOutcome -Level Error -Label "Status" -Text "Failed to write config: $_"
+        if ($backupPath -and (Test-Path -LiteralPath $backupPath)) {
+            Write-SAProgress -Label "Restore" -Text "Backup available at: $backupPath"
         }
     }
 }

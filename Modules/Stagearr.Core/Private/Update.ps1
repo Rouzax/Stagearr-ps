@@ -269,6 +269,80 @@ function Invoke-SAUpdateCheck {
     Save-SAUpdateTimestamp -QueueRoot $queueRoot
 }
 
+function Invoke-SAInteractiveUpdate {
+    <#
+    .SYNOPSIS
+        Interactive update check and apply, triggered by -Update CLI flag.
+    .DESCRIPTION
+        Always checks for updates (bypasses interval timer). Behavior depends on
+        updates.mode config: auto applies immediately, notify/off prompts the user.
+    .PARAMETER Config
+        Configuration hashtable.
+    .PARAMETER LocalVersion
+        Current local version string.
+    .PARAMETER ScriptRoot
+        Path to the script root directory.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config,
+
+        [Parameter(Mandatory = $true)]
+        [string]$LocalVersion,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ScriptRoot
+    )
+
+    Write-SAProgress -Label "Update" -Text "Checking for updates..."
+
+    $release = Get-SALatestRelease
+    if ($null -eq $release) {
+        Write-SAOutcome -Level Error -Label "Update" -Text "Failed to check for updates (GitHub API unreachable)"
+        return
+    }
+
+    # Save timestamp so interval-based checks know we just checked
+    $queueRoot = if ($Config.paths -and $Config.paths.queueRoot) { $Config.paths.queueRoot } else { $null }
+    if ($queueRoot -and -not [string]::IsNullOrWhiteSpace($queueRoot)) {
+        Save-SAUpdateTimestamp -QueueRoot $queueRoot
+    }
+
+    $comparison = Compare-SAVersions -LocalVersion $LocalVersion -RemoteVersion $release.Version
+    if ($comparison -ge 0) {
+        Write-SAOutcome -Level Success -Label "Update" -Text "Already up to date (v$LocalVersion)"
+        return
+    }
+
+    # Update available
+    Write-SAKeyValue -Key "Current version" -Value "v$LocalVersion"
+    Write-SAKeyValue -Key "Latest version" -Value "v$($release.Version)"
+    Write-SAKeyValue -Key "Release" -Value $release.Url
+
+    # Determine whether to prompt or auto-apply
+    $mode = if ($Config.updates -and $Config.updates.mode) { $Config.updates.mode } else { 'off' }
+    $shouldPrompt = $mode -ne 'auto'
+
+    if ($shouldPrompt) {
+        $answer = Read-Host -Prompt "  Apply update? [Y/n]"
+        if ($answer -match '^[Nn]') {
+            Write-SAProgress -Label "Update" -Text "Skipped. Run 'git pull' to update manually."
+            return
+        }
+    }
+
+    Write-SAProgress -Label "Update" -Text "Updating from v$LocalVersion to v$($release.Version)..."
+    $pullSuccess = Invoke-SAGitPull -ScriptRoot $ScriptRoot
+
+    if ($pullSuccess) {
+        Write-SAOutcome -Level Success -Label "Update" -Text "Updated to v$($release.Version)"
+        Write-SAProgress -Label "Hint" -Text "New settings may have been added. Run: .\Stagearr.ps1 -SyncConfig"
+    } else {
+        Write-SAOutcome -Level Error -Label "Update" -Text "git pull failed. Run 'git pull' manually to update."
+    }
+}
+
 function Get-SAUpdateState {
     [CmdletBinding()]
     [OutputType([hashtable])]
