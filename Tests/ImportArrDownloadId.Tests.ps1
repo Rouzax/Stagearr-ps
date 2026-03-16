@@ -111,3 +111,80 @@ Describe 'Invoke-SAArrManualImportExecute per-file downloadId' {
         }
     }
 }
+
+Describe 'Get-SAImportVerification' {
+
+    Context 'When all files were imported' {
+
+        It 'should return correct counts' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Invoke-SAWebRequest {
+                    return @{
+                        Success = $true
+                        Data    = @{
+                            totalRecords = 3
+                            records      = @(
+                                @{ eventType = 'downloadFolderImported'; downloadId = 'HASH1'; episodeId = 1 },
+                                @{ eventType = 'downloadFolderImported'; downloadId = 'HASH1'; episodeId = 2 },
+                                @{ eventType = 'downloadFolderImported'; downloadId = 'HASH1'; episodeId = 3 }
+                            )
+                        }
+                    }
+                }
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $result = Get-SAImportVerification -AppType 'Sonarr' -Config $config -DownloadId 'HASH1' -ExpectedCount 3
+
+                $result.ImportedCount | Should -Be 3
+                $result.ExpectedCount | Should -Be 3
+                $result.IsComplete | Should -BeTrue
+            }
+        }
+    }
+
+    Context 'When some files were silently skipped' {
+
+        It 'should detect the mismatch' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Invoke-SAWebRequest {
+                    return @{
+                        Success = $true
+                        Data    = @{
+                            totalRecords = 2
+                            records      = @(
+                                @{ eventType = 'downloadFolderImported'; downloadId = 'HASH2'; episodeId = 1 },
+                                @{ eventType = 'downloadFolderImported'; downloadId = 'HASH2'; episodeId = 2 }
+                            )
+                        }
+                    }
+                }
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $result = Get-SAImportVerification -AppType 'Sonarr' -Config $config -DownloadId 'HASH2' -ExpectedCount 5
+
+                $result.ImportedCount | Should -Be 2
+                $result.ExpectedCount | Should -Be 5
+                $result.IsComplete | Should -BeFalse
+            }
+        }
+    }
+
+    Context 'When API call fails' {
+
+        It 'should return null and not throw' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Invoke-SAWebRequest {
+                    return @{ Success = $false; ErrorMessage = 'timeout' }
+                }
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $result = Get-SAImportVerification -AppType 'Sonarr' -Config $config -DownloadId 'HASH3' -ExpectedCount 3
+
+                $result | Should -BeNullOrEmpty
+            }
+        }
+    }
+}

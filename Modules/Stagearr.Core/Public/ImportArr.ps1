@@ -333,16 +333,32 @@ function Invoke-SAArrImport {
     # ==========================================================================
     
     if ($importResult.Success) {
+        # Verify actual import count from history
         $successMsg = "Imported"
-        if ($rejectionSummary.IsPartialRejected) {
-            $fileWord = Get-SAPluralForm -Count $importableFiles.Count -Singular 'file'
-            $successMsg = "Imported $($importableFiles.Count) $fileWord"
+        $verification = $null
+        $verifiedCount = $importableFiles.Count
+        if (-not [string]::IsNullOrWhiteSpace($DownloadId)) {
+            $verification = Get-SAImportVerification -AppType $AppType -Config $Config -DownloadId $DownloadId -ExpectedCount $importableFiles.Count
+            if ($null -ne $verification) {
+                $verifiedCount = $verification.ImportedCount
+                if (-not $verification.IsComplete) {
+                    Write-SAOutcome -Level Warning -Label $label -Text "Imported $verifiedCount of $($importableFiles.Count) files (some silently skipped by $label)" -Duration $importResult.Duration -Indent 1
+                }
+            }
         }
-        Write-SAOutcome -Level Success -Label $label -Text $successMsg -Duration $importResult.Duration -Indent 1
-        
+
+        if ($verifiedCount -ge $importableFiles.Count -or $null -eq $verification) {
+            $successMsg = "Imported"
+            if ($rejectionSummary.IsPartialRejected) {
+                $fileWord = Get-SAPluralForm -Count $importableFiles.Count -Singular 'file'
+                $successMsg = "Imported $($importableFiles.Count) $fileWord"
+            }
+            Write-SAOutcome -Level Success -Label $label -Text $successMsg -Duration $importResult.Duration -Indent 1
+        }
+
         return [PSCustomObject]@{
             Success         = $true
-            Message         = $successMsg
+            Message         = if ($null -ne $verification -and -not $verification.IsComplete) { "Imported $verifiedCount of $($importableFiles.Count) files" } else { $successMsg }
             Duration        = $importResult.Duration
             ImportedFiles   = $importedFilePaths
             SkippedFiles    = $skippedFilePaths

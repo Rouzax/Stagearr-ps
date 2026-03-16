@@ -98,6 +98,82 @@ function Get-SAArrQueueRecords {
     return , $records
 }
 
+function Get-SAImportVerification {
+    <#
+    .SYNOPSIS
+        Verifies how many files were actually imported by querying *arr history.
+    .DESCRIPTION
+        After a ManualImport command completes, queries the history API for
+        downloadFolderImported events matching the downloadId to determine
+        the actual import count. This catches silently skipped files that
+        the command result doesn't report.
+    .PARAMETER AppType
+        The *arr application type: 'Radarr' or 'Sonarr'.
+    .PARAMETER Config
+        Application configuration hashtable.
+    .PARAMETER DownloadId
+        Download client ID (torrent hash).
+    .PARAMETER ExpectedCount
+        Number of files we sent for import.
+    .OUTPUTS
+        PSCustomObject with ImportedCount, ExpectedCount, IsComplete, or $null on failure.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Radarr', 'Sonarr')]
+        [string]$AppType,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config,
+
+        [Parameter(Mandatory = $true)]
+        [string]$DownloadId,
+
+        [Parameter(Mandatory = $true)]
+        [int]$ExpectedCount
+    )
+
+    $urlInfo = Get-SAImporterBaseUrl -Config $Config
+    $baseUrl = $urlInfo.Url
+    $uri = "$baseUrl/api/v3/history?downloadId=$DownloadId&eventType=3&pageSize=200"
+
+    $headers = @{
+        'X-Api-Key' = $Config.apiKey
+        'Accept'    = 'application/json'
+    }
+    if ($urlInfo.HostHeader) {
+        $headers['Host'] = $urlInfo.HostHeader
+    }
+
+    Write-SAVerbose -Text "Import verification: querying history for download $DownloadId"
+
+    $result = Invoke-SAWebRequest -Uri $uri -Method GET -Headers $headers -TimeoutSeconds 15 -MaxRetries 1
+    if (-not $result.Success) {
+        Write-SAVerbose -Text "Import verification: history query failed - $($result.ErrorMessage)"
+        return $null
+    }
+
+    $records = @()
+    if ($null -ne $result.Data -and $null -ne $result.Data.records) {
+        $records = @($result.Data.records | Where-Object {
+            $_.eventType -eq 'downloadFolderImported' -and $_.downloadId -eq $DownloadId
+        })
+    }
+
+    $importedCount = $records.Count
+    $isComplete = $importedCount -ge $ExpectedCount
+
+    Write-SAVerbose -Text "Import verification: $importedCount of $ExpectedCount files confirmed imported"
+
+    return [PSCustomObject]@{
+        ImportedCount = $importedCount
+        ExpectedCount = $ExpectedCount
+        IsComplete    = $isComplete
+        Records       = $records
+    }
+}
+
 function Get-SAArrHistoryRecords {
     <#
     .SYNOPSIS
