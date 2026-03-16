@@ -37,6 +37,7 @@ function Compare-SAConfigSchema {
         $UserConfig,
 
         [Parameter(Mandatory)]
+        [AllowNull()]
         $SampleConfig,
 
         [Parameter()]
@@ -65,6 +66,10 @@ function Compare-SAConfigSchema {
 
     if ($null -eq $UserConfig) {
         $UserConfig = @{}
+    }
+
+    if ($null -eq $SampleConfig) {
+        $SampleConfig = @{}
     }
 
     # Find missing keys (in sample but not in user)

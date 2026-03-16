@@ -215,7 +215,7 @@ function ConvertFrom-SATomlArray {
 
     $inner = $inner.Trim()
     if ($inner -eq '') {
-        return @()
+        return , @()
     }
 
     # Split by comma, respecting quotes
