@@ -96,6 +96,44 @@ aiTranslated = "include"
 
 ---
 
+## Subtitle Upload
+
+Uploads cleaned extracted subtitles back to OpenSubtitles, contributing to the community database.
+
+### What Gets Uploaded
+
+Only subtitles **extracted from MKV files** are uploaded. Downloaded subtitles (from OpenSubtitles itself) are excluded to avoid re-uploading existing content. Subtitles are cleaned with SubtitleEdit before upload.
+
+### Guards
+
+Several checks prevent bad uploads:
+- **Filename validation** rejects generic names (`_unpack`, `video`, `output`) and filenames without proper metadata (season/episode for TV, multi-word titles for movies)
+- **Duplicate detection** checks if a subtitle already exists on OpenSubtitles for the same video hash and language before uploading
+- **Rate limiting** adds a 250ms delay between API calls to respect the 40 requests/10 seconds limit
+
+### Upload Exclude List
+
+Some shows have notoriously bad embedded subtitles. Use `uploadExclude` to prevent uploading for specific shows:
+
+```toml
+[subtitles.openSubtitles]
+uploadExclude = ["tt2140481", "Last Week Tonight with John Oliver"]
+```
+
+Entries starting with `tt` followed by digits are matched against the IMDB ID. All other entries are matched case-insensitively against the show/movie title from OMDb.
+
+### Diagnostic Mode
+
+Enable `uploadDiagnosticMode` to see what would be uploaded without actually uploading. This logs each subtitle's eligibility status so you can verify the guards work correctly before going live.
+
+```toml
+[subtitles.openSubtitles]
+uploadCleaned = true
+uploadDiagnosticMode = true
+```
+
+---
+
 ## SubtitleEdit Cleanup
 
 Cleans downloaded and extracted SRT files using SubtitleEdit's command-line interface.
@@ -130,5 +168,6 @@ Subtitles are processed in this order during the pipeline:
 2. **Extract** remaining text tracks to SRT files (if enabled)
 3. **Download** missing subtitles from OpenSubtitles (if enabled)
 4. **Clean** all SRT files with SubtitleEdit (if enabled)
+5. **Upload** cleaned extracted subtitles to OpenSubtitles (if enabled)
 
 Each step is independently togglable via feature flags.

@@ -130,6 +130,9 @@ enabled = true
 user = "your_username"
 password = "your_password"
 apiKey = "your_api_key"
+uploadCleaned = false
+uploadDiagnosticMode = false
+uploadExclude = []
 
 [subtitles.openSubtitles.filters]
 hearingImpaired = "exclude"     # include | exclude | only
@@ -138,7 +141,17 @@ machineTranslated = "exclude"
 aiTranslated = "include"
 ```
 
-See [Subtitle Processing](Subtitle-Processing) for details on how these filters work.
+| Option | Description | Default |
+|--------|-------------|---------|
+| `enabled` | Enable OpenSubtitles subtitle downloading | `false` |
+| `user` | OpenSubtitles.com username | (required) |
+| `password` | OpenSubtitles.com password | (required) |
+| `apiKey` | OpenSubtitles.com API key | (required) |
+| `uploadCleaned` | Upload cleaned subtitles (extracted only, not downloaded) back to OpenSubtitles | `false` |
+| `uploadDiagnosticMode` | Log what would be uploaded without actually uploading | `false` |
+| `uploadExclude` | Shows/movies to never upload for. Accepts IMDB IDs (`"tt2140481"`) or titles (case-insensitive) | `[]` |
+
+See [Subtitle Processing](Subtitle-Processing) for details on filters and upload behavior.
 
 ---
 
@@ -352,4 +365,5 @@ consoleColors = true
 | Subtitle Stripping | `subtitles.stripping.enabled` | `true` | mkvmerge |
 | SubtitleEdit Cleanup | `subtitles.cleanup.enabled` | `true` | SubtitleEdit |
 | OpenSubtitles | `subtitles.openSubtitles.enabled` | `false` | (API only) |
+| Subtitle Upload | `subtitles.openSubtitles.uploadCleaned` | `false` | (API only) |
 | OMDb Enrichment | `omdb.enabled` | `false` | (API only) |
