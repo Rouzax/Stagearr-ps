@@ -302,25 +302,25 @@ function Write-SAToolVersions {
     if (Test-SAFeatureEnabled -Config $config -Feature 'SubtitleCleanup') {
         $tools.Add(@{ Name = 'SubtitleEdit'; Path = $Context.Tools.SubtitleEdit })
     }
-    
+
     foreach ($tool in $tools) {
         $path = $tool.Path
-        
+
         # Skip unconfigured tools
         if ([string]::IsNullOrWhiteSpace($path)) {
             continue
         }
-        
+
         # Skip tools that don't exist
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             continue
         }
-        
+
         try {
             # Get version from file metadata (safer than executing)
             $fileInfo = Get-Item -LiteralPath $path -ErrorAction Stop
             $version = $fileInfo.VersionInfo.ProductVersion
-            
+
             if (-not [string]::IsNullOrWhiteSpace($version)) {
                 # Clean up version string (extract just the version number)
                 if ($version -match '^(\d+\.\d+(?:\.\d+)?)') {
@@ -334,6 +334,16 @@ function Write-SAToolVersions {
         } catch {
             # Metadata read failed, just show path
             Write-SAVerbose -Label $tool.Name -Text "($path)"
+        }
+    }
+
+    # Mailozaurr module for email (optional but recommended over Send-MailMessage)
+    if ($config.notifications -and $config.notifications.email -and $config.notifications.email.enabled) {
+        $mailozaurrModule = & { $VerbosePreference = 'SilentlyContinue'; Get-Module -ListAvailable -Name Mailozaurr | Select-Object -First 1 }
+        if ($mailozaurrModule) {
+            Write-SAVerbose -Label "Mailozaurr" -Text "$($mailozaurrModule.Version) (module)"
+        } else {
+            Write-SAVerbose -Label "Mailozaurr" -Text "not installed (using Send-MailMessage fallback)"
         }
     }
 }
@@ -403,25 +413,25 @@ function Get-SAToolVersionsForLog {
     if (Test-SAFeatureEnabled -Config $config -Feature 'SubtitleCleanup') {
         $tools.Add(@{ Name = 'SubtitleEdit'; Path = $Context.Tools.SubtitleEdit })
     }
-    
+
     foreach ($tool in $tools) {
         $path = $tool.Path
-        
+
         # Skip unconfigured tools
         if ([string]::IsNullOrWhiteSpace($path)) {
             continue
         }
-        
+
         # Skip tools that don't exist
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             continue
         }
-        
+
         try {
             # Get version from file metadata (safer than executing)
             $fileInfo = Get-Item -LiteralPath $path -ErrorAction Stop
             $version = $fileInfo.VersionInfo.ProductVersion
-            
+
             if (-not [string]::IsNullOrWhiteSpace($version)) {
                 # Clean up version string (extract just the version number)
                 if ($version -match '^(\d+\.\d+(?:\.\d+)?)') {
@@ -446,6 +456,22 @@ function Get-SAToolVersionsForLog {
             }
         }
     }
-    
+
+    # Mailozaurr module for email
+    if ($config.notifications -and $config.notifications.email -and $config.notifications.email.enabled) {
+        $mailozaurrModule = & { $VerbosePreference = 'SilentlyContinue'; Get-Module -ListAvailable -Name Mailozaurr | Select-Object -First 1 }
+        if ($mailozaurrModule) {
+            $versions['Mailozaurr'] = @{
+                Version = $mailozaurrModule.Version.ToString()
+                Path    = "module"
+            }
+        } else {
+            $versions['Mailozaurr'] = @{
+                Version = 'not installed'
+                Path    = ''
+            }
+        }
+    }
+
     return $versions
 }

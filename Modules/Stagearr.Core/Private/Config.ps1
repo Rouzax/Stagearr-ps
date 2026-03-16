@@ -138,7 +138,7 @@ $script:SAConfigDefaults = @{
         consoleColors = $true
     }
     updates = @{
-        mode               = 'off'
+        mode               = 'auto'
         checkIntervalHours = 24
     }
 }

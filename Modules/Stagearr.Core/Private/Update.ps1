@@ -258,8 +258,7 @@ function Invoke-SAUpdateCheck {
             $script:SAUpdateState.UpdateApplied = $true
             Write-SAOutcome -Level Success -Label "Update" -Text "Updated to v$($release.Version)"
         } else {
-            $script:SAUpdateState.ErrorMessage = 'git pull failed'
-            Write-SAOutcome -Level Warning -Label "Update" -Text "Update to v$($release.Version) failed - run 'git pull' manually"
+            Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - run 'git pull' to update"
         }
     } else {
         # Notify mode
@@ -339,7 +338,7 @@ function Invoke-SAInteractiveUpdate {
         Write-SAOutcome -Level Success -Label "Update" -Text "Updated to v$($release.Version)"
         Write-SAProgress -Label "Hint" -Text "New settings may have been added. Run: .\Stagearr.ps1 -SyncConfig"
     } else {
-        Write-SAOutcome -Level Error -Label "Update" -Text "git pull failed. Run 'git pull' manually to update."
+        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - automatic update failed, run 'git pull' to update"
     }
 }
 

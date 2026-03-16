@@ -751,8 +751,8 @@ function Invoke-SAArrManualImportExecute {
     .PARAMETER ImportMode
         How to handle the source files after import: 'move' or 'copy' (default: 'move').
     .PARAMETER DownloadId
-        Optional download client ID (torrent hash). When provided, included in the command body
-        so *arr can associate the import with the correct download client history entry.
+        Optional download client ID (torrent hash) for tracked download association.
+        Placement is app-type-aware: command-level for Radarr, per-file for Sonarr.
     .OUTPUTS
         PSCustomObject with:
         - Success: Boolean indicating if the import completed successfully
@@ -877,24 +877,28 @@ function Invoke-SAArrManualImportExecute {
         }
 
         # Download ID for tracked download path (enables proper queue clearing)
-        if (-not [string]::IsNullOrWhiteSpace($DownloadId)) {
+        # Sonarr: downloadId is a per-file property on ManualImportFile
+        # Radarr: downloadId is a command-level property on ManualImportCommand
+        if ($AppType -eq 'Sonarr' -and -not [string]::IsNullOrWhiteSpace($DownloadId)) {
             $importFile.downloadId = $DownloadId
         }
 
         $importFiles += $importFile
-        
+
         $fileName = Split-Path -Path $file.path -Leaf
         Write-SAVerbose -Text "  File: $fileName"
     }
-    
+
     # Build command body
-    # Note: downloadId is set per-file (not on the command), because ManualImportCommand
-    # only has Files and ImportMode properties. Per-file downloadId enables the tracked
-    # download path in Sonarr/Radarr, which provides proper queue clearing and history.
     $commandBody = @{
         name       = 'ManualImport'
         files      = $importFiles
         importMode = $ImportMode
+    }
+
+    # Radarr: downloadId goes on the command, not per-file
+    if ($AppType -eq 'Radarr' -and -not [string]::IsNullOrWhiteSpace($DownloadId)) {
+        $commandBody.downloadId = $DownloadId
     }
     
     Write-SAVerbose -Text "$label ManualImport: Sending command..."

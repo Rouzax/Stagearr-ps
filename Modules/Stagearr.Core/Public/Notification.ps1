@@ -142,8 +142,8 @@ function Send-SAEmailMailozaurr {
         [string]$Priority = 'Normal',
         
         [Parameter()]
-        [int]$TimeoutSeconds = 10,
-        
+        [int]$TimeoutSeconds = $script:SAConstants.EmailSendTimeoutSeconds,
+
         [Parameter()]
         [hashtable[]]$InlineImages
     )
@@ -323,9 +323,9 @@ function Send-SAEmailBuiltin {
         [string]$Priority = 'Normal',
         
         [Parameter()]
-        [int]$TimeoutSeconds = 10
+        [int]$TimeoutSeconds = $script:SAConstants.EmailSendTimeoutSeconds
     )
-    
+
     # Log deprecation warning (verbose only - don't spam console/email)
     Write-SAVerbose -Label "Email" -Text "Using deprecated Send-MailMessage. Consider installing Mailozaurr."
     
@@ -352,7 +352,12 @@ function Send-SAEmailBuiltin {
         # Use Start-Job for process isolation - can be killed unlike runspace
         $job = Start-Job -ScriptBlock {
             param($p)
-            
+
+            # Ensure TLS 1.2 for PowerShell 5.1 (SMTP servers reject older TLS)
+            if ($PSVersionTable.PSEdition -ne 'Core') {
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            }
+
             $mailParams = @{
                 From       = $p.From
                 To         = $p.To
