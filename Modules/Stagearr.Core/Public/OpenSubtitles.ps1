@@ -1252,6 +1252,30 @@ function Start-SAOpenSubtitlesUpload {
     $diagnosticMode = $config.uploadDiagnosticMode -eq $true
     $labelType = Get-SALabelType -Label $Context.State.ProcessingLabel -Config $Context.Config
 
+    # Check upload exclude list
+    $excludeList = @($config.uploadExclude | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($excludeList.Count -gt 0) {
+        $omdbTitle = if ($Context.State.OmdbData) { $Context.State.OmdbData.Title } else { '' }
+        $omdbImdbId = if ($Context.State.OmdbData) { $Context.State.OmdbData.ImdbId } else { '' }
+
+        foreach ($entry in $excludeList) {
+            $matched = $false
+            if ($entry -match '^tt\d+$') {
+                # IMDB ID match
+                if ($omdbImdbId -eq $entry) { $matched = $true }
+            } else {
+                # Case-insensitive title match
+                if ($omdbTitle -and $omdbTitle.Equals($entry, [System.StringComparison]::OrdinalIgnoreCase)) { $matched = $true }
+            }
+
+            if ($matched) {
+                $subWord = Get-SAPluralForm -Count $SubtitlePaths.Count -Singular 'subtitle'
+                Write-SAProgress -Label "OpenSubs" -Text "Skipping upload for $($SubtitlePaths.Count) $subWord (excluded: $entry)" -Indent 1
+                return [PSCustomObject]@{ UploadedCount = 0; DuplicateCount = 0; FailedCount = 0 }
+            }
+        }
+    }
+
     # ZLibStream requires .NET 6+ (PowerShell 7+)
     if ($PSVersionTable.PSVersion.Major -lt 7) {
         Write-SAVerbose -Text "Subtitle upload requires PowerShell 7+ - skipping"

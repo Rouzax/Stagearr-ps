@@ -544,4 +544,156 @@ Describe 'Start-SAOpenSubtitlesUpload guard integration' {
             }
         }
     }
+
+    Context 'Upload exclude list' {
+
+        It 'should skip upload when IMDB ID matches uploadExclude' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Write-SAProgress {}
+                Mock Write-SAOutcome {}
+                Mock Get-SAPluralForm { return 'subtitle' }
+                Mock Get-SALabelType { return 'tv' }
+                Mock Connect-SAOpenSubtitlesXmlRpc {}
+                Mock Resolve-SAOpenSubtitlesImdbId { return '' }
+                Mock Test-SAUploadableSubtitle { return [PSCustomObject]@{ Allowed = $true; Reason = '' } }
+                Mock Test-SAOpenSubtitlesSubtitleExists { return $false }
+                Mock Start-Sleep {}
+
+                $context = @{
+                    Config = @{
+                        subtitles = @{
+                            openSubtitles = @{
+                                uploadDiagnosticMode = $true
+                                uploadExclude = @('tt2140481')
+                            }
+                        }
+                    }
+                    State = @{
+                        ProcessingLabel = 'TV'
+                        OmdbData = @{
+                            ImdbId = 'tt2140481'
+                            Title = 'Last Week Tonight with John Oliver'
+                        }
+                    }
+                }
+
+                $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) (New-Guid)
+                New-Item -ItemType Directory -Path $tmpDir | Out-Null
+                $srtPath = Join-Path $tmpDir 'Show.S01E01.en.srt'
+                Set-Content -Path $srtPath -Value 'test'
+
+                try {
+                    $result = Start-SAOpenSubtitlesUpload -Context $context -SubtitlePaths @($srtPath) `
+                        -VideoHashMap @{ 'Show.S01E01' = 'abc123' } `
+                        -VideoSizeMap @{ 'Show.S01E01' = [long]1000 }
+
+                    $result.UploadedCount | Should -Be 0
+                    $result.DuplicateCount | Should -Be 0
+                    $result.FailedCount | Should -Be 0
+                    Should -Invoke Test-SAOpenSubtitlesSubtitleExists -Times 0
+                } finally {
+                    Remove-Item $tmpDir -Recurse -ErrorAction SilentlyContinue
+                }
+            }
+        }
+
+        It 'should skip upload when title matches uploadExclude (case-insensitive)' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Write-SAProgress {}
+                Mock Write-SAOutcome {}
+                Mock Get-SAPluralForm { return 'subtitle' }
+                Mock Get-SALabelType { return 'tv' }
+                Mock Connect-SAOpenSubtitlesXmlRpc {}
+                Mock Resolve-SAOpenSubtitlesImdbId { return '' }
+                Mock Test-SAUploadableSubtitle { return [PSCustomObject]@{ Allowed = $true; Reason = '' } }
+                Mock Test-SAOpenSubtitlesSubtitleExists { return $false }
+                Mock Start-Sleep {}
+
+                $context = @{
+                    Config = @{
+                        subtitles = @{
+                            openSubtitles = @{
+                                uploadDiagnosticMode = $true
+                                uploadExclude = @('last week tonight with john oliver')
+                            }
+                        }
+                    }
+                    State = @{
+                        ProcessingLabel = 'TV'
+                        OmdbData = @{
+                            ImdbId = 'tt2140481'
+                            Title = 'Last Week Tonight with John Oliver'
+                        }
+                    }
+                }
+
+                $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) (New-Guid)
+                New-Item -ItemType Directory -Path $tmpDir | Out-Null
+                $srtPath = Join-Path $tmpDir 'Show.S01E01.en.srt'
+                Set-Content -Path $srtPath -Value 'test'
+
+                try {
+                    $result = Start-SAOpenSubtitlesUpload -Context $context -SubtitlePaths @($srtPath) `
+                        -VideoHashMap @{ 'Show.S01E01' = 'abc123' } `
+                        -VideoSizeMap @{ 'Show.S01E01' = [long]1000 }
+
+                    $result.UploadedCount | Should -Be 0
+                    Should -Invoke Test-SAOpenSubtitlesSubtitleExists -Times 0
+                } finally {
+                    Remove-Item $tmpDir -Recurse -ErrorAction SilentlyContinue
+                }
+            }
+        }
+
+        It 'should proceed with upload when no exclude match' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Write-SAProgress {}
+                Mock Write-SAOutcome {}
+                Mock Get-SAPluralForm { return 'subtitle' }
+                Mock Get-SALabelType { return 'tv' }
+                Mock Connect-SAOpenSubtitlesXmlRpc {}
+                Mock Resolve-SAOpenSubtitlesImdbId { return '' }
+                Mock Test-SAUploadableSubtitle { return [PSCustomObject]@{ Allowed = $true; Reason = '' } }
+                Mock Test-SAOpenSubtitlesSubtitleExists { return $false }
+                Mock Start-Sleep {}
+
+                $context = @{
+                    Config = @{
+                        subtitles = @{
+                            openSubtitles = @{
+                                uploadDiagnosticMode = $true
+                                uploadExclude = @('tt9999999', 'Some Other Show')
+                            }
+                        }
+                    }
+                    State = @{
+                        ProcessingLabel = 'TV'
+                        OmdbData = @{
+                            ImdbId = 'tt2140481'
+                            Title = 'Last Week Tonight with John Oliver'
+                        }
+                    }
+                }
+
+                $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) (New-Guid)
+                New-Item -ItemType Directory -Path $tmpDir | Out-Null
+                $srtPath = Join-Path $tmpDir 'Show.S01E01.en.srt'
+                Set-Content -Path $srtPath -Value 'test'
+
+                try {
+                    $result = Start-SAOpenSubtitlesUpload -Context $context -SubtitlePaths @($srtPath) `
+                        -VideoHashMap @{ 'Show.S01E01' = 'abc123' } `
+                        -VideoSizeMap @{ 'Show.S01E01' = [long]1000 }
+
+                    # Should proceed. Diagnostic mode counts as uploaded.
+                    $result.UploadedCount | Should -Be 1
+                } finally {
+                    Remove-Item $tmpDir -Recurse -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
 }
