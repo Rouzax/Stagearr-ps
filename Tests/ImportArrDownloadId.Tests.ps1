@@ -236,3 +236,143 @@ Describe 'Get-SAImportVerification' {
         }
     }
 }
+
+Describe 'Invoke-SAArrImport NullReferenceException recovery' {
+
+    Context 'When Sonarr command fails with NRE but history shows import succeeded' {
+
+        It 'should recover and return success' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Write-SAProgress {}
+                Mock Write-SAOutcome {}
+                Mock Write-SAPhaseHeader {}
+                Mock Add-SAEmailException {}
+                Mock Get-SAImportHint { return $null }
+
+                Mock Get-SAImporterBaseUrl {
+                    return @{ Url = 'http://localhost:8989'; DisplayUrl = 'http://localhost:8989'; HostHeader = $null }
+                }
+
+                Mock Test-SAArrConnection { return $true }
+
+                Mock Invoke-SAArrManualImportScan {
+                    return [PSCustomObject]@{
+                        Success      = $true
+                        ScanResults  = @(
+                            @{
+                                path       = 'C:\Test\S01E01.mkv'
+                                quality    = @{ quality = @{ id = 3 }; revision = @{ version = 1 } }
+                                series     = @{ id = 100; title = 'Test Show'; year = 2026 }
+                                episodes   = @( @{ id = 200 } )
+                                languages  = @( @{ id = 1; name = 'English' } )
+                                seriesId   = 100
+                                rejections = @()
+                            }
+                        )
+                        ErrorMessage = $null
+                    }
+                }
+
+                Mock Invoke-SAArrQueueEnrichment { return $ScanResults }
+
+                Mock ConvertTo-SAArrMetadata {
+                    return @{ Title = 'Test Show'; Year = 2026 }
+                }
+
+                Mock Invoke-SAArrManualImportExecute {
+                    return [PSCustomObject]@{
+                        Success   = $false
+                        Message   = 'System.NullReferenceException: Object reference not set to an instance of an object.'
+                        Duration  = 5
+                        CommandId = 42531
+                        Status    = 'failed'
+                        Result    = 'unknown'
+                    }
+                }
+
+                Mock Get-SAImportVerification {
+                    return [PSCustomObject]@{
+                        ImportedCount = 1
+                        ExpectedCount = 1
+                        IsComplete    = $true
+                        Records       = @( @{ eventType = 'downloadFolderImported'; downloadId = 'HASH123' } )
+                    }
+                }
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = ''; timeoutMinutes = 1 }
+                $result = Invoke-SAArrImport -AppType 'Sonarr' -Config $config -StagingPath 'C:\Test' -DownloadId 'HASH123'
+
+                $result.Success | Should -BeTrue
+                $result.Message | Should -Match 'verified via history'
+                $result.ImportedFiles.Count | Should -Be 1
+            }
+        }
+    }
+
+    Context 'When command fails with NRE and history shows nothing imported' {
+
+        It 'should still report failure' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Write-SAProgress {}
+                Mock Write-SAOutcome {}
+                Mock Write-SAPhaseHeader {}
+                Mock Add-SAEmailException {}
+                Mock Get-SAImportHint { return $null }
+
+                Mock Get-SAImporterBaseUrl {
+                    return @{ Url = 'http://localhost:8989'; DisplayUrl = 'http://localhost:8989'; HostHeader = $null }
+                }
+
+                Mock Test-SAArrConnection { return $true }
+
+                Mock Invoke-SAArrManualImportScan {
+                    return [PSCustomObject]@{
+                        Success      = $true
+                        ScanResults  = @(
+                            @{
+                                path       = 'C:\Test\S01E01.mkv'
+                                quality    = @{ quality = @{ id = 3 }; revision = @{ version = 1 } }
+                                series     = @{ id = 100; title = 'Test Show'; year = 2026 }
+                                episodes   = @( @{ id = 200 } )
+                                languages  = @( @{ id = 1; name = 'English' } )
+                                seriesId   = 100
+                                rejections = @()
+                            }
+                        )
+                        ErrorMessage = $null
+                    }
+                }
+
+                Mock Invoke-SAArrQueueEnrichment { return $ScanResults }
+                Mock ConvertTo-SAArrMetadata { return @{ Title = 'Test Show'; Year = 2026 } }
+
+                Mock Invoke-SAArrManualImportExecute {
+                    return [PSCustomObject]@{
+                        Success   = $false
+                        Message   = 'System.NullReferenceException: Object reference not set to an instance of an object.'
+                        Duration  = 5
+                        CommandId = 42531
+                        Status    = 'failed'
+                        Result    = 'unknown'
+                    }
+                }
+
+                Mock Get-SAImportVerification {
+                    return [PSCustomObject]@{
+                        ImportedCount = 0
+                        ExpectedCount = 1
+                        IsComplete    = $false
+                        Records       = @()
+                    }
+                }
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = ''; timeoutMinutes = 1 }
+                $result = Invoke-SAArrImport -AppType 'Sonarr' -Config $config -StagingPath 'C:\Test' -DownloadId 'HASH123'
+
+                $result.Success | Should -BeFalse
+            }
+        }
+    }
+}

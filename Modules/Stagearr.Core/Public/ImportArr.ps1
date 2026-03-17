@@ -369,17 +369,56 @@ function Invoke-SAArrImport {
             ErrorType       = $null
         }
     } else {
-        # Import command failed
+        # Import command failed - but check if import actually succeeded despite the error
+        # Sonarr can throw NullReferenceException in the tracked download post-import path
+        # even though the file was already imported successfully
+        if (-not [string]::IsNullOrWhiteSpace($DownloadId) -and $importResult.Message -match 'NullReferenceException') {
+            $verification = Get-SAImportVerification -AppType $AppType -Config $Config -DownloadId $DownloadId -ExpectedCount $importableFiles.Count
+            if ($null -ne $verification -and $verification.ImportedCount -gt 0) {
+                $verifiedCount = $verification.ImportedCount
+                Write-SAVerbose -Text "$label command failed with NullReferenceException but history shows $verifiedCount file(s) imported"
+
+                foreach ($file in $importableFiles) {
+                    $importedFilePaths += $file.path
+                }
+
+                if ($verifiedCount -ge $importableFiles.Count) {
+                    $successMsg = "Imported"
+                    if ($rejectionSummary.IsPartialRejected) {
+                        $fileWord = Get-SAPluralForm -Count $importableFiles.Count -Singular 'file'
+                        $successMsg = "Imported $($importableFiles.Count) $fileWord"
+                    }
+                    Write-SAOutcome -Level Success -Label $label -Text $successMsg -Duration $importResult.Duration -Indent 1
+                } else {
+                    Write-SAOutcome -Level Warning -Label $label -Text "Imported $verifiedCount of $($importableFiles.Count) files (some silently skipped by $label)" -Duration $importResult.Duration -Indent 1
+                }
+
+                return [PSCustomObject]@{
+                    Success         = $true
+                    Message         = "Imported ($verifiedCount verified via history)"
+                    Duration        = $importResult.Duration
+                    ImportedFiles   = $importedFilePaths
+                    SkippedFiles    = $skippedFilePaths
+                    SkippedCount    = $rejectionSummary.RejectedCount
+                    ArrMetadata     = $arrMetadata
+                    Skipped         = $false
+                    QualityRejected = $false
+                    ErrorType       = $null
+                }
+            }
+        }
+
+        # Import genuinely failed
         Write-SAOutcome -Level Error -Label $label -Text $importResult.Message -Duration $importResult.Duration -Indent 1
-        
+
         # Show hint if we can identify the error type
         $hint = Get-SAImportHint -ErrorType 'unknown' -ImporterLabel $label
         if ($hint) {
             Write-SAProgress -Label "Hint" -Text $hint -Indent 2
         }
-        
+
         Add-SAEmailException -Message $importResult.Message -Type Error
-        
+
         return [PSCustomObject]@{
             Success         = $false
             Message         = $importResult.Message
