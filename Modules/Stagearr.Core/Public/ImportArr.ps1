@@ -356,13 +356,21 @@ function Invoke-SAArrImport {
             Write-SAOutcome -Level Success -Label $label -Text $successMsg -Duration $importResult.Duration -Indent 1
         }
 
+        $isPartialVerification = $null -ne $verification -and -not $verification.IsComplete
+        $silentlySkipped = if ($isPartialVerification) { $importableFiles.Count - $verifiedCount } else { 0 }
+
         return [PSCustomObject]@{
             Success         = $true
-            Message         = if ($null -ne $verification -and -not $verification.IsComplete) { "Imported $verifiedCount of $($importableFiles.Count) files" } else { $successMsg }
+            Status          = if ($isPartialVerification) { 'partial' } else { $null }
+            Message         = if ($isPartialVerification) { "Imported $verifiedCount of $($importableFiles.Count) files" } else { $successMsg }
             Duration        = $importResult.Duration
             ImportedFiles   = $importedFilePaths
+            ImportedCount   = $verifiedCount
             SkippedFiles    = $skippedFilePaths
             SkippedCount    = $rejectionSummary.RejectedCount
+            AbortedFiles    = @()
+            AbortedCount    = $silentlySkipped
+            AbortReason     = if ($isPartialVerification) { "silently skipped by $label" } else { '' }
             ArrMetadata     = $arrMetadata
             Skipped         = $false
             QualityRejected = $false
@@ -393,13 +401,21 @@ function Invoke-SAArrImport {
                     Write-SAOutcome -Level Warning -Label $label -Text "Imported $verifiedCount of $($importableFiles.Count) files (some silently skipped by $label)" -Duration $importResult.Duration -Indent 1
                 }
 
+                $isPartialNre = $verifiedCount -lt $importableFiles.Count
+                $silentlySkippedNre = $importableFiles.Count - $verifiedCount
+
                 return [PSCustomObject]@{
                     Success         = $true
+                    Status          = if ($isPartialNre) { 'partial' } else { $null }
                     Message         = "Imported ($verifiedCount verified via history)"
                     Duration        = $importResult.Duration
                     ImportedFiles   = $importedFilePaths
+                    ImportedCount   = $verifiedCount
                     SkippedFiles    = $skippedFilePaths
                     SkippedCount    = $rejectionSummary.RejectedCount
+                    AbortedFiles    = @()
+                    AbortedCount    = if ($isPartialNre) { $silentlySkippedNre } else { 0 }
+                    AbortReason     = if ($isPartialNre) { "silently skipped by $label" } else { '' }
                     ArrMetadata     = $arrMetadata
                     Skipped         = $false
                     QualityRejected = $false
