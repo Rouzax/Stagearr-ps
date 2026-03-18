@@ -170,7 +170,7 @@ Describe 'Get-SAEmailUpdateSection' {
         }
     }
 
-    It 'returns gray card when check performed but up to date' {
+    It 'returns empty string when check performed but up to date' {
         InModuleScope 'Stagearr.Core' {
             $script:SAUpdateState = @{
                 CheckPerformed  = $true
@@ -183,10 +183,7 @@ Describe 'Get-SAEmailUpdateSection' {
             }
 
             $html = Get-SAEmailUpdateSection
-            $html | Should -Not -BeNullOrEmpty
-            $html | Should -Match '#94a3b8'
-            $html | Should -Match 'Up to Date'
-            $html | Should -Match '2\.0\.3'
+            $html | Should -BeNullOrEmpty
 
             Reset-SAUpdateState
         }

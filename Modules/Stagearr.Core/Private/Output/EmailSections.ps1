@@ -1086,10 +1086,8 @@ function Get-SAEmailUpdateSection {
         $headerText = 'Update Available'
         $messageText = "v$($state.NewVersion) is available"
     } else {
-        $borderColor = $colors.TextSecondary
-        $headerColor = $colors.TextSecondary
-        $headerText = 'Up to Date'
-        $messageText = "Running v$($state.OldVersion)"
+        # Up to date - nothing actionable to show
+        return ''
     }
 
     $html = [System.Text.StringBuilder]::new()
