@@ -377,9 +377,9 @@ function Invoke-SAArrImport {
             ErrorType       = $null
         }
     } else {
-        # Import command failed - but check if import actually succeeded despite the error
-        # Sonarr can throw NullReferenceException in the tracked download post-import path
-        # even though the file was already imported successfully
+        # Import command failed - but check if import actually succeeded despite the error.
+        # Both Radarr and Sonarr can throw NullReferenceException in the tracked download
+        # post-import path even though the file was already imported successfully.
         if (-not [string]::IsNullOrWhiteSpace($DownloadId) -and $importResult.Message -match 'NullReferenceException') {
             $verification = Get-SAImportVerification -AppType $AppType -Config $Config -DownloadId $DownloadId -ExpectedCount $importableFiles.Count
             if ($null -ne $verification -and $verification.ImportedCount -gt 0) {

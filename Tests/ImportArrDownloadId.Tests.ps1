@@ -376,3 +376,72 @@ Describe 'Invoke-SAArrImport NullReferenceException recovery' {
         }
     }
 }
+
+Describe 'Invoke-SAArrImport NullReferenceException recovery for Radarr' {
+
+    Context 'When Radarr command fails with NRE but history shows import succeeded' {
+
+        It 'should recover and return success' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Write-SAProgress {}
+                Mock Write-SAOutcome {}
+                Mock Write-SAPhaseHeader {}
+                Mock Add-SAEmailException {}
+                Mock Get-SAImportHint { return $null }
+
+                Mock Get-SAImporterBaseUrl {
+                    return @{ Url = 'http://localhost:7878'; DisplayUrl = 'http://localhost:7878'; HostHeader = $null }
+                }
+
+                Mock Test-SAArrConnection { return $true }
+
+                Mock Invoke-SAArrManualImportScan {
+                    return [PSCustomObject]@{
+                        Success      = $true
+                        ScanResults  = @(
+                            @{
+                                path       = 'C:\Test\Movie.mkv'
+                                quality    = @{ quality = @{ id = 31 }; revision = @{ version = 1 } }
+                                movie      = @{ id = 50; title = 'Test Movie'; year = 2025 }
+                                movieId    = 50
+                                languages  = @( @{ id = 1; name = 'English' } )
+                                rejections = @()
+                            }
+                        )
+                        ErrorMessage = $null
+                    }
+                }
+
+                Mock Invoke-SAArrQueueEnrichment { return $ScanResults }
+                Mock ConvertTo-SAArrMetadata { return @{ Title = 'Test Movie'; Year = 2025 } }
+
+                Mock Invoke-SAArrManualImportExecute {
+                    return [PSCustomObject]@{
+                        Success   = $false
+                        Message   = 'System.NullReferenceException: Object reference not set to an instance of an object.'
+                        Duration  = 5
+                        CommandId = 99999
+                        Status    = 'failed'
+                        Result    = 'unknown'
+                    }
+                }
+
+                Mock Get-SAImportVerification {
+                    return [PSCustomObject]@{
+                        ImportedCount = 1
+                        ExpectedCount = 1
+                        IsComplete    = $true
+                        Records       = @( @{ eventType = 'downloadFolderImported'; downloadId = 'RADARRHASH' } )
+                    }
+                }
+
+                $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 7878; ssl = $false; urlRoot = ''; timeoutMinutes = 1 }
+                $result = Invoke-SAArrImport -AppType 'Radarr' -Config $config -StagingPath 'C:\Test' -DownloadId 'RADARRHASH'
+
+                $result.Success | Should -BeTrue
+                $result.Message | Should -Match 'verified via history'
+            }
+        }
+    }
+}
