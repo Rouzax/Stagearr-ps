@@ -68,9 +68,9 @@ Describe 'Invoke-SAArrManualImportExecute downloadId placement' {
         }
     }
 
-    Context 'Radarr: DownloadId goes on the command body' {
+    Context 'Radarr: DownloadId goes per-file (same as Sonarr)' {
 
-        It 'should include downloadId on command body, not on files' {
+        It 'should include downloadId on each file, not on the command body' {
             InModuleScope 'Stagearr.Core' {
                 $script:CapturedBody = $null
 
@@ -106,11 +106,11 @@ Describe 'Invoke-SAArrManualImportExecute downloadId placement' {
                     $body = $body | ConvertFrom-Json
                 }
 
-                # downloadId should be on the command body (Radarr's ManualImportCommand has it)
-                $body.downloadId | Should -Be 'CCDD5678'
+                # downloadId should be on each file (ManualImportFile.DownloadId)
+                $body.files[0].downloadId | Should -Be 'CCDD5678'
 
-                # Files should NOT have downloadId (Radarr's ManualImportFile doesn't have it)
-                $body.files[0].PSObject.Properties.Name | Should -Not -Contain 'downloadId'
+                # Command body itself should NOT have downloadId (ManualImportCommand has no such property)
+                $body.PSObject.Properties.Name | Should -Not -Contain 'downloadId'
             }
         }
     }
