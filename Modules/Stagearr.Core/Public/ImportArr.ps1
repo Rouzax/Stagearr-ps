@@ -807,7 +807,7 @@ function Invoke-SAArrManualImportExecute {
         How to handle the source files after import: 'move' or 'copy' (default: 'move').
     .PARAMETER DownloadId
         Optional download client ID (torrent hash) for tracked download association.
-        Placement is app-type-aware: command-level for Radarr, per-file for Sonarr.
+        Both Radarr and Sonarr expect this per-file on ManualImportFile.
     .OUTPUTS
         PSCustomObject with:
         - Success: Boolean indicating if the import completed successfully
@@ -931,10 +931,10 @@ function Invoke-SAArrManualImportExecute {
             $importFile.releaseType = $file.releaseType
         }
 
-        # Download ID for tracked download path (enables proper queue clearing)
-        # Sonarr: downloadId is a per-file property on ManualImportFile
-        # Radarr: downloadId is a command-level property on ManualImportCommand
-        if ($AppType -eq 'Sonarr' -and -not [string]::IsNullOrWhiteSpace($DownloadId)) {
+        # Download ID for tracked download path (enables proper queue clearing
+        # and correct downloadId on history records for post-import verification).
+        # Both Radarr and Sonarr: ManualImportFile has a DownloadId property.
+        if (-not [string]::IsNullOrWhiteSpace($DownloadId)) {
             $importFile.downloadId = $DownloadId
         }
 
@@ -951,11 +951,6 @@ function Invoke-SAArrManualImportExecute {
         importMode = $ImportMode
     }
 
-    # Radarr: downloadId goes on the command, not per-file
-    if ($AppType -eq 'Radarr' -and -not [string]::IsNullOrWhiteSpace($DownloadId)) {
-        $commandBody.downloadId = $DownloadId
-    }
-    
     Write-SAVerbose -Text "$label ManualImport: Sending command..."
     
     # Send command using existing helper
