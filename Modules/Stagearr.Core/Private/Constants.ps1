@@ -133,6 +133,12 @@ $script:SAConstants = @{
     # Timestamp file name
     UpdateTimestampFile = 'lastUpdateCheck.json'
 
+    # Expected release asset filename pattern
+    UpdateAssetPattern = 'Stagearr-v*.zip'
+
+    # Checksum filename in release assets
+    UpdateChecksumFile = 'checksums.txt'
+
     #endregion
 }
 
