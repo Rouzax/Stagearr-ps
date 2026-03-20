@@ -3,7 +3,7 @@
 .SYNOPSIS
     Auto-update helpers for Stagearr
 .DESCRIPTION
-    Checks GitHub Releases for new versions, optionally applies updates via git pull.
+    Checks GitHub Releases for new versions, optionally applies updates via ZIP download.
     Stores check timestamps in a JSON file to respect the configured interval.
 
     Depends on: Constants.ps1, Http.ps1
@@ -461,6 +461,11 @@ function Invoke-SAInteractiveUpdate {
     Write-SAKeyValue -Key "Latest version" -Value "v$($release.Version)"
     Write-SAKeyValue -Key "Release" -Value $release.Url
 
+    if ([string]::IsNullOrWhiteSpace($release.ZipUrl)) {
+        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available — download from $($release.Url)"
+        return
+    }
+
     # Determine whether to prompt or auto-apply
     $mode = if ($Config.updates -and $Config.updates.mode) { $Config.updates.mode } else { 'off' }
     $shouldPrompt = $mode -ne 'auto'
@@ -468,19 +473,19 @@ function Invoke-SAInteractiveUpdate {
     if ($shouldPrompt) {
         $answer = Read-Host -Prompt "  Apply update? [Y/n]"
         if ($answer -match '^[Nn]') {
-            Write-SAProgress -Label "Update" -Text "Skipped. Run 'git pull' to update manually."
+            Write-SAProgress -Label "Update" -Text "Skipped. Download manually from $($release.Url)"
             return
         }
     }
 
     Write-SAProgress -Label "Update" -Text "Updating from v$LocalVersion to v$($release.Version)..."
-    $pullSuccess = Invoke-SAGitPull -ScriptRoot $ScriptRoot
+    $updateSuccess = Invoke-SAZipUpdate -Release $release -ScriptRoot $ScriptRoot
 
-    if ($pullSuccess) {
+    if ($updateSuccess) {
         Write-SAOutcome -Level Success -Label "Update" -Text "Updated to v$($release.Version)"
         Write-SAProgress -Label "Hint" -Text "New settings may have been added. Run: .\Stagearr.ps1 -SyncConfig"
     } else {
-        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - automatic update failed, run 'git pull' to update"
+        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available — automatic update failed, download from $($release.Url)"
     }
 }
 
