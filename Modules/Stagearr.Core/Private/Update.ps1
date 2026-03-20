@@ -390,17 +390,21 @@ function Invoke-SAUpdateCheck {
     $script:SAUpdateState.OldVersion = $LocalVersion
 
     if ($mode -eq 'auto') {
-        Write-SAProgress -Label "Update" -Text "Updating from v$LocalVersion to v$($release.Version)..."
-        $pullSuccess = Invoke-SAGitPull -ScriptRoot $ScriptRoot
-        if ($pullSuccess) {
-            $script:SAUpdateState.UpdateApplied = $true
-            Write-SAOutcome -Level Success -Label "Update" -Text "Updated to v$($release.Version)"
+        if (-not [string]::IsNullOrWhiteSpace($release.ZipUrl)) {
+            Write-SAProgress -Label "Update" -Text "Updating from v$LocalVersion to v$($release.Version)..."
+            $updateSuccess = Invoke-SAZipUpdate -Release $release -ScriptRoot $ScriptRoot
+            if ($updateSuccess) {
+                $script:SAUpdateState.UpdateApplied = $true
+                Write-SAOutcome -Level Success -Label "Update" -Text "Updated to v$($release.Version)"
+            } else {
+                Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available — download manually from $($release.Url)"
+            }
         } else {
-            Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - run 'git pull' to update"
+            Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available — download from $($release.Url)"
         }
     } else {
         # Notify mode
-        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - run 'git pull' to update"
+        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available — download from $($release.Url)"
     }
 
     Save-SAUpdateTimestamp -QueueRoot $queueRoot
