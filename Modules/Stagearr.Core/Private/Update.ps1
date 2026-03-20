@@ -177,25 +177,144 @@ function Compare-SAVersions {
 
 #region Update Application
 
-function Invoke-SAGitPull {
+function Invoke-SADownloadFile {
+    <#
+    .SYNOPSIS
+        Downloads a file from a URL to a local path.
+    .DESCRIPTION
+        Uses Invoke-WebRequest with -OutFile for binary-safe downloads.
+        Ensures TLS 1.2 on PowerShell 5.1.
+    .PARAMETER Uri
+        The download URL.
+    .PARAMETER OutFile
+        The local file path to save to.
+    .PARAMETER TimeoutSeconds
+        Request timeout (default: 60).
+    #>
     [CmdletBinding()]
     [OutputType([bool])]
     param(
         [Parameter(Mandatory = $true)]
+        [string]$Uri,
+
+        [Parameter(Mandatory = $true)]
+        [string]$OutFile,
+
+        [Parameter()]
+        [int]$TimeoutSeconds = 60
+    )
+
+    if ($PSVersionTable.PSEdition -ne 'Core') {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    }
+
+    try {
+        Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -TimeoutSec $TimeoutSeconds -Headers @{
+            'User-Agent' = 'Stagearr-UpdateCheck'
+        } -ErrorAction Stop -Verbose:$false
+        return $true
+    } catch {
+        Write-SAVerbose -Text "Download failed ($Uri): $_"
+        return $false
+    }
+}
+
+function Invoke-SAZipUpdate {
+    <#
+    .SYNOPSIS
+        Downloads and applies a ZIP-based update from GitHub Releases.
+    .DESCRIPTION
+        Downloads the release ZIP asset, verifies SHA256 checksum, extracts
+        to a temp folder, and copies files over the script root.
+    .PARAMETER Release
+        Release hashtable from Get-SALatestRelease (must include ZipUrl and ChecksumUrl).
+    .PARAMETER ScriptRoot
+        Path to the Stagearr script root directory.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Release,
+
+        [Parameter(Mandatory = $true)]
         [string]$ScriptRoot
     )
 
+    # Validate release has asset URLs
+    if ([string]::IsNullOrWhiteSpace($Release.ZipUrl)) {
+        Write-SAVerbose -Text "No ZIP asset found on release $($Release.TagName)"
+        return $false
+    }
+    if ([string]::IsNullOrWhiteSpace($Release.ChecksumUrl)) {
+        Write-SAVerbose -Text "No checksum file found on release $($Release.TagName)"
+        return $false
+    }
+
+    $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "Stagearr-Update-$(New-Guid)"
+    New-Item -Path $tempDir -ItemType Directory -Force | Out-Null
+
     try {
-        $gitResult = & git -C $ScriptRoot pull origin main 2>&1
-        $exitCode = $LASTEXITCODE
-        if ($exitCode -eq 0) {
-            return $true
+        # Download ZIP
+        $zipFileName = Split-Path $Release.ZipUrl -Leaf
+        $zipPath = Join-Path $tempDir $zipFileName
+        Write-SAProgress -Label "Update" -Text "Downloading $zipFileName..."
+
+        $downloadOk = Invoke-SADownloadFile -Uri $Release.ZipUrl -OutFile $zipPath
+        if (-not $downloadOk -or -not (Test-Path -LiteralPath $zipPath)) {
+            Write-SAVerbose -Text "ZIP download failed"
+            return $false
         }
-        Write-SAVerbose -Text "git pull failed (exit $exitCode): $gitResult"
-        return $false
+
+        # Download checksum
+        $checksumPath = Join-Path $tempDir 'checksums.txt'
+        $checksumOk = Invoke-SADownloadFile -Uri $Release.ChecksumUrl -OutFile $checksumPath
+        if (-not $checksumOk -or -not (Test-Path -LiteralPath $checksumPath)) {
+            Write-SAVerbose -Text "Checksum download failed"
+            return $false
+        }
+
+        # Verify checksum
+        $actualHash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
+        $checksumContent = Get-Content -LiteralPath $checksumPath -Raw
+        $expectedHash = ($checksumContent.Trim() -split '\s+')[0].ToLower()
+
+        if ($actualHash -ne $expectedHash) {
+            Write-SAVerbose -Text "Checksum mismatch: expected $expectedHash, got $actualHash"
+            return $false
+        }
+
+        # Extract ZIP
+        $extractDir = Join-Path $tempDir 'extracted'
+        Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+
+        # Copy files to script root
+        Write-SAProgress -Label "Update" -Text "Applying update..."
+        $items = Get-ChildItem -Path $extractDir -Force
+        foreach ($item in $items) {
+            $destPath = Join-Path $ScriptRoot $item.Name
+            if ($item.PSIsContainer) {
+                if (Test-Path -LiteralPath $destPath) {
+                    Remove-Item -LiteralPath $destPath -Recurse -Force
+                }
+                Copy-Item -LiteralPath $item.FullName -Destination $destPath -Recurse -Force
+            } else {
+                Copy-Item -LiteralPath $item.FullName -Destination $destPath -Force
+            }
+        }
+
+        return $true
     } catch {
-        Write-SAVerbose -Text "git pull error: $_"
+        Write-SAVerbose -Text "ZIP update failed: $_"
         return $false
+    } finally {
+        try {
+            if (Test-Path -LiteralPath $tempDir) {
+                Remove-Item -LiteralPath $tempDir -Recurse -Force
+            }
+        } catch {
+            Write-SAVerbose -Text "Failed to clean up temp directory: $tempDir"
+        }
     }
 }
 

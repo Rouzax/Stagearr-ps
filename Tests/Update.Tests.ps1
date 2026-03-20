@@ -348,3 +348,137 @@ Describe 'Get-SAFileLogHeader update status' {
         }
     }
 }
+
+Describe 'Invoke-SAZipUpdate' {
+    BeforeEach {
+        InModuleScope 'Stagearr.Core' {
+            $script:testScriptRoot = Join-Path ([System.IO.Path]::GetTempPath()) "stagearr-test-root-$(New-Guid)"
+            New-Item -Path $script:testScriptRoot -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $script:testScriptRoot 'Stagearr.ps1') -Value 'old-content'
+        }
+    }
+
+    AfterEach {
+        InModuleScope 'Stagearr.Core' {
+            if (Test-Path $script:testScriptRoot) {
+                Remove-Item -Path $script:testScriptRoot -Recurse -Force
+            }
+        }
+    }
+
+    It 'returns false when ZipUrl is null' {
+        InModuleScope 'Stagearr.Core' {
+            $release = @{
+                Version     = '2.2.0'
+                TagName     = 'v2.2.0'
+                Url         = 'https://github.com/test'
+                ZipUrl      = $null
+                ChecksumUrl = $null
+            }
+
+            Mock Write-SAVerbose {}
+
+            $result = Invoke-SAZipUpdate -Release $release -ScriptRoot $script:testScriptRoot
+            $result | Should -BeFalse
+        }
+    }
+
+    It 'returns false when ChecksumUrl is null' {
+        InModuleScope 'Stagearr.Core' {
+            $release = @{
+                Version     = '2.2.0'
+                TagName     = 'v2.2.0'
+                Url         = 'https://github.com/test'
+                ZipUrl      = 'https://github.com/test/Stagearr-v2.2.0.zip'
+                ChecksumUrl = $null
+            }
+
+            Mock Write-SAVerbose {}
+
+            $result = Invoke-SAZipUpdate -Release $release -ScriptRoot $script:testScriptRoot
+            $result | Should -BeFalse
+        }
+    }
+
+    It 'returns false when checksum verification fails' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Invoke-SADownloadFile {
+                param($Uri, $OutFile)
+                if ($Uri -like '*.zip') {
+                    Set-Content -Path $OutFile -Value 'fake-zip-content'
+                } elseif ($Uri -like '*checksums*') {
+                    Set-Content -Path $OutFile -Value 'deadbeef00000000000000000000000000000000000000000000000000000000  Stagearr-v2.2.0.zip'
+                }
+                return $true
+            }
+
+            Mock Write-SAVerbose {}
+            Mock Write-SAProgress {}
+
+            $release = @{
+                Version     = '2.2.0'
+                TagName     = 'v2.2.0'
+                Url         = 'https://github.com/test'
+                ZipUrl      = 'https://github.com/test/Stagearr-v2.2.0.zip'
+                ChecksumUrl = 'https://github.com/test/checksums.txt'
+            }
+
+            $result = Invoke-SAZipUpdate -Release $release -ScriptRoot $script:testScriptRoot
+            $result | Should -BeFalse
+        }
+    }
+
+    It 'extracts and overwrites files on valid update' {
+        InModuleScope 'Stagearr.Core' {
+            # Build a real ZIP with files inside
+            $tempBuildDir = Join-Path ([System.IO.Path]::GetTempPath()) "stagearr-test-build-$(New-Guid)"
+            New-Item -Path $tempBuildDir -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $tempBuildDir 'Stagearr.ps1') -Value 'new-content'
+            Set-Content -Path (Join-Path $tempBuildDir 'config-sample.toml') -Value 'sample'
+            New-Item -Path (Join-Path $tempBuildDir 'Modules') -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $tempBuildDir 'Modules/test.psm1') -Value 'module'
+
+            $script:testZipPath = Join-Path ([System.IO.Path]::GetTempPath()) "stagearr-test-zip-$(New-Guid).zip"
+            Compress-Archive -Path "$tempBuildDir/*" -DestinationPath $script:testZipPath -Force
+
+            # Compute real checksum
+            $hash = (Get-FileHash -Path $script:testZipPath -Algorithm SHA256).Hash.ToLower()
+            $script:testChecksumContent = "$hash  Stagearr-v2.2.0.zip"
+
+            Mock Invoke-SADownloadFile {
+                param($Uri, $OutFile)
+                if ($Uri -like '*.zip') {
+                    Copy-Item -Path $script:testZipPath -Destination $OutFile
+                } elseif ($Uri -like '*checksums*') {
+                    Set-Content -Path $OutFile -Value $script:testChecksumContent
+                }
+                return $true
+            }
+
+            Mock Write-SAVerbose {}
+            Mock Write-SAProgress {}
+
+            $release = @{
+                Version     = '2.2.0'
+                TagName     = 'v2.2.0'
+                Url         = 'https://github.com/test'
+                ZipUrl      = 'https://github.com/test/Stagearr-v2.2.0.zip'
+                ChecksumUrl = 'https://github.com/test/checksums.txt'
+            }
+
+            $result = Invoke-SAZipUpdate -Release $release -ScriptRoot $script:testScriptRoot
+            $result | Should -BeTrue
+
+            # Verify files were overwritten
+            $newContent = Get-Content -Path (Join-Path $script:testScriptRoot 'Stagearr.ps1') -Raw
+            $newContent.Trim() | Should -Be 'new-content'
+
+            # Verify Modules directory was copied
+            Test-Path (Join-Path $script:testScriptRoot 'Modules/test.psm1') | Should -BeTrue
+
+            # Cleanup
+            Remove-Item -Path $tempBuildDir -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path $script:testZipPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
