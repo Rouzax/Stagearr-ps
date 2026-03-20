@@ -274,10 +274,16 @@ function Invoke-SAZipUpdate {
             return $false
         }
 
-        # Verify checksum
+        # Verify checksum — match the specific ZIP filename in checksums.txt
         $actualHash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
         $checksumContent = Get-Content -LiteralPath $checksumPath -Raw
-        $expectedHash = ($checksumContent.Trim() -split '\s+')[0].ToLower()
+        $checksumLines = ($checksumContent.Trim() -split "`n")
+        $matchingLine = $checksumLines | Where-Object { $_ -match [regex]::Escape($zipFileName) }
+        if (-not $matchingLine) {
+            Write-SAVerbose -Text "No checksum entry found for $zipFileName"
+            return $false
+        }
+        $expectedHash = ($matchingLine.Trim() -split '\s+')[0].ToLower()
 
         if ($actualHash -ne $expectedHash) {
             Write-SAVerbose -Text "Checksum mismatch: expected $expectedHash, got $actualHash"
@@ -288,11 +294,12 @@ function Invoke-SAZipUpdate {
         $extractDir = Join-Path $tempDir 'extracted'
         Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
 
-        # Copy files to script root
+        # Copy files to script root (validate paths to prevent zip-slip)
         Write-SAProgress -Label "Update" -Text "Applying update..."
         $items = Get-ChildItem -Path $extractDir -Force
         foreach ($item in $items) {
             $destPath = Join-Path $ScriptRoot $item.Name
+            Assert-SAPathUnderRoot -Path $destPath -Root $ScriptRoot
             if ($item.PSIsContainer) {
                 if (Test-Path -LiteralPath $destPath) {
                     Remove-Item -LiteralPath $destPath -Recurse -Force
