@@ -127,10 +127,29 @@ function Get-SALatestRelease {
 
     $versionStr = $tagName -replace '^v', ''
 
+    # Find ZIP and checksum assets
+    $zipUrl = $null
+    $checksumUrl = $null
+    $assetPattern = $script:SAConstants.UpdateAssetPattern
+    $checksumFile = $script:SAConstants.UpdateChecksumFile
+
+    if ($result.Data.assets) {
+        foreach ($asset in $result.Data.assets) {
+            if ($asset.name -like $assetPattern) {
+                $zipUrl = $asset.browser_download_url
+            }
+            if ($asset.name -eq $checksumFile) {
+                $checksumUrl = $asset.browser_download_url
+            }
+        }
+    }
+
     return @{
-        Version = $versionStr
-        TagName = $tagName
-        Url     = $result.Data.html_url
+        Version     = $versionStr
+        TagName     = $tagName
+        Url         = $result.Data.html_url
+        ZipUrl      = $zipUrl
+        ChecksumUrl = $checksumUrl
     }
 }
 

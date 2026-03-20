@@ -28,6 +28,59 @@ Describe 'Compare-SAVersions' {
     }
 }
 
+Describe 'Get-SALatestRelease' {
+    It 'returns ZipUrl and ChecksumUrl when release has matching assets' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Invoke-SAWebRequest {
+                return [PSCustomObject]@{
+                    Success = $true
+                    Data    = [PSCustomObject]@{
+                        tag_name  = 'v2.2.0'
+                        html_url  = 'https://github.com/Rouzax/Stagearr-ps/releases/tag/v2.2.0'
+                        assets    = @(
+                            [PSCustomObject]@{
+                                name                 = 'Stagearr-v2.2.0.zip'
+                                browser_download_url = 'https://github.com/Rouzax/Stagearr-ps/releases/download/v2.2.0/Stagearr-v2.2.0.zip'
+                            },
+                            [PSCustomObject]@{
+                                name                 = 'checksums.txt'
+                                browser_download_url = 'https://github.com/Rouzax/Stagearr-ps/releases/download/v2.2.0/checksums.txt'
+                            }
+                        )
+                    }
+                }
+            }
+
+            $result = Get-SALatestRelease
+            $result | Should -Not -BeNullOrEmpty
+            $result.Version | Should -Be '2.2.0'
+            $result.ZipUrl | Should -Be 'https://github.com/Rouzax/Stagearr-ps/releases/download/v2.2.0/Stagearr-v2.2.0.zip'
+            $result.ChecksumUrl | Should -Be 'https://github.com/Rouzax/Stagearr-ps/releases/download/v2.2.0/checksums.txt'
+        }
+    }
+
+    It 'returns null ZipUrl when no matching asset exists' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Invoke-SAWebRequest {
+                return [PSCustomObject]@{
+                    Success = $true
+                    Data    = [PSCustomObject]@{
+                        tag_name  = 'v2.2.0'
+                        html_url  = 'https://github.com/Rouzax/Stagearr-ps/releases/tag/v2.2.0'
+                        assets    = @()
+                    }
+                }
+            }
+
+            $result = Get-SALatestRelease
+            $result | Should -Not -BeNullOrEmpty
+            $result.Version | Should -Be '2.2.0'
+            $result.ZipUrl | Should -BeNullOrEmpty
+            $result.ChecksumUrl | Should -BeNullOrEmpty
+        }
+    }
+}
+
 Describe 'Test-SAUpdateCheckDue' {
     It 'returns true when no timestamp file exists' {
         InModuleScope 'Stagearr.Core' {
