@@ -145,7 +145,7 @@ plotMaxLength = 150
 
 [updates]
 # Auto-update from GitHub Releases
-# "auto" = download and apply updates via git pull
+# "auto" = download and apply updates from GitHub Releases
 # "notify" = show update available in email/console
 # "off" = disable update checking
 mode = "auto"
