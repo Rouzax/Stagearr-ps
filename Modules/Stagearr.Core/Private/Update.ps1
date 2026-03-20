@@ -274,7 +274,7 @@ function Invoke-SAZipUpdate {
             return $false
         }
 
-        # Verify checksum — match the specific ZIP filename in checksums.txt
+        # Verify checksum - match the specific ZIP filename in checksums.txt
         $actualHash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
         $checksumContent = Get-Content -LiteralPath $checksumPath -Raw
         $checksumLines = ($checksumContent.Trim() -split "`n")
@@ -404,14 +404,14 @@ function Invoke-SAUpdateCheck {
                 $script:SAUpdateState.UpdateApplied = $true
                 Write-SAOutcome -Level Success -Label "Update" -Text "Updated to v$($release.Version)"
             } else {
-                Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available — download manually from $($release.Url)"
+                Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - download manually from $($release.Url)"
             }
         } else {
-            Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available — download from $($release.Url)"
+            Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - download from $($release.Url)"
         }
     } else {
         # Notify mode
-        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available — download from $($release.Url)"
+        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - download from $($release.Url)"
     }
 
     Save-SAUpdateTimestamp -QueueRoot $queueRoot
@@ -469,7 +469,7 @@ function Invoke-SAInteractiveUpdate {
     Write-SAKeyValue -Key "Release" -Value $release.Url
 
     if ([string]::IsNullOrWhiteSpace($release.ZipUrl)) {
-        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available — download from $($release.Url)"
+        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - download from $($release.Url)"
         return
     }
 
@@ -492,7 +492,7 @@ function Invoke-SAInteractiveUpdate {
         Write-SAOutcome -Level Success -Label "Update" -Text "Updated to v$($release.Version)"
         Write-SAProgress -Label "Hint" -Text "New settings may have been added. Run: .\Stagearr.ps1 -SyncConfig"
     } else {
-        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available — automatic update failed, download from $($release.Url)"
+        Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - automatic update failed, download from $($release.Url)"
     }
 }
 
