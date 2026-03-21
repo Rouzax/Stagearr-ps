@@ -514,53 +514,108 @@ function Invoke-SAStandardJob {
     $labelType = Get-SALabelType -Label $Job.input.downloadLabel -Config $Context.Config
     $omdbType = if ($labelType -eq 'tv') { 'series' } else { 'movie' }
 
-    if ($labelType -ne 'passthrough' -and -not [string]::IsNullOrWhiteSpace($Job.input.torrentHash)) {
-        $arrAppType = if ($labelType -eq 'tv') { 'Sonarr' } else { 'Radarr' }
-        $arrConfig = $Context.Config.importers.($arrAppType.ToLower())
+    # Determine *arr app type and config (used by queue lookup and safety check)
+    $arrAppType = if ($labelType -eq 'tv') { 'Sonarr' } else { 'Radarr' }
+    $arrConfig = $Context.Config.importers.($arrAppType.ToLower())
 
-        if ($null -ne $arrConfig -and $arrConfig.enabled) {
-            try {
-                # Try queue first (active downloads), then history (completed downloads)
-                $mediaObj = $null
-                $mediaSource = $null
+    if (-not [string]::IsNullOrWhiteSpace($Job.input.torrentHash) -and $null -ne $arrConfig -and $arrConfig.enabled) {
+        try {
+            # Try queue first (active downloads), then history (completed downloads)
+            $mediaObj = $null
+            $mediaSource = $null
 
-                $queueRecords = Get-SAArrQueueRecords -AppType $arrAppType -Config $arrConfig `
+            $queueRecords = Get-SAArrQueueRecords -AppType $arrAppType -Config $arrConfig `
+                -DownloadId $Job.input.torrentHash
+
+            if ($queueRecords -and $queueRecords.Count -gt 0) {
+                # Cache for reuse during import (avoids duplicate API call)
+                $Context.State.EarlyQueueRecords = $queueRecords
+                $mediaObj = if ($arrAppType -eq 'Sonarr') { $queueRecords[0].series } else { $queueRecords[0].movie }
+                $mediaSource = 'queue'
+            } else {
+                # Queue empty (torrent finished) -- fall back to history API
+                $mediaObj = Get-SAArrHistoryRecords -AppType $arrAppType -Config $arrConfig `
                     -DownloadId $Job.input.torrentHash
-
-                if ($queueRecords -and $queueRecords.Count -gt 0) {
-                    # Cache for reuse during import (avoids duplicate API call)
-                    $Context.State.EarlyQueueRecords = $queueRecords
-                    $mediaObj = if ($arrAppType -eq 'Sonarr') { $queueRecords[0].series } else { $queueRecords[0].movie }
-                    $mediaSource = 'queue'
-                } else {
-                    # Queue empty (torrent finished) — fall back to history API
-                    $mediaObj = Get-SAArrHistoryRecords -AppType $arrAppType -Config $arrConfig `
-                        -DownloadId $Job.input.torrentHash
-                    $mediaSource = 'history'
-                }
-
-                # Extract metadata from series/movie object
-                if ($null -ne $mediaObj) {
-                    if (-not [string]::IsNullOrWhiteSpace($mediaObj.imdbId)) {
-                        $Context.State.ArrImdbId = $mediaObj.imdbId
-                    }
-                    if (-not [string]::IsNullOrWhiteSpace($mediaObj.title)) {
-                        $Context.State.ArrTitle = $mediaObj.title
-                    }
-                    if ($mediaObj.year -gt 0) {
-                        $Context.State.ArrYear = [string]$mediaObj.year
-                    }
-
-                    $arrDesc = @()
-                    if ($Context.State.ArrTitle) { $arrDesc += "`"$($Context.State.ArrTitle)`"" }
-                    if ($Context.State.ArrYear) { $arrDesc += "($($Context.State.ArrYear))" }
-                    if ($Context.State.ArrImdbId) { $arrDesc += "[$($Context.State.ArrImdbId)]" }
-                    Write-SAVerbose -Text "$arrAppType ${mediaSource}: $($arrDesc -join ' ')"
-                }
-            } catch {
-                Write-SAVerbose -Text "$arrAppType lookup failed: $($_.Exception.Message)"
+                $mediaSource = 'history'
             }
+
+            # Extract metadata from series/movie object
+            if ($null -ne $mediaObj) {
+                if (-not [string]::IsNullOrWhiteSpace($mediaObj.imdbId)) {
+                    $Context.State.ArrImdbId = $mediaObj.imdbId
+                }
+                if (-not [string]::IsNullOrWhiteSpace($mediaObj.title)) {
+                    $Context.State.ArrTitle = $mediaObj.title
+                }
+                if ($mediaObj.year -gt 0) {
+                    $Context.State.ArrYear = [string]$mediaObj.year
+                }
+
+                $arrDesc = @()
+                if ($Context.State.ArrTitle) { $arrDesc += "`"$($Context.State.ArrTitle)`"" }
+                if ($Context.State.ArrYear) { $arrDesc += "($($Context.State.ArrYear))" }
+                if ($Context.State.ArrImdbId) { $arrDesc += "[$($Context.State.ArrImdbId)]" }
+                Write-SAVerbose -Text "$arrAppType ${mediaSource}: $($arrDesc -join ' ')"
+            }
+        } catch {
+            Write-SAVerbose -Text "$arrAppType lookup failed: $($_.Exception.Message)"
         }
+    }
+
+    # Safety check: Detect dangerous files (exe/scripts) in TV/Movie downloads
+    # Passthrough jobs are unaffected (handled by Invoke-SAPassthroughJob)
+    $dangerCheck = Test-SADangerousDownload -SourcePath $Job.input.downloadPath
+    if ($dangerCheck.IsDangerous) {
+        Write-SAPhaseHeader -Title "Safety Check"
+        $fileList = $dangerCheck.DangerousFiles -join ', '
+        Write-SAOutcome -Level Error -Label "Security" -Text "Dangerous files detected: $fileList" -Indent 1
+
+        # Attempt to blocklist in *arr and remove from download client
+        $blocklisted = $false
+        if ($Context.State.EarlyQueueRecords -and $Context.State.EarlyQueueRecords.Count -gt 0) {
+            $queueId = $Context.State.EarlyQueueRecords[0].id
+            Write-SAVerbose -Text "Blocklisting queue item $queueId in $arrAppType"
+
+            $removeResult = Remove-SAArrQueueItem -Config $arrConfig -QueueId $queueId `
+                -Reason "Dangerous files detected: $fileList"
+
+            if ($removeResult.Success) {
+                Write-SAOutcome -Level Success -Label "Blocklist" -Text "Removed from $arrAppType and download client" -Indent 1
+                $blocklisted = $true
+            } else {
+                Write-SAOutcome -Level Warning -Label "Blocklist" -Text "Failed: $($removeResult.ErrorMessage)" -Indent 1
+            }
+        } else {
+            Write-SAOutcome -Level Warning -Label "Blocklist" -Text "No queue record available - manual cleanup required" -Indent 1
+        }
+
+        # Set up email notification for the failure
+        Set-SAEmailSummary -Name $displayName `
+            -Result 'Failed' `
+            -ImportTarget $arrAppType
+
+        $securityMsg = "Dangerous files detected (probable malware): $fileList"
+        if ($blocklisted) {
+            $securityMsg += " - blocklisted in $arrAppType"
+        }
+        Add-SAEmailException -Message $securityMsg -Type Error
+
+        # Save log and send notification
+        $logPath = Get-SAContextLogPath -Context $Context
+        Save-SAFileLog -Path $logPath
+        Set-SAEmailLogPath -Path $logPath
+        Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
+
+        if (-not $Context.Flags.NoMail -and $Context.Config.notifications.email.enabled) {
+            $title = "$($Job.input.downloadLabel) - $displayName"
+            $emailBody = ConvertTo-SAEmailHtml -Title $title
+            $emailSubject = Get-SAEmailSubject -Result 'Failed'
+            Send-SAEmail -Config $Context.Config.notifications.email `
+                -Subject $emailSubject `
+                -Body $emailBody
+        }
+
+        return $false
     }
 
     # Query OMDb — uses *arr IMDB ID for exact lookup, or falls back to title search
