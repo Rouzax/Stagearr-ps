@@ -81,3 +81,59 @@ function Test-SADangerousDownload {
         DangerousFiles = @($dangerous | ForEach-Object { $_.Name })
     }
 }
+
+function Remove-SAArrQueueItem {
+    <#
+    .SYNOPSIS
+        Removes a queue item from Sonarr/Radarr and optionally blocklists it.
+    .DESCRIPTION
+        Calls DELETE /api/v3/queue/{id} with removeFromClient=true, blocklist=true,
+        and skipRedownload=true. This removes the download from qBittorrent and
+        prevents Sonarr/Radarr from re-grabbing the same release.
+    .PARAMETER Config
+        Importer configuration hashtable (host, port, apiKey, ssl, urlRoot).
+    .PARAMETER QueueId
+        The queue record ID (from the *arr queue API, NOT the torrent hash).
+    .PARAMETER Reason
+        Human-readable reason for the removal (logged, not sent to API on v3).
+    .OUTPUTS
+        PSCustomObject with Success (bool) and ErrorMessage (string).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config,
+
+        [Parameter(Mandatory = $true)]
+        [int]$QueueId,
+
+        [Parameter()]
+        [string]$Reason = 'Dangerous files detected'
+    )
+
+    $urlInfo = Get-SAImporterBaseUrl -Config $Config
+    $baseUrl = $urlInfo.Url
+    $uri = "$baseUrl/api/v3/queue/${QueueId}?removeFromClient=true&blocklist=true&skipRedownload=true"
+
+    $headers = @{
+        'X-Api-Key' = $Config.apiKey
+        'Accept'    = 'application/json'
+    }
+    if ($urlInfo.HostHeader) {
+        $headers['Host'] = $urlInfo.HostHeader
+    }
+
+    $result = Invoke-SAWebRequest -Uri $uri -Method DELETE -Headers $headers -TimeoutSeconds 15
+
+    if ($result.Success) {
+        return [PSCustomObject]@{
+            Success      = $true
+            ErrorMessage = $null
+        }
+    }
+
+    return [PSCustomObject]@{
+        Success      = $false
+        ErrorMessage = $result.ErrorMessage
+    }
+}
