@@ -110,6 +110,13 @@ $script:SAConstants = @{
     # Regex pattern for video extensions (without dots, for pattern matching)
     VideoExtensionsPattern = 'mkv|mp4|avi|m4v|mov|wmv|ts'
 
+    # Executable/script extensions that should never appear in media downloads
+    # Used by TV/Movie safety check (passthrough jobs are excluded)
+    DangerousExtensions = @(
+        '.exe', '.msi', '.bat', '.cmd', '.scr', '.com', '.pif',
+        '.vbs', '.vbe', '.js', '.jse', '.wsf', '.wsh', '.lnk'
+    )
+
     #endregion
 
     #region DNS Cache
