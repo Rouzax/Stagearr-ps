@@ -19,6 +19,7 @@ $PrivateLoadOrder = @(
     'Constants.ps1'               # Centralized constants (no dependencies, load first)
     'Formatting.ps1'              # Display formatting (size, duration, pluralization) - early, no dependencies
     'PathSecurity.ps1'            # Path validation and security (no dependencies)
+    'SafetyCheck.ps1'             # Dangerous file detection for TV/Movie downloads
     'FileIO.ps1'                  # File system I/O utilities (may use PathSecurity)
     'EpisodeFormatting.ps1'       # Episode number formatting (uses Formatting)
     'MediaParsing.ps1'            # Media filename parsing (standalone)
