@@ -64,6 +64,7 @@ $PublicLoadOrder = @(
     'ImportMedusa.ps1'       # Medusa import functions (depends on ImportUtility, ImportResultParser)
     'Import.ps1'             # Main import dispatcher (depends on ImportArr, ImportMedusa)
     'JobProcessor.ps1'       # Job orchestration (depends on all above)
+    'Rerun.ps1'              # Interactive rerun of completed/failed jobs (depends on Queue, Lock)
 )
 
 # Load private functions in order

@@ -59,6 +59,9 @@
 
         # --- Job processing ---
         'Invoke-SAJobProcessing'
+
+        # --- Rerun ---
+        'Invoke-SARerun'
         
         # --- State management ---
         'Reset-SAJobState'
