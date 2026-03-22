@@ -175,6 +175,90 @@ function Compare-SAVersions {
 
 #endregion
 
+#region Git Update
+
+function Test-SAGitRepo {
+    <#
+    .SYNOPSIS
+        Tests whether a directory is a git repository.
+    .PARAMETER Path
+        Directory to check.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    $gitDir = Join-Path $Path '.git'
+    return (Test-Path -LiteralPath $gitDir)
+}
+
+function Invoke-SAGitUpdate {
+    <#
+    .SYNOPSIS
+        Updates the script root via git pull.
+    .DESCRIPTION
+        For git-cloned installations, pulls latest changes from the remote
+        instead of using ZIP extraction, which would dirty the working tree.
+    .PARAMETER ScriptRoot
+        Path to the Stagearr script root directory (must be a git repo).
+    .PARAMETER TagName
+        The release tag to pull up to (e.g., 'v2.4.2').
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ScriptRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string]$TagName
+    )
+
+    try {
+        # Fetch latest from remote including tags
+        $fetchResult = & git -C $ScriptRoot fetch --tags 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-SAVerbose -Text "git fetch failed: $fetchResult"
+            return $false
+        }
+
+        # Check for uncommitted changes that would block checkout
+        $status = & git -C $ScriptRoot status --porcelain 2>&1
+        if ($status) {
+            Write-SAVerbose -Text "Working tree has uncommitted changes, stashing before update"
+            $stashResult = & git -C $ScriptRoot stash push -m "Stagearr auto-update stash" 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                Write-SAVerbose -Text "git stash failed: $stashResult"
+                return $false
+            }
+        }
+
+        # Try to checkout the tag, falling back to pull
+        $checkoutResult = & git -C $ScriptRoot checkout $TagName 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            return $true
+        }
+
+        # Fallback: pull latest on current branch
+        Write-SAVerbose -Text "Tag checkout failed, trying git pull"
+        $pullResult = & git -C $ScriptRoot pull 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-SAVerbose -Text "git pull failed: $pullResult"
+            return $false
+        }
+
+        return $true
+    } catch {
+        Write-SAVerbose -Text "Git update failed: $_"
+        return $false
+    }
+}
+
+#endregion
+
 #region Update Application
 
 function Invoke-SADownloadFile {
@@ -397,17 +481,21 @@ function Invoke-SAUpdateCheck {
     $script:SAUpdateState.OldVersion = $LocalVersion
 
     if ($mode -eq 'auto') {
-        if (-not [string]::IsNullOrWhiteSpace($release.ZipUrl)) {
-            Write-SAProgress -Label "Update" -Text "Updating from v$LocalVersion to v$($release.Version)..."
+        Write-SAProgress -Label "Update" -Text "Updating from v$LocalVersion to v$($release.Version)..."
+        $isGitRepo = Test-SAGitRepo -Path $ScriptRoot
+        if ($isGitRepo) {
+            $updateSuccess = Invoke-SAGitUpdate -ScriptRoot $ScriptRoot -TagName $release.TagName
+        } elseif (-not [string]::IsNullOrWhiteSpace($release.ZipUrl)) {
             $updateSuccess = Invoke-SAZipUpdate -Release $release -ScriptRoot $ScriptRoot
-            if ($updateSuccess) {
-                $script:SAUpdateState.UpdateApplied = $true
-                Write-SAOutcome -Level Success -Label "Update" -Text "Updated to v$($release.Version)"
-            } else {
-                Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - download manually from $($release.Url)"
-            }
         } else {
-            Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - download from $($release.Url)"
+            $updateSuccess = $false
+        }
+
+        if ($updateSuccess) {
+            $script:SAUpdateState.UpdateApplied = $true
+            Write-SAOutcome -Level Success -Label "Update" -Text "Updated to v$($release.Version)"
+        } else {
+            Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - download manually from $($release.Url)"
         }
     } else {
         # Notify mode
@@ -468,7 +556,9 @@ function Invoke-SAInteractiveUpdate {
     Write-SAKeyValue -Key "Latest version" -Value "v$($release.Version)"
     Write-SAKeyValue -Key "Release" -Value $release.Url
 
-    if ([string]::IsNullOrWhiteSpace($release.ZipUrl)) {
+    $isGitRepo = Test-SAGitRepo -Path $ScriptRoot
+
+    if (-not $isGitRepo -and [string]::IsNullOrWhiteSpace($release.ZipUrl)) {
         Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - download from $($release.Url)"
         return
     }
@@ -478,7 +568,8 @@ function Invoke-SAInteractiveUpdate {
     $shouldPrompt = $mode -ne 'auto'
 
     if ($shouldPrompt) {
-        $answer = Read-Host -Prompt "  Apply update? [Y/n]"
+        $method = if ($isGitRepo) { 'git pull' } else { 'ZIP download' }
+        $answer = Read-Host -Prompt "  Apply update via ${method}? [Y/n]"
         if ($answer -match '^[Nn]') {
             Write-SAProgress -Label "Update" -Text "Skipped. Download manually from $($release.Url)"
             return
@@ -486,7 +577,11 @@ function Invoke-SAInteractiveUpdate {
     }
 
     Write-SAProgress -Label "Update" -Text "Updating from v$LocalVersion to v$($release.Version)..."
-    $updateSuccess = Invoke-SAZipUpdate -Release $release -ScriptRoot $ScriptRoot
+    if ($isGitRepo) {
+        $updateSuccess = Invoke-SAGitUpdate -ScriptRoot $ScriptRoot -TagName $release.TagName
+    } else {
+        $updateSuccess = Invoke-SAZipUpdate -Release $release -ScriptRoot $ScriptRoot
+    }
 
     if ($updateSuccess) {
         Write-SAOutcome -Level Success -Label "Update" -Text "Updated to v$($release.Version)"
