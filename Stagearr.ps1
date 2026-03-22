@@ -478,6 +478,7 @@ switch ($PSCmdlet.ParameterSetName) {
                 DownloadPath  = $DownloadPath
                 DownloadLabel = $DownloadLabel
                 TorrentHash   = $TorrentHash
+                DownloadRoot  = $Config.paths.downloadRoot
                 NoCleanup     = $NoCleanup
                 NoMail        = $SkipEmail
                 Force         = $Force
@@ -496,6 +497,7 @@ switch ($PSCmdlet.ParameterSetName) {
                 -DownloadPath $DownloadPath `
                 -DownloadLabel $DownloadLabel `
                 -TorrentHash $TorrentHash `
+                -DownloadRoot $Config.paths.downloadRoot `
                 -NoCleanup:$NoCleanup `
                 -NoMail:$SkipEmail `
                 -Force:$Force

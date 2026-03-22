@@ -7,6 +7,7 @@
 stagingRoot = "C:/Staging"
 logArchive = "C:/Logs/Stagearr"
 queueRoot = "C:/Stagearr/Queue"
+downloadRoot = "" # Root of torrent download folder. Required for -Rerun on multi-server setups sharing a queue.
 
 [labels]
 # Label mappings - match these to your torrent client labels

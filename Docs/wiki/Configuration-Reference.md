@@ -13,6 +13,7 @@ Stagearr uses a TOML configuration file (`config.toml`). Copy `config-sample.tom
 stagingRoot = "C:/Staging"
 logArchive = "C:/Logs/Stagearr"
 queueRoot = "C:/Stagearr-ps/Queue"
+downloadRoot = "C:/Downloads"
 ```
 
 | Option | Description | Default |
@@ -20,6 +21,7 @@ queueRoot = "C:/Stagearr-ps/Queue"
 | `stagingRoot` | Working directory for file processing | (required) |
 | `logArchive` | Directory for saved log files | (required) |
 | `queueRoot` | Directory for job queue state files | (required) |
+| `downloadRoot` | Root of torrent download folder. Required for `-Rerun` on multi-server setups where each server mounts the download folder at a different path. | `""` |
 
 ---
 

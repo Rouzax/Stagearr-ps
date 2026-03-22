@@ -93,6 +93,58 @@ Describe 'Get-SARerunJobList' {
         }
     }
 
+    It 'handles jobs with downloadRoot in input (backwards compat)' {
+        InModuleScope 'Stagearr.Core' {
+            # Job created with downloadRoot (new field)
+            $jobWithRoot = @{
+                id        = 'job-with-root'
+                state     = 'completed'
+                createdAt = '2026-03-22T10:00:00Z'
+                updatedAt = '2026-03-22T10:30:00Z'
+                input     = @{
+                    downloadPath  = 'C:\Downloads\Movie.2024'
+                    downloadLabel = 'Movie'
+                    torrentHash   = ''
+                    downloadRoot  = 'C:\Downloads'
+                    noCleanup     = $false
+                    noMail        = $false
+                }
+                result    = $null
+            }
+
+            # Job created without downloadRoot (old format)
+            $jobWithoutRoot = @{
+                id        = 'job-without-root'
+                state     = 'failed'
+                createdAt = '2026-03-21T08:00:00Z'
+                updatedAt = '2026-03-21T08:15:00Z'
+                input     = @{
+                    downloadPath  = 'C:\Downloads\Show.S01E01'
+                    downloadLabel = 'TV'
+                    torrentHash   = ''
+                    noCleanup     = $false
+                    noMail        = $false
+                }
+                lastError = 'Import failed'
+                result    = $null
+            }
+
+            $jobWithRoot | ConvertTo-Json -Depth 10 | Set-Content -Path (Join-Path $script:testDir 'completed/job-with-root.json')
+            $jobWithoutRoot | ConvertTo-Json -Depth 10 | Set-Content -Path (Join-Path $script:testDir 'failed/job-without-root.json')
+
+            $result = Get-SARerunJobList -QueueRoot $script:testDir -Limit 10
+
+            $result | Should -HaveCount 2
+            # Newest first
+            $result[0].id | Should -Be 'job-with-root'
+            $result[1].id | Should -Be 'job-without-root'
+            # Verify downloadRoot is accessible on the new-format job
+            $result[0].input.downloadRoot | Should -Be 'C:\Downloads'
+            # Old-format job should not have downloadRoot (or it is null)
+            $result[1].input.ContainsKey('downloadRoot') | Should -Be $false
+        }
+    }
+
     It 'respects the limit parameter' {
         InModuleScope 'Stagearr.Core' {
             # Create 3 completed jobs
@@ -116,6 +168,44 @@ Describe 'Get-SARerunJobList' {
 
             $result = Get-SARerunJobList -QueueRoot $script:testDir -Limit 2
             $result | Should -HaveCount 2
+        }
+    }
+}
+
+Describe 'Add-SAJob downloadRoot parameter' {
+    It 'stores downloadRoot in the job input' {
+        InModuleScope 'Stagearr.Core' {
+            $queueRoot = Join-Path ([System.IO.Path]::GetTempPath()) "stagearr-addjob-test-$(New-Guid)"
+
+            $job = Add-SAJob -QueueRoot $queueRoot `
+                -DownloadPath 'C:\Downloads\Movie.2024' `
+                -DownloadLabel 'Movie' `
+                -DownloadRoot 'C:\Downloads'
+
+            $job | Should -Not -BeNullOrEmpty
+            $job.input.downloadRoot | Should -Be 'C:\Downloads'
+
+            # Also verify it persists in the JSON file
+            $jobFile = Join-Path $queueRoot "pending/$($job.id).json"
+            $persisted = Get-Content -LiteralPath $jobFile -Raw | ConvertFrom-Json
+            $persisted.input.downloadRoot | Should -Be 'C:\Downloads'
+
+            Remove-Item -Path $queueRoot -Recurse -Force
+        }
+    }
+
+    It 'defaults downloadRoot to empty string' {
+        InModuleScope 'Stagearr.Core' {
+            $queueRoot = Join-Path ([System.IO.Path]::GetTempPath()) "stagearr-addjob-default-test-$(New-Guid)"
+
+            $job = Add-SAJob -QueueRoot $queueRoot `
+                -DownloadPath 'C:\Downloads\Show.S01E01' `
+                -DownloadLabel 'TV'
+
+            $job | Should -Not -BeNullOrEmpty
+            $job.input.downloadRoot | Should -Be ''
+
+            Remove-Item -Path $queueRoot -Recurse -Force
         }
     }
 }

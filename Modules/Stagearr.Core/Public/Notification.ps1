@@ -98,13 +98,22 @@ function Send-SAEmail {
     
     # Try Mailozaurr first (supports modern SMTP with proper SSL/TLS and inline images)
     # Suppress verbose from PowerShell module system ("Populating RepositorySourceLocation...")
-    $mailozaurrAvailable = & {
+    $mailozaurrModule = & {
         $VerbosePreference = 'SilentlyContinue'
-        $null -ne (Get-Module -ListAvailable -Name Mailozaurr)
+        Get-Module -ListAvailable -Name Mailozaurr | Select-Object -First 1
     }
-    
+    $mailozaurrAvailable = $null -ne $mailozaurrModule
+
     if ($mailozaurrAvailable) {
-        return Send-SAEmailMailozaurr -Config $Config -Subject $Subject -Body $Body -FromAddress $fromAddress -Priority $Priority -InlineImages $InlineImages
+        # Inline images require Mailozaurr v2.x (-InlineAttachment parameter)
+        $effectiveInlineImages = $InlineImages
+        if ($mailozaurrModule.Version.Major -lt 2) {
+            if ($InlineImages -and $InlineImages.Count -gt 0) {
+                Write-SAVerbose -Label "Email" -Text "Inline images require Mailozaurr v2.x (installed: $($mailozaurrModule.Version))"
+            }
+            $effectiveInlineImages = @()
+        }
+        return Send-SAEmailMailozaurr -Config $Config -Subject $Subject -Body $Body -FromAddress $fromAddress -Priority $Priority -InlineImages $effectiveInlineImages
     }
     
     # Fallback to Send-MailMessage (no Mailozaurr installed)

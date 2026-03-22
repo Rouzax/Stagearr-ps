@@ -13,6 +13,7 @@ $script:SAConfigDefaults = @{
         stagingRoot  = ''
         logArchive   = ''
         queueRoot    = ''
+        downloadRoot = ''
     }
     labels = @{
         tv          = 'TV'
