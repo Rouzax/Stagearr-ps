@@ -275,7 +275,17 @@ function Invoke-SAWebRequest {
             # Make request (suppress built-in verbose - we log our own context)
             $response = Invoke-WebRequest @requestParams -Verbose:$false
             $statusCode = $response.StatusCode
-            $responseContent = $response.Content
+            # PS Core can return byte[] for Content on non-text responses (e.g., empty DELETE responses).
+            # Coerce to string for consistent downstream handling.
+            $responseContent = if ($response.Content -is [byte[]]) {
+                if ($response.Content.Length -gt 0) {
+                    [System.Text.Encoding]::UTF8.GetString($response.Content)
+                } else {
+                    ''
+                }
+            } else {
+                $response.Content
+            }
             $responseHeaders = $response.Headers
             
             # Parse response as JSON if requested
