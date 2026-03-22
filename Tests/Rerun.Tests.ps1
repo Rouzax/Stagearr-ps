@@ -119,3 +119,20 @@ Describe 'Get-SARerunJobList' {
         }
     }
 }
+
+Describe 'Invoke-SARerun edge cases' {
+    It 'displays message and returns when no jobs exist' {
+        InModuleScope 'Stagearr.Core' {
+            $queueRoot = Join-Path ([System.IO.Path]::GetTempPath()) "stagearr-rerun-test-$(New-Guid)"
+            New-Item -Path "$queueRoot/completed" -ItemType Directory -Force | Out-Null
+            New-Item -Path "$queueRoot/failed" -ItemType Directory -Force | Out-Null
+
+            $config = @{ paths = @{ queueRoot = $queueRoot } }
+
+            # Should return without prompting (no Read-Host call)
+            Invoke-SARerun -QueueRoot $queueRoot -Config $config -Limit 10 -ProcessJob { }
+
+            Remove-Item -Path $queueRoot -Recurse -Force
+        }
+    }
+}
