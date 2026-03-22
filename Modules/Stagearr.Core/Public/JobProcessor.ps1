@@ -537,10 +537,19 @@ function Invoke-SAStandardJob {
                 $mediaObj = Get-SAArrHistoryRecords -AppType $arrAppType -Config $arrConfig `
                     -DownloadId $Job.input.torrentHash
                 $mediaSource = 'history'
+
+                # Wrap in queue-compatible structure for enrichment fallback
+                if ($null -ne $mediaObj) {
+                    $mediaKey = if ($arrAppType -eq 'Sonarr') { 'series' } else { 'movie' }
+                    $Context.State.EarlyQueueRecords = @( @{ $mediaKey = $mediaObj } )
+                }
             }
 
             # Extract metadata from series/movie object
             if ($null -ne $mediaObj) {
+                if ($mediaObj.id) {
+                    $Context.State.ArrMediaId = $mediaObj.id
+                }
                 if (-not [string]::IsNullOrWhiteSpace($mediaObj.imdbId)) {
                     $Context.State.ArrImdbId = $mediaObj.imdbId
                 }
