@@ -1037,6 +1037,11 @@ function Get-SAEmailTroubleshootingSuggestions {
                 $suggestions += 'Verify OpenSubtitles API settings'
             }
         }
+        'Security' {
+            $suggestions += 'This release contained only executable/script files (probable malware)'
+            $suggestions += 'The torrent has been blocklisted to prevent re-download'
+            $suggestions += 'Report the fake release to your indexer'
+        }
         default {
             # Generic suggestions
             $suggestions += 'Check the log file for detailed error information'
