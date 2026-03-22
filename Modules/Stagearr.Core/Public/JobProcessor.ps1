@@ -602,7 +602,7 @@ function Invoke-SAStandardJob {
 
         # Set up email notification for the security block
         Set-SAEmailSummary -Name $displayName `
-            -Result 'Failed' `
+            -Result 'Blocked' `
             -ImportTarget $arrAppType `
             -FailurePhase 'Security' `
             -FailureError "Dangerous files detected (probable malware): $fileList" `
@@ -623,7 +623,7 @@ function Invoke-SAStandardJob {
         if (-not $Context.Flags.NoMail -and $Context.Config.notifications.email.enabled) {
             $title = "$($Job.input.downloadLabel) - $displayName"
             $emailBody = ConvertTo-SAEmailHtml -Title $title
-            $emailSubject = Get-SAEmailSubject -Result 'Failed'
+            $emailSubject = Get-SAEmailSubject -Result 'Blocked'
             Send-SAEmail -Config $Context.Config.notifications.email `
                 -Subject $emailSubject `
                 -Body $emailBody

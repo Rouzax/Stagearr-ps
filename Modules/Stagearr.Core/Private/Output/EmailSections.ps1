@@ -84,7 +84,7 @@ function Get-SAEmailHtmlDocument {
     [void]$html.AppendLine((Get-SAEmailTitleSection -Summary $Summary))
     
     # Content sections based on result type
-    if ($Summary.Result -eq 'Failed') {
+    if ($Summary.Result -eq 'Failed' -or $Summary.Result -eq 'Blocked') {
         # Failed: Show "What Happened" and "What to Check" sections
         [void]$html.AppendLine((Get-SAEmailWhatHappenedSection -Summary $Summary))
         [void]$html.AppendLine((Get-SAEmailWhatToCheckSection -Summary $Summary))
@@ -140,24 +140,25 @@ function Get-SAEmailStatusBadge {
     [OutputType([string])]
     param(
         [Parameter(Mandatory = $true)]
-        [ValidateSet('Success', 'Warning', 'Failed', 'Skipped')]
+        [ValidateSet('Success', 'Warning', 'Failed', 'Skipped', 'Blocked')]
         [string]$Result
     )
-    
+
     $colors = $script:SAEmailColors
-    
+
     # Badge configuration per result type
     # Note: Using [char] escape sequences for Unicode symbols to ensure PS5.1 compatibility
     # PS5.1 reads files without BOM using system default encoding, which mangles UTF-8 literals
     $checkmark = [char]0x2713  # checkmark
     $xmark = [char]0x2717      # x mark
     $skipArrow = [char]0x21B7  # curved arrow
-    
+
     $badgeConfig = switch ($Result) {
         'Success' { @{ Color = $colors.SuccessGreen; Icon = $checkmark; Text = 'SUCCESS' } }
         'Warning' { @{ Color = $colors.WarningAmber; Icon = '!'; Text = 'WARNING' } }
         'Failed'  { @{ Color = $colors.FailedRed; Icon = $xmark; Text = 'FAILED' } }
         'Skipped' { @{ Color = $colors.SkippedGray; Icon = $skipArrow; Text = 'SKIPPED' } }
+        'Blocked' { @{ Color = $colors.FailedRed; Icon = $xmark; Text = 'BLOCKED' } }
     }
     
     $html = [System.Text.StringBuilder]::new()
@@ -681,23 +682,25 @@ function Get-SAEmailNotesSection {
         [PSCustomObject[]]$Exceptions,
         
         [Parameter()]
-        [ValidateSet('Success', 'Warning', 'Failed', 'Skipped')]
+        [ValidateSet('Success', 'Warning', 'Failed', 'Skipped', 'Blocked')]
         [string]$Result = 'Success'
     )
-    
+
     $colors = $script:SAEmailColors
-    
+
     # Determine border color based on result
     $borderColor = switch ($Result) {
         'Warning' { $colors.WarningAmber }
         'Failed'  { $colors.FailedRed }
+        'Blocked' { $colors.FailedRed }
         default   { $colors.TextSecondary }
     }
-    
+
     # Determine header color
     $headerColor = switch ($Result) {
         'Warning' { $colors.WarningAmber }
         'Failed'  { $colors.FailedRed }
+        'Blocked' { $colors.FailedRed }
         default   { $colors.TextSecondary }
     }
     

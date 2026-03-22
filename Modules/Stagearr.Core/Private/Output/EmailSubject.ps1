@@ -292,9 +292,9 @@ function Build-SASubjectPlaceholders {
         [string]$Label = '',
         
         [Parameter()]
-        [ValidateSet('Success', 'Warning', 'Failed', 'Skipped')]
+        [ValidateSet('Success', 'Warning', 'Failed', 'Skipped', 'Blocked')]
         [string]$Result = 'Success',
-        
+
         [Parameter()]
         [object]$ReleaseInfo,
         
@@ -306,6 +306,7 @@ function Build-SASubjectPlaceholders {
     $resultPrefix = switch ($Result) {
         'Failed'  { 'Failed: ' }
         'Skipped' { 'Skipped: ' }
+        'Blocked' { 'Blocked: ' }
         default   { '' }
     }
     
@@ -387,9 +388,9 @@ function Get-SAEmailSubject {
     [OutputType([string])]
     param(
         [Parameter()]
-        [ValidateSet('Success', 'Warning', 'Failed', 'Skipped')]
+        [ValidateSet('Success', 'Warning', 'Failed', 'Skipped', 'Blocked')]
         [string]$Result = 'Success',
-        
+
         [Parameter()]
         [string]$SubjectStyle = 'detailed',
         

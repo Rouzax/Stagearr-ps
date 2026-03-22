@@ -198,7 +198,7 @@ function Set-SAEmailSummary {
         [string]$ImportMessage,
         
         [Parameter()]
-        [ValidateSet('Success', 'Warning', 'Failed', 'Skipped')]
+        [ValidateSet('Success', 'Warning', 'Failed', 'Skipped', 'Blocked')]
         [string]$Result,
         
         [Parameter()]
