@@ -215,7 +215,7 @@ function Get-SAArrHistoryRecords {
     } else {
         '&includeMovie=true'
     }
-    $uri = "$baseUrl/api/v3/history?downloadId=$DownloadId&pageSize=1$includeParams"
+    $uri = "$baseUrl/api/v3/history?downloadId=$DownloadId&pageSize=50$includeParams"
 
     $headers = @{
         'X-Api-Key' = $Config.apiKey
@@ -243,17 +243,17 @@ function Get-SAArrHistoryRecords {
         return $null
     }
 
-    # Extract the series/movie object from the first history record
-    $mediaObj = if ($AppType -eq 'Sonarr') { $records[0].series } else { $records[0].movie }
-
-    if ($null -ne $mediaObj) {
-        $title = if ($mediaObj.title) { $mediaObj.title } else { '?' }
-        Write-SAVerbose -Text "History lookup: found `"$title`""
+    # Return full history records (not just media object)
+    # Each record has .series/.movie AND .episode data needed by enrichment
+    $recordCount = $records.Count
+    if ($AppType -eq 'Sonarr') {
+        $title = if ($records[0].series.title) { $records[0].series.title } else { '?' }
     } else {
-        Write-SAVerbose -Text "History lookup: record found but no media data"
+        $title = if ($records[0].movie.title) { $records[0].movie.title } else { '?' }
     }
+    Write-SAVerbose -Text "History lookup: found `"$title`" ($recordCount records)"
 
-    return $mediaObj
+    return , $records
 }
 
 function Invoke-SAArrQueueEnrichment {

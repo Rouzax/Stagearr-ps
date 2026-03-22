@@ -51,7 +51,6 @@ $script:ArrConfig = @{
         StatusEndpoint       = '/api/v3/system/status'
         LogEndpoint          = '/api/v3/log'
         ManualImportEndpoint = '/api/v3/manualimport'
-        MediaIdProperty      = 'movieId'      # Property name for media ID in ManualImport
     }
     Sonarr = @{
         Label                = 'Sonarr'
@@ -60,7 +59,6 @@ $script:ArrConfig = @{
         StatusEndpoint       = '/api/v3/system/status'
         LogEndpoint          = '/api/v3/log'
         ManualImportEndpoint = '/api/v3/manualimport'
-        MediaIdProperty      = 'seriesId'     # Property name for media ID in ManualImport
     }
 }
 
@@ -135,10 +133,7 @@ function Invoke-SAArrImport {
         [string]$DownloadId,
 
         [Parameter()]
-        [array]$CachedQueueRecords,
-
-        [Parameter()]
-        [int]$MediaId
+        [array]$CachedQueueRecords
     )
 
     $startTime = Get-Date
@@ -184,7 +179,7 @@ function Invoke-SAArrImport {
     # ==========================================================================
     Write-SAProgress -Label $label -Text "Scanning folder..." -Indent 1
     
-    $scanResult = Invoke-SAArrManualImportScan -AppType $AppType -Config $Config -ScanPath $importPath -MediaId $MediaId
+    $scanResult = Invoke-SAArrManualImportScan -AppType $AppType -Config $Config -ScanPath $importPath
     
     if (-not $scanResult.Success) {
         Write-SAOutcome -Level Error -Label $label -Text "Scan failed: $($scanResult.ErrorMessage)" -Indent 1
@@ -689,10 +684,7 @@ function Invoke-SAArrManualImportScan {
         [string]$ScanPath,
         
         [Parameter()]
-        [bool]$FilterExistingFiles = $true,
-
-        [Parameter()]
-        [int]$MediaId
+        [bool]$FilterExistingFiles = $true
     )
 
     $appConfig = $script:ArrConfig[$AppType]
@@ -706,11 +698,6 @@ function Invoke-SAArrManualImportScan {
     $encodedPath = [System.Uri]::EscapeDataString($ScanPath)
     $filterParam = if ($FilterExistingFiles) { 'true' } else { 'false' }
     $uri = "$baseUrl/api/v3/manualimport?folder=$encodedPath&filterExistingFiles=$filterParam"
-
-    if ($MediaId -gt 0) {
-        $idParam = if ($AppType -eq 'Sonarr') { 'seriesId' } else { 'movieId' }
-        $uri += "&$idParam=$MediaId"
-    }
     
     Write-SAVerbose -Text "$label ManualImport scan: $ScanPath"
     Write-SAVerbose -Text "Request: GET $uri"
@@ -1052,14 +1039,11 @@ function Invoke-SARadarrImport {
         [string]$DownloadId,
 
         [Parameter()]
-        [array]$CachedQueueRecords,
-
-        [Parameter()]
-        [int]$MediaId
+        [array]$CachedQueueRecords
     )
 
     return Invoke-SAArrImport -AppType 'Radarr' -Config $Config -StagingPath $StagingPath `
-        -StagingRoot $StagingRoot -DownloadId $DownloadId -CachedQueueRecords $CachedQueueRecords -MediaId $MediaId
+        -StagingRoot $StagingRoot -DownloadId $DownloadId -CachedQueueRecords $CachedQueueRecords
 }
 
 function Test-SARadarrConnection {
@@ -1122,8 +1106,6 @@ function Invoke-SARadarrManualImportScan {
         Path to scan for importable files.
     .PARAMETER FilterExistingFiles
         Whether to filter out files that already exist in the library (default: true).
-    .PARAMETER MediaId
-        Optional movie ID to pass as movieId query parameter.
     .OUTPUTS
         PSCustomObject with Success, ScanResults array, and ErrorMessage.
     #>
@@ -1136,13 +1118,10 @@ function Invoke-SARadarrManualImportScan {
         [string]$ScanPath,
 
         [Parameter()]
-        [bool]$FilterExistingFiles = $true,
-
-        [Parameter()]
-        [int]$MediaId
+        [bool]$FilterExistingFiles = $true
     )
 
-    return Invoke-SAArrManualImportScan -AppType 'Radarr' -Config $Config -ScanPath $ScanPath -FilterExistingFiles $FilterExistingFiles -MediaId $MediaId
+    return Invoke-SAArrManualImportScan -AppType 'Radarr' -Config $Config -ScanPath $ScanPath -FilterExistingFiles $FilterExistingFiles
 }
 
 function Invoke-SARadarrManualImportExecute {
@@ -1242,14 +1221,11 @@ function Invoke-SASonarrImport {
         [string]$DownloadId,
 
         [Parameter()]
-        [array]$CachedQueueRecords,
-
-        [Parameter()]
-        [int]$MediaId
+        [array]$CachedQueueRecords
     )
 
     return Invoke-SAArrImport -AppType 'Sonarr' -Config $Config -StagingPath $StagingPath `
-        -StagingRoot $StagingRoot -DownloadId $DownloadId -CachedQueueRecords $CachedQueueRecords -MediaId $MediaId
+        -StagingRoot $StagingRoot -DownloadId $DownloadId -CachedQueueRecords $CachedQueueRecords
 }
 
 function Test-SASonarrConnection {
@@ -1312,8 +1288,6 @@ function Invoke-SASonarrManualImportScan {
         Path to scan for importable files.
     .PARAMETER FilterExistingFiles
         Whether to filter out files that already exist in the library (default: true).
-    .PARAMETER MediaId
-        Optional series ID to pass as seriesId query parameter.
     .OUTPUTS
         PSCustomObject with Success, ScanResults array, and ErrorMessage.
     #>
@@ -1326,13 +1300,10 @@ function Invoke-SASonarrManualImportScan {
         [string]$ScanPath,
 
         [Parameter()]
-        [bool]$FilterExistingFiles = $true,
-
-        [Parameter()]
-        [int]$MediaId
+        [bool]$FilterExistingFiles = $true
     )
 
-    return Invoke-SAArrManualImportScan -AppType 'Sonarr' -Config $Config -ScanPath $ScanPath -FilterExistingFiles $FilterExistingFiles -MediaId $MediaId
+    return Invoke-SAArrManualImportScan -AppType 'Sonarr' -Config $Config -ScanPath $ScanPath -FilterExistingFiles $FilterExistingFiles
 }
 
 function Invoke-SASonarrManualImportExecute {

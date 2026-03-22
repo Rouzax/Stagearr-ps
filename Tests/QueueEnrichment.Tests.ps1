@@ -103,11 +103,13 @@ Describe 'Get-SAArrHistoryRecords' {
                 $result = Get-SAArrHistoryRecords -AppType 'Sonarr' -Config $config -DownloadId 'ABC123'
 
                 $script:CapturedUri | Should -Match 'history\?downloadId=ABC123'
-                $script:CapturedUri | Should -Match 'pageSize=1'
+                $script:CapturedUri | Should -Match 'pageSize=50'
                 $script:CapturedUri | Should -Match 'includeSeries=true'
                 $result | Should -Not -BeNullOrEmpty
-                $result.title | Should -Be 'ONE PIECE (2023)'
-                $result.imdbId | Should -Be 'tt11737520'
+                @($result).Count | Should -Be 1
+                $result[0].series.title | Should -Be 'ONE PIECE (2023)'
+                $result[0].series.imdbId | Should -Be 'tt11737520'
+                $result[0].episode.id | Should -Be 9001
             }
         }
 
@@ -136,8 +138,9 @@ Describe 'Get-SAArrHistoryRecords' {
                 $result = Get-SAArrHistoryRecords -AppType 'Radarr' -Config $config -DownloadId 'DEF456'
 
                 $script:CapturedUri | Should -Match 'includeMovie=true'
-                $result.title | Should -Be 'Some Movie'
-                $result.imdbId | Should -Be 'tt9999999'
+                @($result).Count | Should -Be 1
+                $result[0].movie.title | Should -Be 'Some Movie'
+                $result[0].movie.imdbId | Should -Be 'tt9999999'
             }
         }
     }
