@@ -129,11 +129,11 @@ Modules/Stagearr.Core/
 
 | Mode | What it does |
 |------|--------------|
-| Normal | Validate input → `Add-SAJob` (queue job) |
-| `-Worker` | `Start-SAWorker` → process pending jobs |
+| Normal | Validate input → `Add-SAJob` (queue job) → `Start-SAWorker` |
 | `-Status` | Show queue counts, running job details (phase/activity/elapsed), completed/failed history |
-| `-Requeue` | Move stale running jobs back to pending |
+| `-Rerun` | Interactive picker to re-run a recent completed/failed job with `-Force -Wait` |
 | `-SyncConfig` | Compare config against sample, offer to apply missing/extra changes |
+| `-Setup` | Interactive setup wizard for config.toml |
 | `-Update` | Check for updates and apply (auto or prompted based on config) |
 
 ### Job Pipeline (`Invoke-SAJobProcessing`)

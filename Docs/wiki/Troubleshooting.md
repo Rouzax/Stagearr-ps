@@ -80,6 +80,16 @@ If you're running manually and another instance is active, use `-Wait` to wait f
 .\Stagearr.ps1 -DownloadPath "C:\Downloads\Movie" -DownloadLabel "Movie" -Wait
 ```
 
+### Re-running a failed job
+
+Use `-Rerun` to interactively pick a recent job and re-run it:
+
+```powershell
+.\Stagearr.ps1 -Rerun
+```
+
+This shows a numbered list of recent completed and failed jobs. Pick a number, confirm, and it re-runs with `-Force -Wait` so you see full console output. Use `-RerunLimit 20` to see more history.
+
 ### Import rejected by Radarr/Sonarr
 
 - Check the *arr app's Activity > Queue for rejection reasons

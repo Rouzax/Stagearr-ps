@@ -217,6 +217,8 @@ Once configured, Stagearr runs automatically when torrents complete.
 | `-Status` | Show queue status, running job details, and recent history |
 | `-SyncConfig` | Report missing/extra settings vs config-sample.toml |
 | `-Setup` | Interactive setup wizard for config.toml |
+| `-Rerun` | Interactively re-run a recent completed/failed job |
+| `-RerunLimit` | Number of recent jobs to show with `-Rerun` (default: 10) |
 | `-ConfigPath` | Custom config.toml path |
 | `-Verbose` | Show detailed troubleshooting output |
 
@@ -238,6 +240,15 @@ Once configured, Stagearr runs automatically when torrents complete.
 | `skip` / `NoProcess` | Skip processing entirely |
 | `NoMail` | Process but skip email notification |
 | Unknown labels | **Passthrough mode** — extract/copy only, no video processing or import |
+
+---
+
+### Re-run a Job
+
+```powershell
+# Interactively pick a recent job to re-run
+.\Stagearr.ps1 -Rerun
+```
 
 ---
 

@@ -53,6 +53,8 @@ Each torrent completion enqueues a job and starts processing. If another job is 
 | `-Status` | Show queue status: pending/running/completed/failed counts, lock holder, recent job details. |
 | `-Setup` | Run the interactive setup wizard to create or edit `config.toml`. |
 | `-SyncConfig` | Compare your `config.toml` against `config-sample.toml` and report missing or extra settings. Useful after updating Stagearr. |
+| `-Rerun` | Interactively re-run a recent job. Shows a numbered list of completed and failed jobs, lets you pick one, and re-runs it with `-Force -Wait`. |
+| `-RerunLimit` | Number of recent jobs to show when using `-Rerun`. Defaults to 10. |
 
 ### Advanced
 
@@ -86,4 +88,10 @@ Each torrent completion enqueues a job and starts processing. If another job is 
 
 # Check for new config settings after update
 .\Stagearr.ps1 -SyncConfig
+
+# Interactively re-run a recent job
+.\Stagearr.ps1 -Rerun
+
+# Show last 20 jobs for re-run selection
+.\Stagearr.ps1 -Rerun -RerunLimit 20
 ```
