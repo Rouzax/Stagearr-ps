@@ -44,7 +44,10 @@ function Add-SAJob {
         
         [Parameter()]
         [string]$TorrentHash = '',
-        
+
+        [Parameter()]
+        [string]$DownloadRoot = '',
+
         [Parameter()]
         [switch]$NoCleanup,
         
@@ -113,6 +116,7 @@ function Add-SAJob {
             downloadPath  = $DownloadPath
             downloadLabel = $DownloadLabel
             torrentHash   = $TorrentHash
+            downloadRoot  = $DownloadRoot
             noCleanup     = [bool]$NoCleanup
             noMail        = [bool]$NoMail
         }

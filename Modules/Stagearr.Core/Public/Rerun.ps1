@@ -167,11 +167,36 @@ function Invoke-SARerun {
         return
     }
 
+    # Translate download path for cross-server queue usage
+    $downloadPath = $selectedJob.input.downloadPath
+    $localRoot = $Config.paths.downloadRoot
+
+    if (-not [string]::IsNullOrWhiteSpace($localRoot) -and
+        -not [string]::IsNullOrWhiteSpace($selectedJob.input.downloadRoot)) {
+        $storedRoot = $selectedJob.input.downloadRoot
+        $normalizedPath = $downloadPath -replace '\\', '/'
+        $normalizedStoredRoot = $storedRoot.TrimEnd('/\') -replace '\\', '/'
+        if ($normalizedPath.StartsWith($normalizedStoredRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $relativePath = $normalizedPath.Substring($normalizedStoredRoot.Length).TrimStart('/')
+            $downloadPath = Join-Path -Path $localRoot -ChildPath $relativePath
+        }
+    }
+
+    # Validate download path still exists
+    if (-not (Test-Path -LiteralPath $downloadPath)) {
+        Write-Host ""
+        Write-Host "Download path no longer exists:" -ForegroundColor Red
+        Write-Host "  $downloadPath" -ForegroundColor Red
+        Write-Host "The source files may have been removed after the original import." -ForegroundColor Yellow
+        return
+    }
+
     # Build deferred job params with Force to allow re-creation
     $deferredParams = @{
         QueueRoot     = $QueueRoot
-        DownloadPath  = $selectedJob.input.downloadPath
+        DownloadPath  = $downloadPath
         DownloadLabel = $selectedJob.input.downloadLabel
+        DownloadRoot  = $Config.paths.downloadRoot
         TorrentHash   = if ($selectedJob.input.torrentHash) { $selectedJob.input.torrentHash } else { '' }
         Force         = $true
     }
