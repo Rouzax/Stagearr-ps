@@ -283,7 +283,15 @@ function Restore-SAOrphanedJobs {
     }
     
     $runningJobs = Get-ChildItem -LiteralPath $runningPath -Filter '*.json' -ErrorAction SilentlyContinue
-    
+
+    # Skip and clean up stale temp files from crashed atomic writes
+    $staleTemps = @($runningJobs | Where-Object { $_.Name -like '.tmp.*' })
+    $runningJobs = @($runningJobs | Where-Object { $_.Name -notlike '.tmp.*' })
+    foreach ($tempFile in $staleTemps) {
+        Remove-Item -LiteralPath $tempFile.FullName -Force -ErrorAction SilentlyContinue
+        Write-SAVerbose -Label "Queue" -Text "Removed stale temp file: $($tempFile.Name)"
+    }
+
     foreach ($jobFile in $runningJobs) {
         try {
             $job = Get-Content -LiteralPath $jobFile.FullName -Raw | ConvertFrom-Json | ConvertTo-SAHashtable
