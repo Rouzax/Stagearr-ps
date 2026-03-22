@@ -534,14 +534,16 @@ function Invoke-SAStandardJob {
                 $mediaSource = 'queue'
             } else {
                 # Queue empty (torrent finished) -- fall back to history API
-                $mediaObj = Get-SAArrHistoryRecords -AppType $arrAppType -Config $arrConfig `
+                $historyRecords = Get-SAArrHistoryRecords -AppType $arrAppType -Config $arrConfig `
                     -DownloadId $Job.input.torrentHash
                 $mediaSource = 'history'
 
-                # Wrap in queue-compatible structure for enrichment fallback
-                if ($null -ne $mediaObj) {
-                    $mediaKey = if ($arrAppType -eq 'Sonarr') { 'series' } else { 'movie' }
-                    $Context.State.EarlyQueueRecords = @( @{ $mediaKey = $mediaObj } )
+                if ($null -ne $historyRecords -and @($historyRecords).Count -gt 0) {
+                    # Extract media object for metadata (IMDB, title, year)
+                    $mediaObj = if ($arrAppType -eq 'Sonarr') { $historyRecords[0].series } else { $historyRecords[0].movie }
+
+                    # Cache full records for enrichment (has series + episode data)
+                    $Context.State.EarlyQueueRecords = @($historyRecords)
                 }
             }
 
