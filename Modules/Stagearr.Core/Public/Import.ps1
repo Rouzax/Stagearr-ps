@@ -127,7 +127,7 @@ function Invoke-SAImport {
             elseif ($config.importers.sonarr.enabled) {
                 return Invoke-SASonarrImport -Config $config.importers.sonarr -StagingPath $stagingPath `
                     -StagingRoot $stagingRoot -DownloadId $Context.Job.input.torrentHash `
-                    -CachedQueueRecords $Context.State.EarlyQueueRecords
+                    -CachedQueueRecords $Context.State.EarlyQueueRecords -MediaId $Context.State.ArrMediaId
             }
             else {
                 Write-SAOutcome -Level Warning -Label "Import" -Text "No TV importer configured" -Indent 1
@@ -139,7 +139,7 @@ function Invoke-SAImport {
             if ($config.importers.radarr.enabled) {
                 return Invoke-SARadarrImport -Config $config.importers.radarr -StagingPath $stagingPath `
                     -StagingRoot $stagingRoot -DownloadId $Context.Job.input.torrentHash `
-                    -CachedQueueRecords $Context.State.EarlyQueueRecords
+                    -CachedQueueRecords $Context.State.EarlyQueueRecords -MediaId $Context.State.ArrMediaId
             }
             else {
                 Write-SAOutcome -Level Warning -Label "Import" -Text "Radarr not configured" -Indent 1
