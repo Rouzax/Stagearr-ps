@@ -600,10 +600,13 @@ function Invoke-SAStandardJob {
             Write-SAOutcome -Level Warning -Label "Blocklist" -Text "No queue record available - manual cleanup required" -Indent 1
         }
 
-        # Set up email notification for the failure
+        # Set up email notification for the security block
         Set-SAEmailSummary -Name $displayName `
             -Result 'Failed' `
-            -ImportTarget $arrAppType
+            -ImportTarget $arrAppType `
+            -FailurePhase 'Security' `
+            -FailureError "Dangerous files detected (probable malware): $fileList" `
+            -FailurePath $Job.input.downloadPath
 
         $securityMsg = "Dangerous files detected (probable malware): $fileList"
         if ($blocklisted) {
