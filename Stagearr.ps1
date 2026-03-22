@@ -82,6 +82,14 @@
     Stagearr.ps1 -Update
 
 .EXAMPLE
+    # Interactively re-run a recent job:
+    Stagearr.ps1 -Rerun
+
+.EXAMPLE
+    # Show last 20 jobs for re-run:
+    Stagearr.ps1 -Rerun -RerunLimit 20
+
+.EXAMPLE
     # Re-run a previously completed/failed job:
     Stagearr.ps1 -DownloadPath "C:\Downloads\Movie.2024" -DownloadLabel "Movie" -Force
 
@@ -126,6 +134,12 @@ param(
 
     [Parameter(ParameterSetName = 'Update')]
     [switch]$Update,
+
+    [Parameter(ParameterSetName = 'Rerun')]
+    [switch]$Rerun,
+
+    [Parameter(ParameterSetName = 'Rerun', Position = 0)]
+    [int]$RerunLimit = 10,
 
     [Parameter()]
     [string]$ConfigPath
@@ -412,7 +426,16 @@ switch ($PSCmdlet.ParameterSetName) {
 
         exit 0
     }
-    
+
+    'Rerun' {
+        Write-SAPhaseHeader -Title "Re-run Job"
+        Invoke-SARerun -QueueRoot $Config.paths.queueRoot -Config $Config -Limit $RerunLimit -ProcessJob {
+            param($Context, $Job)
+            Invoke-SAJobProcessing -Context $Context -Job $Job
+        }
+        exit 0
+    }
+
     'Enqueue' {
         # Enqueue a new job
         
