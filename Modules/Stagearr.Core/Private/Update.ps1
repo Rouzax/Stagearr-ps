@@ -205,7 +205,7 @@ function Invoke-SAGitUpdate {
     .PARAMETER ScriptRoot
         Path to the Stagearr script root directory (must be a git repo).
     .PARAMETER TagName
-        The release tag to pull up to (e.g., 'v2.4.2').
+        The release tag to pull up to (e.g., 'v2.5.0').
     #>
     [CmdletBinding()]
     [OutputType([bool])]
