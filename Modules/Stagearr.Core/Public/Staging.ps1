@@ -211,6 +211,7 @@ function Get-SASourceMediaFiles {
             # Find first .rar in folder (part01.rar or just .rar)
             $rarFiles = Get-ChildItem -LiteralPath $sourcePath -Filter '*.rar' -Recurse |
                 Where-Object { $_.Name -notmatch '\.part(?!01)\d+\.rar$' } |
+                Where-Object { -not (Test-SANonContentRar -Name $_.Name) } |
                 Sort-Object Name |
                 Select-Object -First 1
             $rarFile = $rarFiles
