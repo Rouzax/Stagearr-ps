@@ -153,9 +153,14 @@ function Initialize-SAContext {
         $Context.State.IsSingleFile = $false
         $Context.State.IsFolder = $true
         
-        # Check for RAR files in folder
-        $rarFiles = Get-ChildItem -LiteralPath $sourcePath -Filter '*.rar' -Recurse -ErrorAction SilentlyContinue
-        if ($rarFiles.Count -gt 0) {
+        # Check for content RAR files in folder (skip proof/sample/nfo archives)
+        $rarFiles = @(Get-ChildItem -LiteralPath $sourcePath -Filter '*.rar' -Recurse -ErrorAction SilentlyContinue)
+        $contentRars = @($rarFiles | Where-Object { -not (Test-SANonContentRar -Name $_.Name) })
+        $skippedRars = @($rarFiles | Where-Object { Test-SANonContentRar -Name $_.Name })
+        foreach ($skipped in $skippedRars) {
+            Write-SAVerbose -Text "Skipped non-content RAR: $($skipped.Name)"
+        }
+        if ($contentRars.Count -gt 0) {
             $Context.State.IsRarArchive = $true
         }
     }
