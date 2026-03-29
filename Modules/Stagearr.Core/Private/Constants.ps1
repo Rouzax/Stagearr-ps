@@ -117,6 +117,10 @@ $script:SAConstants = @{
         '.vbs', '.vbe', '.js', '.jse', '.wsf', '.wsh', '.lnk'
     )
 
+    # RAR filename patterns for non-content archives (proof images, samples, nfo)
+    # Case-insensitive match against filename without extension
+    NonContentRarPatterns = @('proof', 'sample', 'nfo')
+
     #endregion
 
     #region DNS Cache
