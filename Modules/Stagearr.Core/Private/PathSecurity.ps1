@@ -155,3 +155,37 @@ function Test-SASamplePath {
     
     return $false
 }
+
+function Test-SANonContentRar {
+    <#
+    .SYNOPSIS
+        Tests if a RAR filename matches non-content patterns (proof, sample, nfo).
+    .DESCRIPTION
+        Scene releases often include small RAR archives containing proof images,
+        sample clips, or NFO files alongside the main video content. These should
+        not trigger RAR extraction mode.
+    .PARAMETER Name
+        The RAR filename to test.
+    .EXAMPLE
+        Test-SANonContentRar -Name "tm-movie-proof.rar"
+        # Returns: $true
+    .EXAMPLE
+        Test-SANonContentRar -Name "tm-movie-2160p.rar"
+        # Returns: $false
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    $baseName = [System.IO.Path]::GetFileNameWithoutExtension($Name)
+    foreach ($pattern in $script:SAConstants.NonContentRarPatterns) {
+        if ($baseName -match "(?i)(^|[-._])$pattern([-._]|$)") {
+            return $true
+        }
+    }
+
+    return $false
+}
