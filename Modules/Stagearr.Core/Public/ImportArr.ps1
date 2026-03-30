@@ -272,33 +272,106 @@ function Invoke-SAArrImport {
     # Map rejection reasons to error types for hint compatibility
     $errorType = Get-SAErrorTypeFromRejection -PrimaryReason $rejectionSummary.PrimaryReason
     
-    # All files rejected - return warning (not error)
+    # All files rejected - check for TBA before returning
     if ($rejectionSummary.IsAllRejected) {
-        Write-SAOutcome -Level Warning -Label $label -Text $rejectionSummary.Message -Duration (& $getDuration) -Indent 1
-        Add-SAEmailException -Message "${label}: $($rejectionSummary.Message)" -Type Warning
-        
-        # Show hint for quality rejections
-        if ($errorType -eq 'quality') {
+
+        $tbaResolved = $false
+
+        # TBA rejection: attempt metadata refresh + re-scan (Sonarr only)
+        if ($errorType -eq 'tba' -and $AppType -eq 'Sonarr') {
+            $seriesId = $null
+            if ($null -ne $scanItems[0].series -and $scanItems[0].series.id) {
+                $seriesId = $scanItems[0].series.id
+            }
+
+            if ($null -ne $seriesId) {
+                Write-SAProgress -Label $label -Text "Episode title is TBA, refreshing series metadata..." -Indent 1
+
+                $refreshResult = Invoke-SAArrSeriesRefresh -Config $Config -SeriesId $seriesId
+
+                if ($refreshResult.Success) {
+                    Write-SAOutcome -Level Success -Label $label -Text "Metadata refreshed, re-scanning..." -Indent 1
+
+                    # Re-scan
+                    $reScanResult = Invoke-SAArrManualImportScan -AppType $AppType -Config $Config -ScanPath $importPath
+                    if ($reScanResult.Success) {
+                        $scanItems = @($reScanResult.ScanResults)
+
+                        # Re-enrich
+                        if (-not [string]::IsNullOrWhiteSpace($DownloadId)) {
+                            $enrichParams = @{
+                                AppType     = $AppType
+                                Config      = $Config
+                                ScanResults = $scanItems
+                                DownloadId  = $DownloadId
+                            }
+                            if ($null -ne $CachedQueueRecords -and @($CachedQueueRecords).Count -gt 0) {
+                                $enrichParams.CachedQueueRecords = $CachedQueueRecords
+                            }
+                            $scanItems = Invoke-SAArrQueueEnrichment @enrichParams
+                        }
+
+                        # Re-extract metadata
+                        $arrMetadata = ConvertTo-SAArrMetadata -ScanResult $scanItems[0] -AppType $AppType
+
+                        # Re-filter
+                        $importableFiles = Get-SAImportableFiles -ScanResults $scanItems
+                        $rejectionSummary = Get-SARejectionSummary -ScanResults $scanItems
+                        $errorType = Get-SAErrorTypeFromRejection -PrimaryReason $rejectionSummary.PrimaryReason
+
+                        Write-SAVerbose -Text "Re-scan results: $($importableFiles.Count) importable, $($rejectionSummary.RejectedCount) rejected"
+
+                        # Update skipped file paths
+                        $skippedFilePaths = @()
+                        foreach ($file in $scanItems) {
+                            if ($null -ne $file.rejections -and $file.rejections.Count -gt 0) {
+                                $hasPermanent = $file.rejections | Where-Object { $_.type -eq 'permanent' }
+                                if ($null -ne $hasPermanent -and @($hasPermanent).Count -gt 0) {
+                                    $skippedFilePaths += $file.path
+                                }
+                            }
+                        }
+
+                        # If now importable, skip to Step 6 (import)
+                        if (-not $rejectionSummary.IsAllRejected -and $importableFiles.Count -gt 0) {
+                            if ($rejectionSummary.IsPartialRejected) {
+                                Write-SAOutcome -Level Warning -Label $label -Text $rejectionSummary.Message -Indent 1
+                                Add-SAEmailException -Message "${label}: $($rejectionSummary.Message)" -Type Warning
+                            }
+                            $tbaResolved = $true
+                        }
+                    }
+                } else {
+                    Write-SAVerbose -Text "RefreshSeries failed: $($refreshResult.Message)"
+                }
+            }
+        }
+
+        # Still all rejected after TBA refresh attempt (or non-TBA rejection)
+        if (-not $tbaResolved) {
+            Write-SAOutcome -Level Warning -Label $label -Text $rejectionSummary.Message -Duration (& $getDuration) -Indent 1
+            Add-SAEmailException -Message "${label}: $($rejectionSummary.Message)" -Type Warning
+
+            # Show hint for actionable rejections
             $hint = Get-SAImportHint -ErrorType $errorType -ImporterLabel $label
             if ($hint) {
                 Write-SAProgress -Label "Hint" -Text $hint -Indent 2
             }
-        }
-        
-        # Determine if this is a quality rejection (still considered success)
-        $isQualityRejected = ($errorType -eq 'quality')
-        
-        return [PSCustomObject]@{
-            Success         = $true  # Skip is not an error
-            Message         = $rejectionSummary.Message
-            Duration        = (& $getDuration)
-            ImportedFiles   = @()
-            SkippedFiles    = $skippedFilePaths
-            SkippedCount    = $rejectionSummary.RejectedCount
-            ArrMetadata     = $arrMetadata
-            Skipped         = $true
-            QualityRejected = $isQualityRejected
-            ErrorType       = $errorType
+
+            $isQualityRejected = ($errorType -eq 'quality')
+
+            return [PSCustomObject]@{
+                Success         = $true  # Skip is not an error
+                Message         = $rejectionSummary.Message
+                Duration        = (& $getDuration)
+                ImportedFiles   = @()
+                SkippedFiles    = $skippedFilePaths
+                SkippedCount    = $rejectionSummary.RejectedCount
+                ArrMetadata     = $arrMetadata
+                Skipped         = $true
+                QualityRejected = $isQualityRejected
+                ErrorType       = $errorType
+            }
         }
     }
     
