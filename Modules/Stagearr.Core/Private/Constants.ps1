@@ -38,7 +38,10 @@ $script:SAConstants = @{
     
     # How often to poll for import status (seconds)
     ImportPollIntervalSeconds = 5
-    
+
+    # How long to wait for series metadata refresh before giving up (minutes)
+    TbaRefreshTimeoutMinutes = 2
+
     #endregion
     
     #region Lock Defaults

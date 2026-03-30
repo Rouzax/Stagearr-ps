@@ -989,6 +989,62 @@ function Invoke-SAArrManualImportExecute {
 
 #endregion
 
+#region Series Metadata Refresh
+
+function Invoke-SAArrSeriesRefresh {
+    <#
+    .SYNOPSIS
+        Refreshes series metadata in Sonarr to resolve TBA episode titles.
+    .DESCRIPTION
+        Sends a RefreshSeries command to Sonarr and waits for completion.
+        Used when ManualImport scan rejects files due to TBA episode titles.
+        Sonarr will re-fetch episode metadata from TVDB/TMDB.
+    .PARAMETER Config
+        Sonarr configuration hashtable (host, port, apiKey, etc.).
+    .PARAMETER SeriesId
+        The Sonarr series ID to refresh.
+    .OUTPUTS
+        PSCustomObject with Success (bool) and Message (string).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config,
+
+        [Parameter(Mandatory = $true)]
+        [int]$SeriesId
+    )
+
+    $commandBody = @{
+        name     = 'RefreshSeries'
+        seriesId = $SeriesId
+    }
+
+    Write-SAVerbose -Text "Sending RefreshSeries command (seriesId: $SeriesId)"
+
+    $commandResult = Invoke-SAImporterCommand -Config $Config -Body $commandBody
+
+    if (-not $commandResult.Success) {
+        Write-SAVerbose -Text "RefreshSeries command failed: $($commandResult.Message)"
+        return [PSCustomObject]@{
+            Success = $false
+            Message = $commandResult.Message
+        }
+    }
+
+    Write-SAVerbose -Text "RefreshSeries command ID: $($commandResult.CommandId)"
+
+    $timeout = $script:SAConstants.TbaRefreshTimeoutMinutes
+    $pollResult = Wait-SAImporterCommand -Config $Config -CommandId $commandResult.CommandId -TimeoutMinutes $timeout
+
+    return [PSCustomObject]@{
+        Success = $pollResult.Success
+        Message = $pollResult.Message
+    }
+}
+
+#endregion
+
 #region Radarr Backward-Compatibility Wrappers
 
 function Invoke-SARadarrImport {
