@@ -142,13 +142,16 @@ function Get-SAEmailFilesDisplay {
         Formats files info for email display.
     .DESCRIPTION
         Creates a human-readable string showing file count and total size.
-        Uses appropriate terminology (video/episodes/files) based on context.
+        Uses appropriate terminology based on content type:
+        - TV (Sonarr/Medusa): "episode/episodes"
+        - Movie (Radarr): "video/videos"
+        - Passthrough: "file/files"
     .PARAMETER Summary
-        Email summary hashtable containing VideoCount, VideoSize, IsPassthrough
+        Email summary hashtable containing VideoCount, VideoSize, IsPassthrough, ImportTarget
     .OUTPUTS
         Formatted string like "1 video (4.2 GB)" or "8 episodes (6.5 GB)"
     .EXAMPLE
-        Get-SAEmailFilesDisplay -Summary @{ VideoCount = 8; VideoSize = '6.5 GB'; IsPassthrough = $false }
+        Get-SAEmailFilesDisplay -Summary @{ VideoCount = 8; VideoSize = '6.5 GB'; IsPassthrough = $false; ImportTarget = 'Sonarr' }
         # Returns: '8 episodes (6.5 GB)'
     #>
     [CmdletBinding()]
@@ -162,10 +165,13 @@ function Get-SAEmailFilesDisplay {
         return ''
     }
     
-    # Build description based on count and type
-    $fileWord = Get-SAPluralForm -Count $Summary.VideoCount -Singular 'video' -Plural 'episodes'
+    # Build description based on count and content type
     if ($Summary.IsPassthrough) {
         $fileWord = Get-SAPluralForm -Count $Summary.VideoCount -Singular 'file'
+    } elseif ($Summary.ImportTarget -in @('Sonarr', 'Medusa')) {
+        $fileWord = Get-SAPluralForm -Count $Summary.VideoCount -Singular 'episode'
+    } else {
+        $fileWord = Get-SAPluralForm -Count $Summary.VideoCount -Singular 'video'
     }
     
     $display = "$($Summary.VideoCount) $fileWord"

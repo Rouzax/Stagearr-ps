@@ -147,9 +147,9 @@ function Test-SASamplePath {
         return $true
     }
     
-    # Check for .sample. in filename
+    # Check for .sample. in filename or filename starting with "sample." (e.g., Sample.mkv)
     $fileName = Split-Path -Path $Path -Leaf
-    if ($fileName -match '(?i)\.sample\.') {
+    if ($fileName -match '(?i)(\.sample\.|^sample\.)') {
         return $true
     }
     
