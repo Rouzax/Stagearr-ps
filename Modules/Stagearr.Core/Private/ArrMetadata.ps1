@@ -403,6 +403,51 @@ function Get-SASimplifiedRejectionReason {
     # Normalize: lowercase for matching
     $lower = $Reason.ToLower()
     
+    # TBA / missing title rejections
+    if ($lower -match 'tba title|does not have a title') {
+        return 'Episode title TBA'
+    }
+
+    # Missing absolute episode number (anime)
+    if ($lower -match 'absolute episode number') {
+        return 'Missing absolute episode number'
+    }
+
+    # Disk space
+    if ($lower -match 'free space|not enough space') {
+        return 'Not enough disk space'
+    }
+
+    # Scene mapping
+    if ($lower -match 'unverified.*scene|xem|scene.*mapping') {
+        return 'Unverified scene mapping'
+    }
+
+    # No audio tracks
+    if ($lower -match 'no audio') {
+        return 'No audio tracks'
+    }
+
+    # Full season
+    if ($lower -match 'full season|all episodes in season') {
+        return 'Full season file'
+    }
+
+    # Partial season
+    if ($lower -match 'partial season') {
+        return 'Partial season pack'
+    }
+
+    # Episode mismatch
+    if ($lower -match 'unexpected.*considering') {
+        return 'Unexpected episode'
+    }
+
+    # Existing file has more episodes
+    if ($lower -match 'more episodes') {
+        return 'Existing file has more episodes'
+    }
+
     # Quality/upgrade rejections
     if ($lower -match 'not.*upgrade|existing.*file|cutoff.*met|quality.*met') {
         return 'Quality exists'
