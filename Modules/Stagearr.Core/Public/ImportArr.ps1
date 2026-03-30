@@ -479,6 +479,13 @@ function Get-SAErrorTypeFromRejection {
         'already imported'  { return 'already-exists' }
         'file locked'       { return 'permission' }
         'path not found'    { return 'path-not-found' }
+        'episode title tba|missing absolute'  { return 'tba' }
+        'not enough disk'   { return 'disk-space' }
+        'scene mapping'     { return 'scene-mapping' }
+        'no audio'          { return 'corrupt-file' }
+        'full season'       { return 'full-season' }
+        'partial season'    { return 'partial-season' }
+        'unexpected episode|more episodes' { return 'episode-mismatch' }
         default             { return 'unknown' }
     }
 }

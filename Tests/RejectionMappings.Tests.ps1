@@ -37,3 +37,99 @@ Describe 'Get-SASimplifiedRejectionReason' {
         }
     }
 }
+
+Describe 'Get-SAErrorTypeFromRejection' {
+
+    It 'maps Episode title TBA to tba' {
+        InModuleScope 'Stagearr.Core' {
+            Get-SAErrorTypeFromRejection -PrimaryReason 'Episode title TBA' | Should -Be 'tba'
+        }
+    }
+
+    It 'maps Missing absolute episode number to tba' {
+        InModuleScope 'Stagearr.Core' {
+            Get-SAErrorTypeFromRejection -PrimaryReason 'Missing absolute episode number' | Should -Be 'tba'
+        }
+    }
+
+    It 'maps Not enough disk space to disk-space' {
+        InModuleScope 'Stagearr.Core' {
+            Get-SAErrorTypeFromRejection -PrimaryReason 'Not enough disk space' | Should -Be 'disk-space'
+        }
+    }
+
+    It 'maps Unverified scene mapping to scene-mapping' {
+        InModuleScope 'Stagearr.Core' {
+            Get-SAErrorTypeFromRejection -PrimaryReason 'Unverified scene mapping' | Should -Be 'scene-mapping'
+        }
+    }
+
+    It 'maps No audio tracks to corrupt-file' {
+        InModuleScope 'Stagearr.Core' {
+            Get-SAErrorTypeFromRejection -PrimaryReason 'No audio tracks' | Should -Be 'corrupt-file'
+        }
+    }
+
+    It 'maps Full season file to full-season' {
+        InModuleScope 'Stagearr.Core' {
+            Get-SAErrorTypeFromRejection -PrimaryReason 'Full season file' | Should -Be 'full-season'
+        }
+    }
+
+    It 'maps Partial season pack to partial-season' {
+        InModuleScope 'Stagearr.Core' {
+            Get-SAErrorTypeFromRejection -PrimaryReason 'Partial season pack' | Should -Be 'partial-season'
+        }
+    }
+
+    It 'maps Unexpected episode to episode-mismatch' {
+        InModuleScope 'Stagearr.Core' {
+            Get-SAErrorTypeFromRejection -PrimaryReason 'Unexpected episode' | Should -Be 'episode-mismatch'
+        }
+    }
+
+    It 'maps Existing file has more episodes to episode-mismatch' {
+        InModuleScope 'Stagearr.Core' {
+            Get-SAErrorTypeFromRejection -PrimaryReason 'Existing file has more episodes' | Should -Be 'episode-mismatch'
+        }
+    }
+
+    # Existing mappings still work
+    It 'maps Quality exists to quality' {
+        InModuleScope 'Stagearr.Core' {
+            Get-SAErrorTypeFromRejection -PrimaryReason 'Quality exists' | Should -Be 'quality'
+        }
+    }
+}
+
+Describe 'Get-SAImportHint' {
+
+    It 'returns TBA hint for Sonarr' {
+        InModuleScope 'Stagearr.Core' {
+            $hint = Get-SAImportHint -ErrorType 'tba' -ImporterLabel 'Sonarr'
+            $hint | Should -BeLike '*48 hours*'
+            $hint | Should -BeLike '*-Rerun*'
+        }
+    }
+
+    It 'returns disk space hint' {
+        InModuleScope 'Stagearr.Core' {
+            $hint = Get-SAImportHint -ErrorType 'disk-space' -ImporterLabel 'Sonarr'
+            $hint | Should -BeLike '*space*'
+        }
+    }
+
+    It 'returns scene mapping hint' {
+        InModuleScope 'Stagearr.Core' {
+            $hint = Get-SAImportHint -ErrorType 'scene-mapping' -ImporterLabel 'Sonarr'
+            $hint | Should -BeLike '*TheXEM*'
+        }
+    }
+
+    It 'returns corrupt file hint' {
+        InModuleScope 'Stagearr.Core' {
+            $hint = Get-SAImportHint -ErrorType 'corrupt-file' -ImporterLabel 'Sonarr'
+            $hint | Should -BeLike '*corrupt*'
+        }
+    }
+}

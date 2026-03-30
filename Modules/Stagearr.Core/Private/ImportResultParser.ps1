@@ -902,6 +902,27 @@ function Get-SAImportHint {
         'not-found' {
             return "Ensure show exists in $ImporterLabel"
         }
+        'tba' {
+            return "$ImporterLabel auto-accepts TBA titles after 48 hours. Use -Rerun to retry."
+        }
+        'disk-space' {
+            return "Free up space on the destination drive or adjust minimum free space in $ImporterLabel settings"
+        }
+        'scene-mapping' {
+            return "Episode mapping on TheXEM is unverified; wait for confirmation or use Manual Import in $ImporterLabel"
+        }
+        'corrupt-file' {
+            return "File may be corrupt or incomplete; re-download or check source"
+        }
+        'full-season' {
+            return "Use Manual Import in $ImporterLabel to import full season files"
+        }
+        'partial-season' {
+            return "Partial season packs are not supported; import individual episodes"
+        }
+        'episode-mismatch' {
+            return "File contains unexpected episodes; use Manual Import in $ImporterLabel to verify"
+        }
         'unknown' {
             return "Check $ImporterLabel logs for details"
         }
