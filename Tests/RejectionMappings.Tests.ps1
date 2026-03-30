@@ -133,3 +133,51 @@ Describe 'Get-SAImportHint' {
         }
     }
 }
+
+Describe 'Invoke-SAArrImport email exception label prefix' {
+
+    It 'prefixes rejection warning with Sonarr label' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Write-SAVerbose {}
+            Mock Write-SAProgress {}
+            Mock Write-SAOutcome {}
+            Mock Write-SAPhaseHeader {}
+            Mock Get-SAImportHint { return $null }
+
+            Mock Get-SAImporterBaseUrl {
+                return @{ Url = 'http://localhost:8989'; DisplayUrl = 'http://localhost:8989'; HostHeader = $null }
+            }
+
+            Mock Test-SAArrConnection { return $true }
+
+            Mock Invoke-SAArrManualImportScan {
+                return [PSCustomObject]@{
+                    Success      = $true
+                    ScanResults  = @(
+                        @{
+                            path       = 'C:\Test\S01E01.mkv'
+                            quality    = @{ quality = @{ id = 3 }; revision = @{ version = 1 } }
+                            series     = @{ id = 100; title = 'Test Show'; year = 2026 }
+                            episodes   = @( @{ id = 200 } )
+                            rejections = @( @{ type = 'permanent'; reason = 'Not an upgrade for existing episode file(s)' } )
+                        }
+                    )
+                    ErrorMessage = $null
+                }
+            }
+
+            Mock Invoke-SAArrQueueEnrichment { return $ScanResults }
+            Mock ConvertTo-SAArrMetadata { return @{ Title = 'Test Show'; Year = 2026 } }
+
+            $capturedMessages = [System.Collections.Generic.List[string]]::new()
+            Mock Add-SAEmailException {
+                $capturedMessages.Add($Message)
+            }
+
+            $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = ''; timeoutMinutes = 1 }
+            $result = Invoke-SAArrImport -AppType 'Sonarr' -Config $config -StagingPath 'C:\Test'
+
+            $capturedMessages | Should -Contain 'Sonarr: 1 file skipped (Quality exists)'
+        }
+    }
+}

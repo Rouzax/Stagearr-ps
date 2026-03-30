@@ -183,7 +183,7 @@ function Invoke-SAArrImport {
     
     if (-not $scanResult.Success) {
         Write-SAOutcome -Level Error -Label $label -Text "Scan failed: $($scanResult.ErrorMessage)" -Indent 1
-        Add-SAEmailException -Message "Scan failed: $($scanResult.ErrorMessage)" -Type Error
+        Add-SAEmailException -Message "${label}: Scan failed: $($scanResult.ErrorMessage)" -Type Error
         return [PSCustomObject]@{
             Success       = $false
             Message       = "Scan failed: $($scanResult.ErrorMessage)"
@@ -197,7 +197,7 @@ function Invoke-SAArrImport {
     # Check for empty scan results
     if ($null -eq $scanResult.ScanResults -or $scanResult.ScanResults.Count -eq 0) {
         Write-SAOutcome -Level Warning -Label $label -Text "No files found in folder" -Indent 1
-        Add-SAEmailException -Message "No files found in folder" -Type Warning
+        Add-SAEmailException -Message "${label}: No files found in folder" -Type Warning
         return [PSCustomObject]@{
             Success       = $false
             Message       = 'No files found'
@@ -275,7 +275,7 @@ function Invoke-SAArrImport {
     # All files rejected - return warning (not error)
     if ($rejectionSummary.IsAllRejected) {
         Write-SAOutcome -Level Warning -Label $label -Text $rejectionSummary.Message -Duration (& $getDuration) -Indent 1
-        Add-SAEmailException -Message $rejectionSummary.Message -Type Warning
+        Add-SAEmailException -Message "${label}: $($rejectionSummary.Message)" -Type Warning
         
         # Show hint for quality rejections
         if ($errorType -eq 'quality') {
@@ -305,7 +305,7 @@ function Invoke-SAArrImport {
     # Partial rejection - log warning, continue with importable files
     if ($rejectionSummary.IsPartialRejected) {
         Write-SAOutcome -Level Warning -Label $label -Text $rejectionSummary.Message -Indent 1
-        Add-SAEmailException -Message $rejectionSummary.Message -Type Warning
+        Add-SAEmailException -Message "${label}: $($rejectionSummary.Message)" -Type Warning
     }
     
     # ==========================================================================
@@ -431,7 +431,7 @@ function Invoke-SAArrImport {
             Write-SAProgress -Label "Hint" -Text $hint -Indent 2
         }
 
-        Add-SAEmailException -Message $importResult.Message -Type Error
+        Add-SAEmailException -Message "${label}: $($importResult.Message)" -Type Error
 
         return [PSCustomObject]@{
             Success         = $false
