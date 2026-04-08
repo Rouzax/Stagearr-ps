@@ -230,8 +230,12 @@ function Get-SAImportableFiles {
         }
         # If AllowTemporaryRejections is $false, any rejection excludes the file
     }
-    
-    return $importable
+
+    # Comma operator forces array shape preservation across the function boundary.
+    # Without it, PowerShell unwraps a single-element array to its scalar element,
+    # so a single PSCustomObject scan result would expose its property names via
+    # .Count instead of returning 1.
+    return , $importable
 }
 
 function Get-SARejectionSummary {

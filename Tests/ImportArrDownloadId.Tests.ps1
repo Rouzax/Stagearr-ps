@@ -257,10 +257,14 @@ Describe 'Invoke-SAArrImport NullReferenceException recovery' {
                 Mock Test-SAArrConnection { return $true }
 
                 Mock Invoke-SAArrManualImportScan {
+                    # Use PSCustomObject (not hashtable) to match production scan results
+                    # which come from JSON deserialization. A single-element array of
+                    # hashtables gets unwrapped by PowerShell, exposing the hashtable's
+                    # key Count instead of array length, which throws off comparisons.
                     return [PSCustomObject]@{
                         Success      = $true
                         ScanResults  = @(
-                            @{
+                            [PSCustomObject]@{
                                 path       = 'C:\Test\S01E01.mkv'
                                 quality    = @{ quality = @{ id = 3 }; revision = @{ version = 1 } }
                                 series     = @{ id = 100; title = 'Test Show'; year = 2026 }

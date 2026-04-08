@@ -390,19 +390,11 @@ function Invoke-SAArrImport {
     $importMode = if ($Config.importMode) { $Config.importMode } else { 'move' }
     
     $importResult = Invoke-SAArrManualImportExecute -AppType $AppType -Config $Config -Files $importableFiles -ImportMode $importMode -DownloadId $DownloadId
-    
-    # Track imported file paths
-    $importedFilePaths = @()
-    if ($importResult.Success) {
-        foreach ($file in $importableFiles) {
-            $importedFilePaths += $file.path
-        }
-    }
-    
+
     # ==========================================================================
     # STEP 7: BUILD RESULT
     # ==========================================================================
-    
+
     if ($importResult.Success) {
         # Verify actual import count from history
         $successMsg = "Imported"
@@ -418,6 +410,19 @@ function Invoke-SAArrImport {
             }
         }
 
+        # Track imported file paths AFTER verification. When verification finds
+        # fewer imports than attempted we cannot tell which specific files were
+        # silently skipped, so leave the list empty to prevent JobProcessor from
+        # emitting misleading per-file notes (e.g. "Imported 1 file" when zero
+        # were verified). The count-based fallback path is then used instead.
+        $importedFilePaths = @()
+        $isPartialVerification = $null -ne $verification -and -not $verification.IsComplete
+        if (-not $isPartialVerification) {
+            foreach ($file in $importableFiles) {
+                $importedFilePaths += $file.path
+            }
+        }
+
         if ($verifiedCount -ge $importableFiles.Count -or $null -eq $verification) {
             $successMsg = "Imported"
             if ($rejectionSummary.IsPartialRejected) {
@@ -427,7 +432,6 @@ function Invoke-SAArrImport {
             Write-SAOutcome -Level Success -Label $label -Text $successMsg -Duration $importResult.Duration -Indent 1
         }
 
-        $isPartialVerification = $null -ne $verification -and -not $verification.IsComplete
         $silentlySkipped = if ($isPartialVerification) { $importableFiles.Count - $verifiedCount } else { 0 }
 
         return [PSCustomObject]@{
@@ -457,8 +461,14 @@ function Invoke-SAArrImport {
                 $verifiedCount = $verification.ImportedCount
                 Write-SAVerbose -Text "$label command failed with NullReferenceException but history shows $verifiedCount file(s) imported"
 
-                foreach ($file in $importableFiles) {
-                    $importedFilePaths += $file.path
+                # Only populate file paths when verification confirms ALL files imported.
+                # On partial verification we cannot tell which specific files succeeded,
+                # so leave the list empty (see note in success branch above).
+                $importedFilePaths = @()
+                if ($verifiedCount -ge $importableFiles.Count) {
+                    foreach ($file in $importableFiles) {
+                        $importedFilePaths += $file.path
+                    }
                 }
 
                 if ($verifiedCount -ge $importableFiles.Count) {
@@ -1586,10 +1596,31 @@ function Wait-SAImporterCommand {
         $commandResult = $result.Data.result  # 'successful', 'unsuccessful', or 'unknown'
         $exception = $result.Data.exception
         $completionMessage = $result.Data.body.completionMessage
+        $message = $result.Data.message
         $elapsed = [int]((Get-Date) - $startTime).TotalSeconds
-        
+
         Write-SAVerbose -Text "Attempt: status=$status, result=$commandResult"
-        
+
+        # On terminal states, surface command-level details when present.
+        # Sonarr/Radarr can complete a ManualImport silently even when individual
+        # file imports threw exceptions internally (e.g. file lock during upgrade
+        # of an existing episode). Those exceptions are caught inside Sonarr's
+        # ImportApprovedEpisodes and never propagate to the command framework, so
+        # the command shows status=completed/result=successful but no files moved.
+        # Logging exception/message/completionMessage here helps diagnose those
+        # silent failures that the post-import history check catches later.
+        if ($status -in @('completed', 'failed', 'aborted', 'cancelled', 'orphaned')) {
+            if (-not [string]::IsNullOrWhiteSpace($exception)) {
+                Write-SAVerbose -Text "Command exception: $exception"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($message)) {
+                Write-SAVerbose -Text "Command message: $message"
+            }
+            if (-not [string]::IsNullOrWhiteSpace($completionMessage)) {
+                Write-SAVerbose -Text "Command completion: $completionMessage"
+            }
+        }
+
         switch ($status) {
             'completed' {
                 # Check the result field - status can be 'completed' but result 'unsuccessful'
@@ -1608,10 +1639,6 @@ function Wait-SAImporterCommand {
                         Message  = $errorMsg
                         Duration = $elapsed
                     }
-                }
-                # Check for exception even on successful result
-                if (-not [string]::IsNullOrWhiteSpace($exception)) {
-                    Write-SAVerbose -Text "Command completed with exception: $exception"
                 }
                 return [PSCustomObject]@{
                     Success  = $true
