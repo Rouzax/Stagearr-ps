@@ -425,11 +425,25 @@ function Invoke-SAVideoProcessing {
         Write-SAOutcome -Level Warning -Label "Staging" -Text "Some files had errors" -Indent 1
     }
     
+    $firstError = $null
+    $firstFailedFile = $null
+    if (-not $allSuccess) {
+        foreach ($pf in $processedFiles) {
+            if (-not $pf.Success -and $pf.Error) {
+                $firstError = $pf.Error
+                $firstFailedFile = $pf.FailedFile
+                break
+            }
+        }
+    }
+
     return [PSCustomObject]@{
         Success        = $allSuccess
         ProcessedFiles = $processedFiles.ToArray()
         StagingPath    = $stagingPath
         TotalSize      = $totalSize  # E4 fix: Return size for email summary
+        Error          = $firstError
+        FailedFile     = $firstFailedFile
     }
 }
 
@@ -488,6 +502,8 @@ function Invoke-SAProcessExtractedFile {
                     Success       = $success
                     OutputPath    = $outputPath
                     Type          = 'Remux'
+                    Error         = if (-not $success) { 'MP4 to MKV remux failed' } else { $null }
+                    FailedFile    = if (-not $success) { (Split-Path $MediaFile.SourcePath -Leaf) } else { $null }
                     ExtractedSrts = @()
                     OpenSubsHash  = $openSubsHash
                 }
@@ -592,7 +608,7 @@ function Invoke-SAProcessExtractedMkv {
     if ($null -eq $mkvInfo) {
         # Per-file error outcome at indent 2 (aligns with file details)
         Write-SAOutcome -Level Error -Label "Analyze" -Text "Failed to analyze MKV" -Indent 2 -ConsoleOnly
-        return [PSCustomObject]@{ Success = $false; OutputPath = $null; Type = 'Error'; OpenSubsHash = $null }
+        return [PSCustomObject]@{ Success = $false; OutputPath = $null; Type = 'Error'; Error = 'Failed to analyze MKV'; FailedFile = $fileName; OpenSubsHash = $null }
     }
     
     # Show track summary in normal output (consistent with Staging.ps1)
@@ -668,7 +684,7 @@ function Invoke-SAProcessExtractedMkv {
             # Cleanup temp file on failure
             Write-SAOutcome -Level Error -Label "Strip" -Text "Failed" -Indent 2 -ConsoleOnly
             Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
-            return [PSCustomObject]@{ Success = $false; OutputPath = $SourcePath; Type = 'StripFailed'; OpenSubsHash = $mkvInfo.OpenSubsHash }
+            return [PSCustomObject]@{ Success = $false; OutputPath = $SourcePath; Type = 'StripFailed'; Error = 'Remux failed during subtitle stripping'; FailedFile = $fileName; OpenSubsHash = $mkvInfo.OpenSubsHash }
         }
     }
     elseif (-not $strippingEnabled -and $subAnalysis -and $subAnalysis.NeedsStrip) {

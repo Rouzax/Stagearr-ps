@@ -305,6 +305,8 @@ function Invoke-SAProcessMediaFile {
                     Success       = $success
                     OutputPath    = $outputPath
                     Type          = 'Remux'
+                    Error         = if (-not $success) { 'MP4 to MKV remux failed' } else { $null }
+                    FailedFile    = if (-not $success) { $MediaFile.FileName } else { $null }
                     ExtractedSrts = @()
                     OpenSubsHash  = $openSubsHash
                 }
@@ -439,6 +441,8 @@ function Invoke-SAProcessMkv {
             Success      = $false
             OutputPath   = $null
             Type         = 'Error'
+            Error        = 'Failed to analyze MKV'
+            FailedFile   = $fileName
             OpenSubsHash = $null
         }
     }
@@ -516,6 +520,8 @@ function Invoke-SAProcessMkv {
             Success       = $success
             OutputPath    = $outputPath
             Type          = 'Strip'
+            Error         = if (-not $success) { 'Remux failed during subtitle stripping' } else { $null }
+            FailedFile    = if (-not $success) { $fileName } else { $null }
             ExtractedSrts = $extractedSrts
             OpenSubsHash  = $mkvInfo.OpenSubsHash
         }
