@@ -526,7 +526,7 @@ function Test-SAProcessResult {
     $isSuccess = $Result.Success -or ($Result.ExitCode -in $SuccessCodes)
     
     if (-not $isSuccess -and $LogError) {
-        Write-SAToolError -Label $Label `
+        $null = Write-SAToolError -Label $Label `
             -ToolName $ToolName `
             -ExitCode $Result.ExitCode `
             -ErrorMessage $Result.StdErr `
