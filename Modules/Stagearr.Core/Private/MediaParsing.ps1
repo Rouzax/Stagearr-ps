@@ -320,22 +320,30 @@ function Get-SAGuessItInfo {
                 $otherValue = @($data.other)
             }
         }
-        
+
+        # Handle scalar fields that the API sometimes returns as arrays
+        $sourceValue = if ($data.source -is [array]) {
+            if ($data.source.Count -gt 0) { [string]$data.source[0] } else { $null }
+        } else { $data.source }
+
+        $serviceValue = if ($data.streaming_service -is [array]) {
+            if ($data.streaming_service.Count -gt 0) { [string]$data.streaming_service[0] } else { $null }
+        } else { $data.streaming_service }
+
         # Build result from API response
         $result = [PSCustomObject]@{
-            Type             = $data.type           # 'episode' or 'movie'
+            Type             = $data.type
             Title            = $data.title
             FriendlyName     = $null
             Year             = $data.year
             Season           = $data.season
             Episode          = $data.episode
             Language         = $data.language
-            Source           = $data.source
-            # New fields for email subject suffix
-            ScreenSize       = $data.screen_size        # "2160p", "1080p"
-            StreamingService = $data.streaming_service  # "Netflix", "Amazon Prime"
-            ReleaseGroup     = $data.release_group      # "NTb", "BLOOM"
-            Other            = $otherValue              # Array: "Remux", "HDR10", etc.
+            Source           = $sourceValue
+            ScreenSize       = $data.screen_size
+            StreamingService = $serviceValue
+            ReleaseGroup     = $data.release_group
+            Other            = $otherValue
         }
         
         # Build friendly name based on type
