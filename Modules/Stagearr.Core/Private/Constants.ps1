@@ -42,6 +42,9 @@ $script:SAConstants = @{
     # How long to wait for series metadata refresh before giving up (minutes)
     TbaRefreshTimeoutMinutes = 2
 
+    # How long to wait before retrying a TBA-rejected import (hours)
+    TbaRetryDelayHours = 48
+
     #endregion
     
     #region Lock Defaults

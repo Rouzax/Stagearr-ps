@@ -441,7 +441,8 @@ Multiple labels can be configured to route downloads to the correct importer.
 
 | Function | Purpose | File |
 |----------|---------|------|
-| `Add-SAJob` | Enqueue new job | Queue.ps1 |
+| `Add-SAJob` | Enqueue new job (supports retry scheduling via `-RetryAfter`, `-TbaRetry`, `-StagingPath`) | Queue.ps1 |
+| `Get-SANextPendingJob` | Get next processable job (skips future retryAfter) | Queue.ps1 |
 | `Get-SAJob` | Get job by ID | Queue.ps1 |
 | `Get-SAJobs` | Get jobs by state | Queue.ps1 |
 | `Remove-SAJob` | Remove job | Queue.ps1 |
@@ -454,6 +455,9 @@ Multiple labels can be configured to route downloads to the correct importer.
 | Function | Purpose | File |
 |----------|---------|------|
 | `Invoke-SAJobProcessing` | **Main entry** - full pipeline | JobProcessor.ps1 |
+| `Test-SATbaRetryNeeded` | Check if TBA auto-retry should be scheduled | JobProcessor.ps1 |
+| `Test-SATbaRetryMode` | Determine retry mode (ImportOnly/FullPipeline/Failed) | JobProcessor.ps1 |
+| `Add-SATbaRetryEmailExceptions` | Add email exceptions for TBA retry scenarios | JobProcessor.ps1 |
 
 ### Lock Management
 
@@ -509,7 +513,7 @@ Multiple labels can be configured to route downloads to the correct importer.
 |----------|---------|------|
 | `Invoke-SAImport` | **Main dispatcher** - route to importer | Import.ps1 |
 | `Reset-SAImportState` | Reset state between jobs | Import.ps1 |
-| `Invoke-SAArrImport` | Generic *arr import using ManualImport flow, returns ArrMetadata | ImportArr.ps1 |
+| `Invoke-SAArrImport` | Generic *arr import using ManualImport flow, returns ArrMetadata (supports `-IsTbaRetry` for pre-import refresh) | ImportArr.ps1 |
 | `Test-SAArrConnection` | Generic *arr connection test | ImportArr.ps1 |
 | `Get-SAArrRecentErrors` | Generic *arr error log fetch | ImportArr.ps1 |
 | `Invoke-SAArrManualImportScan` | Scan folder with ManualImport API, returns metadata | ImportArr.ps1 |
@@ -763,7 +767,7 @@ These have no I/O — input → output only:
 
 **SubtitleProcessing.ps1:** `Get-SAVideoExistingLanguages`, `Get-SAVideoMissingLanguages`, `Get-SASubtitleLanguageCounts`, `Format-SASubtitleSummary`, `Get-SAMissingLanguagesInfo`
 
-**JobProcessor.ps1:** `Get-SASubtitleLanguagesFromResult`, `Get-SAMissingLanguageNames`, `Get-SAImportTargetName`, `Get-SAImportResultText`, `Get-SAEmailResultLevel`, `Format-SAImportEpisodeNote`
+**JobProcessor.ps1:** `Get-SASubtitleLanguagesFromResult`, `Get-SAMissingLanguageNames`, `Get-SAImportTargetName`, `Get-SAImportResultText`, `Get-SAEmailResultLevel`, `Format-SAImportEpisodeNote`, `Test-SATbaRetryNeeded`, `Test-SATbaRetryMode`, `Add-SATbaRetryEmailExceptions`
 
 **ErrorHandling.ps1:** `Get-SAToolErrorInfo` (error translation)
 

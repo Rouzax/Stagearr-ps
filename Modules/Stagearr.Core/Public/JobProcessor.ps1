@@ -138,7 +138,11 @@ function Get-SAImportResultText {
     if ($null -eq $ImportResult) {
         return ''
     }
-    
+
+    if ($ImportResult.TbaRetryScheduled -eq $true) {
+        return 'Pending retry'
+    }
+
     if ($ImportResult.QualityRejected -eq $true) {
         return 'Skipped (quality exists)'
     } elseif ($ImportResult.Skipped -eq $true) {
@@ -306,6 +310,136 @@ function Format-SAImportEpisodeNote {
 }
 
 #endregion
+
+function Test-SATbaRetryNeeded {
+    <#
+    .SYNOPSIS
+        Determines if a TBA auto-retry should be scheduled.
+    .PARAMETER ImportResult
+        Import result object from Invoke-SAImport.
+    .PARAMETER Job
+        Current job hashtable.
+    .OUTPUTS
+        Boolean. True if a retry should be scheduled.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter()]
+        [AllowNull()]
+        [object]$ImportResult,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Job
+    )
+
+    if ($null -eq $ImportResult) { return $false }
+    if ($ImportResult.Skipped -ne $true) { return $false }
+    if ($ImportResult.ErrorType -ne 'tba') { return $false }
+    if ($Job.input.tbaRetry -eq $true) { return $false }
+
+    return $true
+}
+
+function Test-SATbaRetryMode {
+    <#
+    .SYNOPSIS
+        Determines how a TBA retry job should be processed.
+    .DESCRIPTION
+        Checks whether staged files still exist for import-only mode,
+        or whether the original download is available for full pipeline fallback.
+    .PARAMETER Job
+        Job hashtable with input.tbaRetry, input.stagingPath, input.downloadPath.
+    .OUTPUTS
+        PSCustomObject with Mode (ImportOnly/FullPipeline/Failed) and StagingPath,
+        or $null if not a retry job.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Job
+    )
+
+    if ($Job.input.tbaRetry -ne $true) { return $null }
+
+    $stagingExists = (-not [string]::IsNullOrWhiteSpace($Job.input.stagingPath)) -and
+                     (Test-Path -LiteralPath $Job.input.stagingPath)
+
+    if ($stagingExists) {
+        return [PSCustomObject]@{
+            Mode        = 'ImportOnly'
+            StagingPath = $Job.input.stagingPath
+        }
+    }
+
+    $downloadExists = (-not [string]::IsNullOrWhiteSpace($Job.input.downloadPath)) -and
+                      (Test-Path -LiteralPath $Job.input.downloadPath)
+
+    if ($downloadExists) {
+        return [PSCustomObject]@{
+            Mode        = 'FullPipeline'
+            StagingPath = $null
+        }
+    }
+
+    return [PSCustomObject]@{
+        Mode        = 'Failed'
+        StagingPath = $null
+    }
+}
+
+function Add-SATbaRetryEmailExceptions {
+    <#
+    .SYNOPSIS
+        Adds email exceptions for TBA retry scenarios.
+    .PARAMETER ImportResult
+        Import result object.
+    .PARAMETER RetryAfter
+        Scheduled retry datetime (for scenario A).
+    .PARAMETER ImportTarget
+        Importer name (Sonarr/Radarr).
+    .PARAMETER IsTbaRetry
+        Whether the current job is a TBA retry.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [AllowNull()]
+        [object]$ImportResult,
+
+        [Parameter()]
+        [AllowNull()]
+        [object]$RetryAfter,
+
+        [Parameter()]
+        [string]$ImportTarget,
+
+        [Parameter()]
+        [bool]$IsTbaRetry
+    )
+
+    # Scenario A: Original run, retry scheduled
+    if (-not $IsTbaRetry -and $ImportResult.TbaRetryScheduled -eq $true -and $null -ne $RetryAfter) {
+        Add-SAEmailException -Message "${ImportTarget}: Episode title is still TBA after metadata refresh" -Type Info
+        $retryDateStr = $RetryAfter.ToString('yyyy-MM-dd HH:mm')
+        Add-SAEmailException -Message "Automatic retry scheduled; will import on the next processing run after $retryDateStr" -Type Info
+        return
+    }
+
+    # Scenario B: Retry succeeded
+    if ($IsTbaRetry -and $ImportResult.Success -eq $true -and $ImportResult.Skipped -ne $true) {
+        Add-SAEmailException -Message "This import was automatically retried after a TBA skip" -Type Info
+        return
+    }
+
+    # Scenario C: Retry failed or skipped again
+    if ($IsTbaRetry -and ($ImportResult.Success -ne $true -or $ImportResult.Skipped -eq $true)) {
+        $reason = if ($ImportResult.Message) { $ImportResult.Message } else { 'unknown' }
+        Add-SAEmailException -Message "Automatic TBA retry failed: $reason" -Type Warning
+        Add-SAEmailException -Message "Use -Rerun to retry manually" -Type Warning
+        return
+    }
+}
 
 #region Main Job Processing
 
@@ -632,6 +766,48 @@ function Invoke-SAStandardJob {
         return $false
     }
 
+    # TBA retry mode: determine processing strategy
+    $tbaRetryMode = Test-SATbaRetryMode -Job $Job
+    if ($null -ne $tbaRetryMode) {
+        if ($tbaRetryMode.Mode -eq 'Failed') {
+            Write-SAPhaseHeader -Title "Import (TBA retry)"
+            Write-SAOutcome -Level Error -Label "Retry" -Text "Staged files and original download no longer exist" -Indent 1
+            Add-SAEmailException -Message "TBA retry failed: staged files and original download no longer exist" -Type Error
+
+            Update-SAJobProgress -QueueRoot $Context.Paths.QueueRoot -JobId $Job.id -Phase 'Finalize' -Activity 'Cleaning up...'
+            Write-SAPhaseHeader -Title "Finalize"
+
+            $logPath = Get-SAContextLogPath -Context $Context
+            Save-SAFileLog -Path $logPath
+            Set-SAEmailLogPath -Path $logPath
+            Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
+
+            if (-not $Context.Flags.NoMail -and $Context.Config.notifications.email.enabled) {
+                $earlyFriendlyName = if ($releaseInfo -and $releaseInfo.FriendlyName) { $releaseInfo.FriendlyName } else { $displayName }
+                Set-SAEmailSummary -Name $earlyFriendlyName -SourceName $displayName `
+                    -Label $Job.input.downloadLabel -Result 'Failed' `
+                    -Duration '00:00' -FailurePhase 'Import' `
+                    -FailureError 'TBA retry failed: source files no longer available'
+                Add-SAEmailException -Message "Use -Rerun to retry manually if files become available" -Type Warning
+
+                $title = "$($Job.input.downloadLabel) - $displayName"
+                $emailBody = ConvertTo-SAEmailHtml -Title $title
+                $emailSubject = Get-SAEmailSubject -Result 'Failed'
+                Send-SAEmail -Config $Context.Config.notifications.email `
+                    -Subject $emailSubject -Body $emailBody
+            }
+
+            return $false
+        }
+
+        if ($tbaRetryMode.Mode -eq 'ImportOnly') {
+            $Context.State.StagingPath = $tbaRetryMode.StagingPath
+            Write-SAVerbose -Text "TBA retry: using existing staged files at $($tbaRetryMode.StagingPath)"
+        } elseif ($tbaRetryMode.Mode -eq 'FullPipeline') {
+            Write-SAVerbose -Text "TBA retry: staged files gone, falling back to full pipeline"
+        }
+    }
+
     # Query OMDb — uses *arr IMDB ID for exact lookup, or falls back to title search
     if (Test-SAFeatureEnabled -Feature 'omdb' -Config $Context.Config) {
         $omdbParams = @{
@@ -656,34 +832,44 @@ function Invoke-SAStandardJob {
     }
 
     # Step 1: Video processing (RAR/remux/strip/extract)
-    Update-SAJobProgress -QueueRoot $Context.Paths.QueueRoot -JobId $Job.id -Phase 'Staging' -Activity 'Processing video files...'
-    $videoResult = Invoke-SAVideoProcessing -Context $Context
-    
-    if (-not $videoResult.Success) {
-        Write-SAOutcome -Level Error -Label "Staging" -Text "Processing failed" -Indent 1
-        # Don't return early - continue to cleanup and notification
-    }
-    
     # Step 2: Subtitle processing (external + OpenSubtitles + cleanup)
     $subResult = $null
     $importResult = $null
-    
-    if ($videoResult.Success) {
-        # Get all staging videos for subtitle processing
+
+    $skipProcessing = ($null -ne $tbaRetryMode -and $tbaRetryMode.Mode -eq 'ImportOnly')
+
+    if ($skipProcessing) {
+        $videoResult = [PSCustomObject]@{ Success = $true; ProcessedFiles = @(); TotalSize = 0 }
+        Write-SAVerbose -Text "TBA retry: skipping video and subtitle processing"
+    } else {
+        Update-SAJobProgress -QueueRoot $Context.Paths.QueueRoot -JobId $Job.id -Phase 'Staging' -Activity 'Processing video files...'
+        $videoResult = Invoke-SAVideoProcessing -Context $Context
+
+        if (-not $videoResult.Success) {
+            Write-SAOutcome -Level Error -Label "Staging" -Text "Processing failed" -Indent 1
+        }
+    }
+
+    if ($videoResult.Success -and -not $skipProcessing) {
         $stagingVideos = Get-ChildItem -LiteralPath $Context.State.StagingPath -Filter '*.mkv' -File -ErrorAction SilentlyContinue
-        
+
         if ($stagingVideos -and $stagingVideos.Count -gt 0) {
             $subParams = @{
                 Context        = $Context
                 ProcessedFiles = $videoResult.ProcessedFiles
                 SourcePath     = $Job.input.downloadPath
             }
-            
+
             Update-SAJobProgress -QueueRoot $Context.Paths.QueueRoot -JobId $Job.id -Phase 'Subtitles' -Activity 'Processing subtitles...'
             $subResult = Invoke-SASubtitleProcessing @subParams
         }
-        
-        # Step 3: Import to media server (Radarr/Sonarr/Medusa)
+    }
+
+    # Step 3: Import to media server (Radarr/Sonarr/Medusa)
+    if ($videoResult.Success) {
+        if ($null -ne $tbaRetryMode) {
+            Write-SAVerbose -Text "TBA retry: proceeding to import"
+        }
         Update-SAJobProgress -QueueRoot $Context.Paths.QueueRoot -JobId $Job.id -Phase 'Import' -Activity 'Importing to media server...'
         $importResult = Invoke-SAImport -Context $Context
     }
@@ -697,7 +883,33 @@ function Invoke-SAStandardJob {
             $importSuccess = $true
         }
     }
-    
+
+    # TBA auto-retry: schedule a retry job if import was skipped due to TBA title
+    $tbaRetryScheduled = $false
+    $tbaRetryAfter = $null
+    if (Test-SATbaRetryNeeded -ImportResult $importResult -Job $Job) {
+        $tbaRetryAfter = (Get-Date).AddHours($script:SAConstants.TbaRetryDelayHours)
+
+        $retryParams = @{
+            QueueRoot     = $Context.Paths.QueueRoot
+            DownloadPath  = $Job.input.downloadPath
+            DownloadLabel = $Job.input.downloadLabel
+            TorrentHash   = $Job.input.torrentHash
+            DownloadRoot  = $Job.input.downloadRoot
+            RetryAfter    = $tbaRetryAfter
+            TbaRetry      = $true
+            StagingPath   = $Context.State.StagingPath
+            Force         = $true
+        }
+
+        $retryJob = Add-SAJob @retryParams
+        if ($null -ne $retryJob) {
+            $tbaRetryScheduled = $true
+            $Context.Flags.NoCleanup = $true
+            Write-SAVerbose -Text "TBA retry scheduled for $(($tbaRetryAfter).ToString('yyyy-MM-dd HH:mm')) (job: $($retryJob.id))"
+        }
+    }
+
     # Email metadata enrichment
     # OMDb (cached from early pipeline query) provides poster + ratings
     # ArrMetadata (from import) provides *arr ratings/genre/plot
@@ -764,8 +976,10 @@ function Invoke-SAStandardJob {
     Write-SAPhaseHeader -Title "Finalize"
     Update-SAJobProgress -QueueRoot $Context.Paths.QueueRoot -JobId $Job.id -Phase 'Finalize' -Activity 'Cleaning up...'
 
-    # Cleanup staging folder (unless NoCleanup flag is set)
-    if (-not $Context.Flags.NoCleanup) {
+    # Cleanup staging folder
+    # TBA retry jobs always clean up (staged files have served their purpose)
+    $forceCleanup = ($Job.input.tbaRetry -eq $true)
+    if ($forceCleanup -or -not $Context.Flags.NoCleanup) {
         Remove-SAStagingFolder -Context $Context
     } else {
         Write-SAProgress -Label "Cleanup" -Text "Skipped (NoCleanup flag)" -Indent 1
@@ -783,6 +997,11 @@ function Invoke-SAStandardJob {
     
     # Determine import target and result using pure helper functions
     $importTarget = Get-SAImportTargetName -Label $Job.input.downloadLabel -Config $Context.Config
+
+    if ($tbaRetryScheduled -and $null -ne $importResult) {
+        $importResult | Add-Member -NotePropertyName TbaRetryScheduled -NotePropertyValue $true -Force
+    }
+
     $importResultText = Get-SAImportResultText -ImportResult $importResult
     
     # E4 fix: Use TotalSize from videoResult (calculated before cleanup)
@@ -790,13 +1009,25 @@ function Invoke-SAStandardJob {
     $videoSize = ''
     if ($videoResult.ProcessedFiles -and $videoResult.ProcessedFiles.Count -gt 0) {
         $videoCount = $videoResult.ProcessedFiles.Count
-        
+
         # Use pre-calculated TotalSize if available (E4 fix)
         if ($videoResult.TotalSize -and $videoResult.TotalSize -gt 0) {
             $videoSize = Format-SASize $videoResult.TotalSize
         }
     }
-    
+
+    # For TBA retry import-only: calculate video stats from staging folder
+    if ($skipProcessing -and $Context.State.StagingPath -and (Test-Path -LiteralPath $Context.State.StagingPath)) {
+        $retryVideos = Get-ChildItem -LiteralPath $Context.State.StagingPath -Filter '*.mkv' -File -ErrorAction SilentlyContinue
+        if ($retryVideos) {
+            $videoCount = @($retryVideos).Count
+            $totalSize = ($retryVideos | Measure-Object -Property Length -Sum).Sum
+            if ($totalSize -gt 0) {
+                $videoSize = Format-SASize $totalSize
+            }
+        }
+    }
+
     # Use pre-parsed ReleaseInfo from Context.State (parsed early for verbose output)
     $releaseInfo = $Context.State.ReleaseInfo
     
@@ -921,7 +1152,15 @@ function Invoke-SAStandardJob {
             }
         }
     }
-    
+
+    # TBA retry email notifications
+    $isTbaRetry = ($Job.input.tbaRetry -eq $true)
+    if ($tbaRetryScheduled -or $isTbaRetry) {
+        Add-SATbaRetryEmailExceptions -ImportResult $importResult `
+            -RetryAfter $tbaRetryAfter -ImportTarget $importTarget `
+            -IsTbaRetry $isTbaRetry
+    }
+
     # Step 6: Save file log and set path in email
     $logPath = Get-SAContextLogPath -Context $Context
     Save-SAFileLog -Path $logPath
@@ -949,7 +1188,9 @@ function Invoke-SAStandardJob {
         
         # Determine result for subject
         $subjectResult = if ($jobSuccess) {
-            if ($importResult.QualityRejected -eq $true -or $importResult.Skipped -eq $true) {
+            if ($tbaRetryScheduled) {
+                'Success'
+            } elseif ($importResult.QualityRejected -eq $true -or $importResult.Skipped -eq $true) {
                 'Skipped'
             } else {
                 'Success'

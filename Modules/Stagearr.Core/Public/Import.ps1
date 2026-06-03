@@ -65,6 +65,7 @@ function Invoke-SAImport {
     $config = $Context.Config
     $label = $Context.State.ProcessingLabel
     $stagingPath = $Context.State.StagingPath
+    $isTbaRetry = ($Context.Job.input.tbaRetry -eq $true)
     
     # Determine import type from label
     $importType = $null
@@ -127,7 +128,7 @@ function Invoke-SAImport {
             elseif ($config.importers.sonarr.enabled) {
                 return Invoke-SASonarrImport -Config $config.importers.sonarr -StagingPath $stagingPath `
                     -StagingRoot $stagingRoot -DownloadId $Context.Job.input.torrentHash `
-                    -CachedQueueRecords $Context.State.EarlyQueueRecords
+                    -CachedQueueRecords $Context.State.EarlyQueueRecords -IsTbaRetry:$isTbaRetry
             }
             else {
                 Write-SAOutcome -Level Warning -Label "Import" -Text "No TV importer configured" -Indent 1

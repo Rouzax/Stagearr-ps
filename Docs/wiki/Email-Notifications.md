@@ -52,6 +52,7 @@ Stagearr sends mobile-optimized, dark-themed HTML emails with status-appropriate
 |   | Files       1 video (12.8 GB)              |   |
 |   | Subtitles   English, Dutch                 |   |
 |   | Import      Imported to library            |   |
+|   | Import      Pending retry                  |   |
 |   | Duration    2m 34s                         |   |
 |   +---------------------------------------------+   |
 |                                                     |
@@ -88,6 +89,13 @@ Control email subjects with `notifications.email.subjectStyle`:
 | `group` | `{result}{label}: {name} [-{group}]` |
 | `hash` | `{result}{label}: {name} [{hash4}]` |
 | `none` | `{result}{label}: {name}` |
+
+### Import Status Values
+
+| Status | Description |
+|--------|-------------|
+| **Imported to library** | The file was successfully imported and is now in your library. |
+| **Pending retry** | The import was skipped because the episode title is TBA in Sonarr. A retry has been automatically scheduled for approximately 48 hours later. The retry email will show the final import result. |
 
 ### Custom Templates
 

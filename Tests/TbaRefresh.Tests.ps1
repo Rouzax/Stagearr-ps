@@ -279,3 +279,138 @@ Describe 'Invoke-SAArrImport TBA refresh and retry' {
         }
     }
 }
+
+Describe 'Invoke-SAArrImport TBA retry pre-import refresh' {
+
+    It 'refreshes series metadata before scanning on TBA retry' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Write-SAVerbose {}
+            Mock Write-SAProgress {}
+            Mock Write-SAOutcome {}
+            Mock Write-SAPhaseHeader {}
+            Mock Add-SAEmailException {}
+            Mock Get-SAImportHint { return $null }
+
+            Mock Get-SAImporterBaseUrl {
+                return @{ Url = 'http://localhost:8989'; DisplayUrl = 'http://localhost:8989'; HostHeader = $null }
+            }
+
+            Mock Test-SAArrConnection { return $true }
+            Mock Invoke-SAArrQueueEnrichment { return $ScanResults }
+            Mock ConvertTo-SAArrMetadata { return @{ Title = 'Test Show'; Year = 2026 } }
+
+            Mock Invoke-SAArrManualImportScan {
+                return [PSCustomObject]@{
+                    Success      = $true
+                    ScanResults  = @(
+                        @{
+                            path       = 'C:\Test\S01E01.mkv'
+                            quality    = @{ quality = @{ id = 3 }; revision = @{ version = 1 } }
+                            series     = @{ id = 100; title = 'Test Show'; year = 2026 }
+                            episodes   = @( @{ id = 200 } )
+                            languages  = @( @{ id = 1; name = 'English' } )
+                            rejections = @()
+                        }
+                    )
+                    ErrorMessage = $null
+                }
+            }
+
+            Mock Invoke-SAArrSeriesRefresh {
+                return [PSCustomObject]@{ Success = $true; Message = 'Completed' }
+            }
+
+            Mock Invoke-SAArrManualImportExecute {
+                return [PSCustomObject]@{
+                    Success   = $true
+                    Message   = 'Completed'
+                    Duration  = 5
+                    CommandId = 99999
+                    Status    = 'completed'
+                    Result    = 'successful'
+                }
+            }
+
+            Mock Get-SAImportVerification {
+                return [PSCustomObject]@{
+                    ImportedCount = 1
+                    ExpectedCount = 1
+                    IsComplete    = $true
+                    Records       = @()
+                }
+            }
+
+            $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = ''; timeoutMinutes = 1 }
+            $result = Invoke-SAArrImport -AppType 'Sonarr' -Config $config -StagingPath 'C:\Test' -IsTbaRetry
+
+            Should -Invoke Invoke-SAArrSeriesRefresh -Times 1 -ParameterFilter {
+                $SeriesId -eq 100
+            }
+
+            Should -Invoke Invoke-SAArrManualImportScan -Times 2
+        }
+    }
+
+    It 'does not refresh on non-retry imports' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Write-SAVerbose {}
+            Mock Write-SAProgress {}
+            Mock Write-SAOutcome {}
+            Mock Write-SAPhaseHeader {}
+            Mock Add-SAEmailException {}
+            Mock Get-SAImportHint { return $null }
+
+            Mock Get-SAImporterBaseUrl {
+                return @{ Url = 'http://localhost:8989'; DisplayUrl = 'http://localhost:8989'; HostHeader = $null }
+            }
+
+            Mock Test-SAArrConnection { return $true }
+            Mock Invoke-SAArrQueueEnrichment { return $ScanResults }
+            Mock ConvertTo-SAArrMetadata { return @{ Title = 'Test Show'; Year = 2026 } }
+
+            Mock Invoke-SAArrManualImportScan {
+                return [PSCustomObject]@{
+                    Success      = $true
+                    ScanResults  = @(
+                        @{
+                            path       = 'C:\Test\S01E01.mkv'
+                            quality    = @{ quality = @{ id = 3 }; revision = @{ version = 1 } }
+                            series     = @{ id = 100; title = 'Test Show'; year = 2026 }
+                            episodes   = @( @{ id = 200 } )
+                            languages  = @( @{ id = 1; name = 'English' } )
+                            rejections = @()
+                        }
+                    )
+                    ErrorMessage = $null
+                }
+            }
+
+            Mock Invoke-SAArrSeriesRefresh {}
+
+            Mock Invoke-SAArrManualImportExecute {
+                return [PSCustomObject]@{
+                    Success   = $true
+                    Message   = 'Completed'
+                    Duration  = 5
+                    CommandId = 99999
+                    Status    = 'completed'
+                    Result    = 'successful'
+                }
+            }
+
+            Mock Get-SAImportVerification {
+                return [PSCustomObject]@{
+                    ImportedCount = 1
+                    ExpectedCount = 1
+                    IsComplete    = $true
+                    Records       = @()
+                }
+            }
+
+            $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = ''; timeoutMinutes = 1 }
+            $result = Invoke-SAArrImport -AppType 'Sonarr' -Config $config -StagingPath 'C:\Test'
+
+            Should -Invoke Invoke-SAArrSeriesRefresh -Times 0
+        }
+    }
+}

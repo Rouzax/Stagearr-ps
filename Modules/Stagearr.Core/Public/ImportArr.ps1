@@ -133,7 +133,10 @@ function Invoke-SAArrImport {
         [string]$DownloadId,
 
         [Parameter()]
-        [array]$CachedQueueRecords
+        [array]$CachedQueueRecords,
+
+        [Parameter()]
+        [switch]$IsTbaRetry
     )
 
     $startTime = Get-Date
@@ -245,6 +248,46 @@ function Invoke-SAArrImport {
     # STEP 3: EXTRACT - Get metadata early (available even on rejection/failure)
     # ==========================================================================
     $arrMetadata = ConvertTo-SAArrMetadata -ScanResult $scanItems[0] -AppType $AppType
+
+    # TBA RETRY: Refresh series metadata before filtering
+    # After 48h Sonarr accepts TBA titles anyway, but refreshing may pull in the real title
+    if ($IsTbaRetry -and $AppType -eq 'Sonarr') {
+        $retrySeriesId = $null
+        if ($null -ne $scanItems[0].series -and $scanItems[0].series.id) {
+            $retrySeriesId = $scanItems[0].series.id
+        }
+
+        if ($null -ne $retrySeriesId) {
+            Write-SAProgress -Label $label -Text "TBA retry: refreshing series metadata..." -Indent 1
+            $refreshResult = Invoke-SAArrSeriesRefresh -Config $Config -SeriesId $retrySeriesId
+
+            if ($refreshResult.Success) {
+                Write-SAOutcome -Level Success -Label $label -Text "Metadata refreshed, re-scanning..." -Indent 1
+
+                $reScanResult = Invoke-SAArrManualImportScan -AppType $AppType -Config $Config -ScanPath $importPath
+                if ($reScanResult.Success -and $null -ne $reScanResult.ScanResults -and $reScanResult.ScanResults.Count -gt 0) {
+                    $scanItems = @($reScanResult.ScanResults)
+
+                    if (-not [string]::IsNullOrWhiteSpace($DownloadId)) {
+                        $enrichParams = @{
+                            AppType     = $AppType
+                            Config      = $Config
+                            ScanResults = $scanItems
+                            DownloadId  = $DownloadId
+                        }
+                        if ($null -ne $CachedQueueRecords -and @($CachedQueueRecords).Count -gt 0) {
+                            $enrichParams.CachedQueueRecords = $CachedQueueRecords
+                        }
+                        $scanItems = Invoke-SAArrQueueEnrichment @enrichParams
+                    }
+
+                    $arrMetadata = ConvertTo-SAArrMetadata -ScanResult $scanItems[0] -AppType $AppType
+                }
+            } else {
+                Write-SAVerbose -Text "TBA retry refresh failed: $($refreshResult.Message)"
+            }
+        }
+    }
 
     # ==========================================================================
     # STEP 4: FILTER - Identify importable files vs rejected files
@@ -1367,11 +1410,15 @@ function Invoke-SASonarrImport {
         [string]$DownloadId,
 
         [Parameter()]
-        [array]$CachedQueueRecords
+        [array]$CachedQueueRecords,
+
+        [Parameter()]
+        [switch]$IsTbaRetry
     )
 
     return Invoke-SAArrImport -AppType 'Sonarr' -Config $Config -StagingPath $StagingPath `
-        -StagingRoot $StagingRoot -DownloadId $DownloadId -CachedQueueRecords $CachedQueueRecords
+        -StagingRoot $StagingRoot -DownloadId $DownloadId -CachedQueueRecords $CachedQueueRecords `
+        -IsTbaRetry:$IsTbaRetry
 }
 
 function Test-SASonarrConnection {

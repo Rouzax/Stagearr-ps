@@ -96,6 +96,18 @@ This shows a numbered list of recent completed and failed jobs. Pick a number, c
 - Common causes: quality cutoff already met, file not recognized, wrong category
 - Use `-Verbose` to see the full API response including rejection reasons and hints
 
+### Episode title TBA (Sonarr)
+
+When Sonarr rejects an import because the episode title is "TBA" (common for recently-aired episodes), Stagearr handles it automatically:
+
+1. **Immediate refresh:** Stagearr refreshes the series metadata in Sonarr and re-scans. If the title is now available, the import proceeds normally.
+2. **Auto-retry:** If the title is still TBA after refresh, Stagearr schedules a retry job for 48 hours later. Sonarr automatically accepts TBA titles after 48 hours, so the retry will succeed even if the metadata source never updates.
+3. **One retry only:** If the automatic retry also fails (e.g., Sonarr unreachable), no further retries are scheduled. Use `-Rerun` to retry manually.
+
+The retry runs on the next torrent completion after the 48-hour window. Staged files are preserved between the original run and retry so the video and subtitle processing is not repeated.
+
+The email notification for the original run shows `Import: Pending retry` and includes the expected retry date. The retry run sends its own full email notification.
+
 ---
 
 ## Log Files

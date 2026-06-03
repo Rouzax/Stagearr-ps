@@ -53,7 +53,17 @@ function Add-SAJob {
         
         [Parameter()]
         [switch]$NoMail,
-        
+
+        [Parameter()]
+        [AllowNull()]
+        [Nullable[datetime]]$RetryAfter,
+
+        [Parameter()]
+        [switch]$TbaRetry,
+
+        [Parameter()]
+        [string]$StagingPath = '',
+
         [Parameter()]
         [switch]$Force
     )
@@ -119,6 +129,9 @@ function Add-SAJob {
             downloadRoot  = $DownloadRoot
             noCleanup     = [bool]$NoCleanup
             noMail        = [bool]$NoMail
+            retryAfter    = if ($null -ne $RetryAfter) { $RetryAfter.ToString('o') } else { $null }
+            tbaRetry      = [bool]$TbaRetry
+            stagingPath   = $StagingPath
         }
         
         result = $null
@@ -620,27 +633,48 @@ function Get-SANextPendingJob {
     <#
     .SYNOPSIS
         Gets the next pending job (FIFO order by creation time).
+    .DESCRIPTION
+        Returns the oldest pending job whose retryAfter time has passed (or is not set).
+        Jobs with a retryAfter in the future are skipped until that time arrives.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [string]$QueueRoot
     )
-    
+
     $pendingDir = Join-Path -Path $QueueRoot -ChildPath 'pending'
-    
+
     if (-not (Test-Path -LiteralPath $pendingDir)) {
         return $null
     }
-    
-    # Get oldest job file
+
     $files = Get-ChildItem -LiteralPath $pendingDir -Filter '*.json' | Sort-Object CreationTime, Name
-    
+
     if ($files.Count -eq 0) {
         return $null
     }
-    
-    return Read-SAJobFile -Path $files[0].FullName
+
+    $now = Get-Date
+    foreach ($file in $files) {
+        $job = Read-SAJobFile -Path $file.FullName
+        if ($null -eq $job) { continue }
+
+        if (-not [string]::IsNullOrWhiteSpace($job.input.retryAfter)) {
+            try {
+                $retryTime = [datetime]::Parse($job.input.retryAfter)
+                if ($now -lt $retryTime) {
+                    continue
+                }
+            } catch {
+                # Malformed timestamp: process the job anyway
+            }
+        }
+
+        return $job
+    }
+
+    return $null
 }
 
 function Update-SAJobProgress {
