@@ -842,6 +842,10 @@ function Invoke-SAStandardJob {
         $videoResult = [PSCustomObject]@{ Success = $true; ProcessedFiles = @(); TotalSize = 0 }
         Write-SAVerbose -Text "TBA retry: skipping video and subtitle processing"
     } else {
+        if (Test-SALockStolen) {
+            Write-SAOutcome -Level Error -Label "Lock" -Text "Global lock lost to another worker, aborting job"
+            return $false
+        }
         Update-SAJobProgress -QueueRoot $Context.Paths.QueueRoot -JobId $Job.id -Phase 'Staging' -Activity 'Processing video files...'
         $videoResult = Invoke-SAVideoProcessing -Context $Context
 
@@ -860,6 +864,10 @@ function Invoke-SAStandardJob {
                 SourcePath     = $Job.input.downloadPath
             }
 
+            if (Test-SALockStolen) {
+                Write-SAOutcome -Level Error -Label "Lock" -Text "Global lock lost to another worker, aborting job"
+                return $false
+            }
             Update-SAJobProgress -QueueRoot $Context.Paths.QueueRoot -JobId $Job.id -Phase 'Subtitles' -Activity 'Processing subtitles...'
             $subResult = Invoke-SASubtitleProcessing @subParams
         }
@@ -869,6 +877,10 @@ function Invoke-SAStandardJob {
     if ($videoResult.Success) {
         if ($null -ne $tbaRetryMode) {
             Write-SAVerbose -Text "TBA retry: proceeding to import"
+        }
+        if (Test-SALockStolen) {
+            Write-SAOutcome -Level Error -Label "Lock" -Text "Global lock lost to another worker, aborting job"
+            return $false
         }
         Update-SAJobProgress -QueueRoot $Context.Paths.QueueRoot -JobId $Job.id -Phase 'Import' -Activity 'Importing to media server...'
         $importResult = Invoke-SAImport -Context $Context

@@ -276,3 +276,21 @@ Describe 'Test-SALockStolen checkpoint helper' {
         }
     }
 }
+
+Describe 'Test-SALockStolen checkpoint integration' {
+    AfterEach { InModuleScope 'Stagearr.Core' { $script:SACurrentLock = $null } }
+
+    It 'JobProcessor exposes a stolen-flag checkpoint that returns true when set' {
+        InModuleScope 'Stagearr.Core' {
+            $script:SACurrentLock = @{ Heartbeat = @{ Shared = [hashtable]::Synchronized(@{ stolen = $true }) } }
+            Test-SALockStolen | Should -BeTrue
+        }
+    }
+
+    It 'checkpoint returns false for a healthy held lock' {
+        InModuleScope 'Stagearr.Core' {
+            $script:SACurrentLock = @{ Heartbeat = @{ Shared = [hashtable]::Synchronized(@{ stolen = $false }) } }
+            Test-SALockStolen | Should -BeFalse
+        }
+    }
+}
