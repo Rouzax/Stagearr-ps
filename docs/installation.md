@@ -2,13 +2,11 @@
 
 ## Prerequisites
 
+Stagearr runs on Windows only. The pipeline depends on Windows paths and integrates with qBittorrent running on Windows.
+
 ### PowerShell
 
 Stagearr requires **PowerShell 5.1** (included with Windows 10 and later) or **PowerShell 7.x**. No extra installation is needed on a modern Windows machine.
-
-### Windows
-
-Stagearr runs on Windows only. The pipeline depends on Windows paths and integrates with qBittorrent running on Windows.
 
 ### External tools
 
@@ -46,7 +44,7 @@ If you prefer not to use git, download the latest release zip from the [Releases
 
 ## Configure tool paths
 
-After installing the external tools, tell Stagearr where to find them. Tool paths are set in the `[tools]` section of `config.toml`.
+After installing the external tools, tell Stagearr where to find them. Tool paths are set in the `[tools]` section of `config.toml`. The config file itself is created by the setup wizard in the [Quick Start](quick-start.md) step, so you do not need to create it now.
 
 The [Settings Reference](settings-reference.md) documents each path key, including the `[tools]` section. Default values in `config-sample.toml` point to standard installation locations:
 

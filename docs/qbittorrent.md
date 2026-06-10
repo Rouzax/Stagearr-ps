@@ -70,4 +70,4 @@ After saving the qBittorrent setting, you can verify the integration without wai
     .\Stagearr.ps1 -Status
     ```
 
-`-Status` shows the current queue contents, the active lock holder, and recent job outcomes. A successful run appears in the completed list.
+`-Status` prints queue contents and recent job outcomes. A successful run appears in the completed list. See [Quick Start: Check queue status](quick-start.md#step-3-check-queue-status) for a full description of the output.
