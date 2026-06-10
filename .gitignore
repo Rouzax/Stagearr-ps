@@ -27,5 +27,5 @@ Desktop.ini
 CLAUDE.md
 .worktrees/
 
-# Design and implementation plans (local only)
-Docs/plans/
+# Local scratch / temporary working files
+_temp/
