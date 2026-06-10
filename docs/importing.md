@@ -30,12 +30,10 @@ The dispatch rule for TV is:
 
 ```toml
 [processing]
-tvImporter = "Medusa"   # Medusa | Sonarr
+tvImporter = "Sonarr"   # Sonarr | Medusa
 ```
 
-When `tvImporter = "Medusa"` and `importers.medusa.enabled = true`, TV jobs go to Medusa. Otherwise, TV jobs go to Sonarr (when `importers.sonarr.enabled = true`). If neither importer is enabled and configured, the import is skipped with a warning.
-
-By default, `tvImporter` is set to `"Medusa"`, but `importers.medusa.enabled` is set to `false`. With the default configuration, TV jobs therefore fall through to Sonarr until you explicitly enable Medusa.
+By default, `tvImporter` is `"Sonarr"`, so TV jobs go to Sonarr (when `importers.sonarr.enabled = true`). To route TV to Medusa instead, set `tvImporter = "Medusa"` and enable `[importers.medusa]`. If the selected importer is not enabled and configured, the import is skipped with a warning.
 
 Movie jobs always go to Radarr. There is no alternative movie importer.
 

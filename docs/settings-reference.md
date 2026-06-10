@@ -45,7 +45,7 @@ Controls how jobs are run.
 
 | Key | Description | Default |
 |-----|-------------|---------|
-| `tvImporter` | Which importer to use for TV content. Accepted values: `Medusa`, `Sonarr`. | `"Medusa"` |
+| `tvImporter` | Which importer to use for TV content. Accepted values: `Sonarr`, `Medusa`. | `"Sonarr"` |
 | `cleanupStaging` | Remove the staging folder after a job completes. Set to `false` for debugging. | `true` |
 | `heartbeatSeconds` | How often the active worker writes a heartbeat to the global lock file (liveness proof). | `30` |
 | `staleHeartbeatSeconds` | How many seconds with no heartbeat before another worker may take the lock (crash recovery). Requires NTP-synced clocks on all machines sharing the queue folder. | `120` |

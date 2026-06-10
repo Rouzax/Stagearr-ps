@@ -23,7 +23,7 @@ $script:SAConfigDefaults = @{
         movieLabels = @()
     }
     processing = @{
-        tvImporter            = 'Medusa'
+        tvImporter            = 'Sonarr'
         cleanupStaging        = $true
         heartbeatSeconds      = 30
         staleHeartbeatSeconds = 120
