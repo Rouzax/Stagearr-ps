@@ -587,6 +587,15 @@ function Invoke-SAUpdateCheck {
     $script:SAUpdateState.OldVersion = $LocalVersion
 
     if ($mode -eq 'auto') {
+        # Do not apply an update while another live worker holds the global lock:
+        # it may be running from the module files this update would replace.
+        # Defer to a later check (the update is still reported as available).
+        if (Test-SAGlobalLock -QueueRoot $queueRoot) {
+            Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - deferred while another worker is busy"
+            Save-SAUpdateTimestamp -QueueRoot $queueRoot
+            return
+        }
+
         Write-SAProgress -Label "Update" -Text "Updating from v$LocalVersion to v$($release.Version)..."
         $isGitRepo = Test-SAGitRepo -Path $ScriptRoot
         if ($isGitRepo) {
@@ -666,6 +675,14 @@ function Invoke-SAInteractiveUpdate {
 
     if (-not $isGitRepo -and [string]::IsNullOrWhiteSpace($release.ZipUrl)) {
         Write-SAOutcome -Level Warning -Label "Update" -Text "v$($release.Version) available - download from $($release.Url)"
+        return
+    }
+
+    # Do not apply while another live worker holds the global lock: it may be
+    # running from the files this update would replace. Refuse and let the user
+    # retry once processing is idle.
+    if ($queueRoot -and -not [string]::IsNullOrWhiteSpace($queueRoot) -and (Test-SAGlobalLock -QueueRoot $queueRoot)) {
+        Write-SAOutcome -Level Warning -Label "Update" -Text "A worker is currently processing - update deferred. Re-run when idle (check: .\Stagearr.ps1 -Status)."
         return
     }
 

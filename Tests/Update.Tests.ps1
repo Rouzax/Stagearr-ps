@@ -225,6 +225,42 @@ Describe 'Invoke-SAUpdateCheck' {
         }
     }
 
+    It 'defers the auto apply while another worker holds the global lock' {
+        InModuleScope 'Stagearr.Core' {
+            $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "stagearr-test-$(New-Guid)"
+            New-Item -Path $tempDir -ItemType Directory -Force | Out-Null
+
+            Mock Get-SALatestRelease {
+                return @{
+                    Version     = '2.1.0'
+                    TagName     = 'v2.1.0'
+                    Url         = 'https://github.com/test'
+                    ZipUrl      = 'https://github.com/test/Stagearr-v2.1.0.zip'
+                    ChecksumUrl = 'https://github.com/test/checksums.txt'
+                }
+            }
+            Mock Test-SAGlobalLock { return $true }
+            Mock Invoke-SAZipUpdate { return $true }
+            Mock Write-SAProgress {}
+            Mock Write-SAOutcome {}
+
+            $config = @{
+                updates = @{ mode = 'auto'; checkIntervalHours = 0 }
+                paths   = @{ queueRoot = $tempDir }
+            }
+
+            try {
+                Invoke-SAUpdateCheck -Config $config -LocalVersion '2.0.2' -ScriptRoot $tempDir
+                Should -Not -Invoke Invoke-SAZipUpdate
+                $state = Get-SAUpdateState
+                $state.UpdateAvailable | Should -BeTrue
+                $state.UpdateApplied | Should -BeFalse
+            } finally {
+                Remove-Item -Path $tempDir -Recurse -Force
+            }
+        }
+    }
+
     It 'shows download link when ZIP asset is missing in auto mode' {
         InModuleScope 'Stagearr.Core' {
             $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "stagearr-test-$(New-Guid)"
@@ -646,6 +682,43 @@ Describe 'Sync-SAUpdatePayload' {
             # The install must not be left broken: originals remain intact
             Test-Path (Join-Path $script:root 'Modules/keep.psm1') | Should -BeTrue
             Test-Path (Join-Path $script:root 'Stagearr.ps1') | Should -BeTrue
+        }
+    }
+}
+
+Describe 'Invoke-SAInteractiveUpdate lock guard' {
+    It 'does not apply a ZIP update while another worker holds the global lock' {
+        InModuleScope 'Stagearr.Core' {
+            $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "stagearr-test-$(New-Guid)"
+            New-Item -Path $tempDir -ItemType Directory -Force | Out-Null
+
+            Mock Get-SALatestRelease {
+                return @{
+                    Version     = '2.1.0'
+                    TagName     = 'v2.1.0'
+                    Url         = 'https://github.com/test'
+                    ZipUrl      = 'https://github.com/test/Stagearr-v2.1.0.zip'
+                    ChecksumUrl = 'https://github.com/test/checksums.txt'
+                }
+            }
+            Mock Test-SAGitRepo { return $false }
+            Mock Test-SAGlobalLock { return $true }
+            Mock Invoke-SAZipUpdate { return $true }
+            Mock Write-SAProgress {}
+            Mock Write-SAOutcome {}
+            Mock Write-SAKeyValue {}
+
+            $config = @{
+                updates = @{ mode = 'auto'; checkIntervalHours = 0 }
+                paths   = @{ queueRoot = $tempDir }
+            }
+
+            try {
+                Invoke-SAInteractiveUpdate -Config $config -LocalVersion '2.0.2' -ScriptRoot $tempDir
+                Should -Not -Invoke Invoke-SAZipUpdate
+            } finally {
+                Remove-Item -Path $tempDir -Recurse -Force
+            }
         }
     }
 }

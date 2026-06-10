@@ -51,6 +51,14 @@ the background and does not delay job processing.
   notification for that run, with a link to the release page.
 - In `auto` mode, the update is downloaded and applied before the job starts.
 
+!!! note "Updates never run while another job is processing"
+    Stagearr applies an update only when no other worker is busy. If a second run starts
+    while one is mid-job (for example, two torrents finishing close together), the update is
+    deferred rather than applied on top of the running worker, and it is applied on a later
+    check instead. The `-Update` command behaves the same way: if a worker is currently
+    processing, it reports that the update was deferred and asks you to re-run when idle
+    (check with `.\Stagearr.ps1 -Status`).
+
 ## Update Mechanism
 
 Stagearr uses two distinct update paths depending on how it was installed.
