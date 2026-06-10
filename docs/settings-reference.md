@@ -60,10 +60,10 @@ Paths to external executables. Only configure the tools required by the features
 
 | Key | Description | Required when |
 |-----|-------------|---------------|
-| `tools.winrar` | Path to `RAR.exe` (WinRAR). | Always (RAR extraction is core functionality). |
-| `tools.mkvmerge` | Path to `mkvmerge.exe` (MKVToolNix). | `video.mp4Remux.enabled = true` or `subtitles.stripping.enabled = true`. |
-| `tools.mkvextract` | Path to `mkvextract.exe` (MKVToolNix). | `subtitles.extraction.enabled = true`. |
-| `tools.subtitleEdit` | Path to `SubtitleEdit.exe`. | `subtitles.cleanup.enabled = true`. |
+| `winrar` | Path to `RAR.exe` (WinRAR). | Always (RAR extraction is core functionality). |
+| `mkvmerge` | Path to `mkvmerge.exe` (MKVToolNix). | `video.mp4Remux.enabled = true` or `subtitles.stripping.enabled = true`. |
+| `mkvextract` | Path to `mkvextract.exe` (MKVToolNix). | `subtitles.extraction.enabled = true`. |
+| `subtitleEdit` | Path to `SubtitleEdit.exe`. | `subtitles.cleanup.enabled = true`. |
 
 Example:
 
@@ -168,6 +168,8 @@ Connects Stagearr to a Radarr instance for movie imports.
 | `remotePath` | Path prefix Radarr uses to reach the staging folder when it mounts the filesystem differently than Stagearr. See below. | `""` |
 | `importMode` | How Radarr handles the source file after import. `move` removes the staged file; `copy` leaves it. | `"move"` |
 
+---
+
 ## [importers.sonarr]
 
 Connects Stagearr to a Sonarr instance for TV imports. Set `processing.tvImporter = "Sonarr"` to use this importer for TV content.
@@ -184,6 +186,8 @@ Connects Stagearr to a Sonarr instance for TV imports. Set `processing.tvImporte
 | `remotePath` | Path prefix Sonarr uses to reach the staging folder. See below. | `""` |
 | `importMode` | How Sonarr handles the source file after import. `move` or `copy`. | `"move"` |
 
+---
+
 ## [importers.medusa]
 
 Connects Stagearr to a Medusa instance for TV imports. Set `processing.tvImporter = "Medusa"` to use this importer for TV content.
@@ -198,6 +202,8 @@ Connects Stagearr to a Medusa instance for TV imports. Set `processing.tvImporte
 | `urlRoot` | URL base path when Medusa is behind a reverse proxy. | `""` |
 | `timeoutMinutes` | Maximum time to wait for Medusa to complete the import. | `15` |
 | `remotePath` | Path prefix Medusa uses to reach the staging folder. See below. | `""` |
+
+---
 
 ### Remote path mapping
 

@@ -28,7 +28,9 @@ tvLabels    = ["tv", "sonarr", "series"]
 movieLabels = ["movie", "radarr", "film"]
 ```
 
-The defaults shown above are from `config-sample.toml`. The built-in fallback defaults use capitalized values (`"TV"`, `"Movie"`, `"NoProcess"`) so they do not accidentally match common lowercase qBittorrent labels. Set these to match exactly what your torrent client assigns.
+The defaults shown above are from `config-sample.toml`.
+
+> **Note:** The built-in fallback defaults use capitalized values (`"TV"`, `"Movie"`, `"NoProcess"`) so they do not accidentally match common lowercase qBittorrent labels. Set these to match exactly what your torrent client assigns.
 
 ### tv and tvLabels
 
@@ -59,3 +61,8 @@ See [Pipeline Overview](pipeline.md) for how passthrough fits into the full proc
 ## Setting up qBittorrent labels
 
 qBittorrent lets you assign categories (labels) per torrent or set default categories per download folder. Configure qBittorrent to use the same label values you set in `config.toml`. See [qBittorrent Integration](qbittorrent.md) for the full setup.
+
+## See also
+
+- [Settings Reference: [labels]](settings-reference.md#labels) - all label config keys with defaults
+- [Configuration Overview](configuration.md) - how `config.toml` is loaded and merged with defaults

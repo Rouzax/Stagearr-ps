@@ -6,8 +6,8 @@ Stagearr uses a [TOML](https://toml.io/) configuration file (`config.toml`) in t
 
 Stagearr ships with a fully commented sample file called `config-sample.toml`. To configure Stagearr, copy it and edit the copy:
 
-```
-copy config-sample.toml config.toml
+```powershell
+Copy-Item config-sample.toml config.toml
 ```
 
 You do **not** need to include every setting. Any key you leave out is automatically filled in from the built-in defaults. Only include the settings you want to change.
