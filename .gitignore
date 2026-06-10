@@ -29,6 +29,7 @@ CLAUDE.md
 
 # Local scratch / temporary working files
 _temp/
+TODO.md
 
 # MkDocs build output
 build/
