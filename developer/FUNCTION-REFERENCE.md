@@ -728,6 +728,7 @@ These aren't exported but are heavily used internally:
 | `Get-SALatestRelease` | Query GitHub Releases API for latest release | Update.ps1 |
 | `Get-SAUpdateState` | Get current update state hashtable for email rendering | Update.ps1 |
 | `Reset-SAUpdateState` | Reset update state to defaults | Update.ps1 |
+| `Sync-SAUpdatePayload` | Atomically swap script root to an extracted release payload (rollback on failure) and prune orphaned release files | Update.ps1 |
 | `Get-SAEmailUpdateSection` | Email section builder — HTML card for update notification | Output/EmailSections.ps1 |
 
 ### Email Rendering

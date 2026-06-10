@@ -548,3 +548,104 @@ Describe 'Invoke-SAZipUpdate' {
         }
     }
 }
+
+Describe 'Sync-SAUpdatePayload' {
+    BeforeEach {
+        InModuleScope 'Stagearr.Core' {
+            $script:root = Join-Path ([System.IO.Path]::GetTempPath()) "stagearr-sync-root-$(New-Guid)"
+            $script:src = Join-Path ([System.IO.Path]::GetTempPath()) "stagearr-sync-src-$(New-Guid)"
+            New-Item -Path $script:root -ItemType Directory -Force | Out-Null
+            New-Item -Path $script:src -ItemType Directory -Force | Out-Null
+            $script:managed = @('Stagearr.ps1', 'Modules', 'config-sample.toml', 'LICENSE', 'README.md')
+            Mock Write-SAVerbose {}
+        }
+    }
+
+    AfterEach {
+        InModuleScope 'Stagearr.Core' {
+            foreach ($p in @($script:root, $script:src)) {
+                if ($p -and (Test-Path -LiteralPath $p)) {
+                    Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+
+    It 'replaces a top-level file and a directory, returning true' {
+        InModuleScope 'Stagearr.Core' {
+            Set-Content -Path (Join-Path $script:root 'Stagearr.ps1') -Value 'old'
+            New-Item -Path (Join-Path $script:root 'Modules') -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $script:root 'Modules/keep.psm1') -Value 'old-mod'
+
+            Set-Content -Path (Join-Path $script:src 'Stagearr.ps1') -Value 'new'
+            New-Item -Path (Join-Path $script:src 'Modules') -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $script:src 'Modules/keep.psm1') -Value 'new-mod'
+
+            $result = Sync-SAUpdatePayload -SourceDir $script:src -ScriptRoot $script:root -ManagedEntries $script:managed
+            $result | Should -BeTrue
+            (Get-Content -Path (Join-Path $script:root 'Stagearr.ps1') -Raw).Trim() | Should -Be 'new'
+            (Get-Content -Path (Join-Path $script:root 'Modules/keep.psm1') -Raw).Trim() | Should -Be 'new-mod'
+        }
+    }
+
+    It 'removes a stale file inside a replaced directory' {
+        InModuleScope 'Stagearr.Core' {
+            New-Item -Path (Join-Path $script:root 'Modules') -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $script:root 'Modules/removed.psm1') -Value 'gone-next-release'
+
+            New-Item -Path (Join-Path $script:src 'Modules') -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $script:src 'Modules/keep.psm1') -Value 'mod'
+
+            Sync-SAUpdatePayload -SourceDir $script:src -ScriptRoot $script:root -ManagedEntries $script:managed | Should -BeTrue
+            Test-Path (Join-Path $script:root 'Modules/removed.psm1') | Should -BeFalse
+            Test-Path (Join-Path $script:root 'Modules/keep.psm1') | Should -BeTrue
+        }
+    }
+
+    It 'prunes a managed top-level entry absent from the new payload' {
+        InModuleScope 'Stagearr.Core' {
+            # LICENSE existed before but the new release no longer ships it
+            Set-Content -Path (Join-Path $script:root 'LICENSE') -Value 'old-license'
+            Set-Content -Path (Join-Path $script:src 'Stagearr.ps1') -Value 'new'
+
+            Sync-SAUpdatePayload -SourceDir $script:src -ScriptRoot $script:root -ManagedEntries $script:managed | Should -BeTrue
+            Test-Path (Join-Path $script:root 'LICENSE') | Should -BeFalse
+        }
+    }
+
+    It 'preserves user data that is not a managed entry' {
+        InModuleScope 'Stagearr.Core' {
+            Set-Content -Path (Join-Path $script:root 'config.toml') -Value 'user-config'
+            New-Item -Path (Join-Path $script:root 'queueRoot') -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $script:root 'queueRoot/job.json') -Value 'job'
+
+            Set-Content -Path (Join-Path $script:src 'Stagearr.ps1') -Value 'new'
+
+            Sync-SAUpdatePayload -SourceDir $script:src -ScriptRoot $script:root -ManagedEntries $script:managed | Should -BeTrue
+            (Get-Content -Path (Join-Path $script:root 'config.toml') -Raw).Trim() | Should -Be 'user-config'
+            Test-Path (Join-Path $script:root 'queueRoot/job.json') | Should -BeTrue
+        }
+    }
+
+    It 'rolls back and preserves existing files when a swap fails midway' {
+        InModuleScope 'Stagearr.Core' {
+            New-Item -Path (Join-Path $script:root 'Modules') -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $script:root 'Modules/keep.psm1') -Value 'original-mod'
+            Set-Content -Path (Join-Path $script:root 'Stagearr.ps1') -Value 'original-script'
+
+            New-Item -Path (Join-Path $script:src 'Modules') -ItemType Directory -Force | Out-Null
+            Set-Content -Path (Join-Path $script:src 'Modules/keep.psm1') -Value 'updated-mod'
+            Set-Content -Path (Join-Path $script:src 'Stagearr.ps1') -Value 'updated-script'
+
+            # Force the forward swap (staged ".sa-new" -> destination) to fail,
+            # without breaking the rollback restore (which moves ".sa-old" -> destination).
+            Mock Move-Item { throw 'simulated swap failure' } -ParameterFilter { "$LiteralPath" -like '*.sa-new' }
+
+            $result = Sync-SAUpdatePayload -SourceDir $script:src -ScriptRoot $script:root -ManagedEntries $script:managed
+            $result | Should -BeFalse
+            # The install must not be left broken: originals remain intact
+            Test-Path (Join-Path $script:root 'Modules/keep.psm1') | Should -BeTrue
+            Test-Path (Join-Path $script:root 'Stagearr.ps1') | Should -BeTrue
+        }
+    }
+}

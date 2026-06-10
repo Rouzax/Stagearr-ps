@@ -303,6 +303,126 @@ function Invoke-SADownloadFile {
     }
 }
 
+function Sync-SAUpdatePayload {
+    <#
+    .SYNOPSIS
+        Atomically replaces script-root files with an extracted release payload
+        and prunes orphaned release files.
+    .DESCRIPTION
+        For each top-level item in the extracted payload, stages the new content
+        into a sibling ".sa-new" path, moves any existing destination aside to a
+        ".sa-old" backup, then swaps the new content into place. Directory and
+        file moves are atomic on the same volume, so a failure never leaves the
+        install with a half-written or missing entry: completed swaps are rolled
+        back from their backups and the function returns $false.
+
+        After all swaps succeed, prunes orphans: any entry in ManagedEntries that
+        is present on disk but absent from the new payload is removed. This drops
+        files a release renamed or deleted (for example a removed module script)
+        so they cannot be dot-sourced again. Entries outside ManagedEntries are
+        user data and are never touched.
+    .PARAMETER SourceDir
+        Directory holding the extracted release payload (top-level release files).
+    .PARAMETER ScriptRoot
+        The Stagearr script root to update in place.
+    .PARAMETER ManagedEntries
+        Top-level names the release owns; bounds what orphan pruning may remove.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourceDir,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ScriptRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$ManagedEntries
+    )
+
+    # Records completed swaps so they can be rolled back if a later one fails.
+    # Each entry: @{ Dest = <path>; Backup = <path or $null> }
+    $swapped = @()
+    $payloadNames = @()
+
+    try {
+        $items = Get-ChildItem -LiteralPath $SourceDir -Force
+        foreach ($item in $items) {
+            $destPath = Join-Path $ScriptRoot $item.Name
+            Assert-SAPathUnderRoot -Path $destPath -Root $ScriptRoot
+            $payloadNames += $item.Name
+
+            $newPath = "$destPath.sa-new"
+            $backupPath = "$destPath.sa-old"
+
+            # Clear any staging leftovers from a previously aborted update.
+            if (Test-Path -LiteralPath $newPath) { Remove-Item -LiteralPath $newPath -Recurse -Force }
+            if (Test-Path -LiteralPath $backupPath) { Remove-Item -LiteralPath $backupPath -Recurse -Force }
+
+            # Stage the new content next to its destination (same volume = fast).
+            Copy-Item -LiteralPath $item.FullName -Destination $newPath -Recurse -Force
+
+            $hadExisting = Test-Path -LiteralPath $destPath
+            if ($hadExisting) {
+                Move-Item -LiteralPath $destPath -Destination $backupPath -Force
+            }
+
+            try {
+                Move-Item -LiteralPath $newPath -Destination $destPath -Force
+            } catch {
+                # Forward swap failed: restore this item's original and re-throw
+                # so the outer catch rolls back every earlier swap too.
+                if (Test-Path -LiteralPath $newPath) { Remove-Item -LiteralPath $newPath -Recurse -Force }
+                if ($hadExisting -and (Test-Path -LiteralPath $backupPath)) {
+                    Move-Item -LiteralPath $backupPath -Destination $destPath -Force
+                }
+                throw
+            }
+
+            $swapped += @{ Dest = $destPath; Backup = if ($hadExisting) { $backupPath } else { $null } }
+        }
+
+        # All swaps succeeded: discard the backups.
+        foreach ($swap in $swapped) {
+            if ($swap.Backup -and (Test-Path -LiteralPath $swap.Backup)) {
+                Remove-Item -LiteralPath $swap.Backup -Recurse -Force
+            }
+        }
+
+        # Prune orphans: managed entries on disk but absent from the new payload.
+        # Best-effort and non-fatal: the update already succeeded, so a stray
+        # leftover should not flip the result to failure.
+        foreach ($name in $ManagedEntries) {
+            if ($payloadNames -contains $name) { continue }
+            $orphan = Join-Path $ScriptRoot $name
+            if (-not (Test-Path -LiteralPath $orphan)) { continue }
+            try {
+                Assert-SAPathUnderRoot -Path $orphan -Root $ScriptRoot
+                Remove-Item -LiteralPath $orphan -Recurse -Force
+            } catch {
+                Write-SAVerbose -Text "Failed to prune orphaned entry '$name': $_"
+            }
+        }
+
+        return $true
+    } catch {
+        Write-SAVerbose -Text "Update file sync failed: $_"
+        # Roll back completed swaps from their backups, restoring the prior install.
+        foreach ($swap in $swapped) {
+            if ($swap.Backup -and (Test-Path -LiteralPath $swap.Backup)) {
+                try {
+                    if (Test-Path -LiteralPath $swap.Dest) { Remove-Item -LiteralPath $swap.Dest -Recurse -Force }
+                    Move-Item -LiteralPath $swap.Backup -Destination $swap.Dest -Force
+                } catch {
+                    Write-SAVerbose -Text "Rollback failed for '$($swap.Dest)': $_"
+                }
+            }
+        }
+        return $false
+    }
+}
+
 function Invoke-SAZipUpdate {
     <#
     .SYNOPSIS
@@ -378,23 +498,9 @@ function Invoke-SAZipUpdate {
         $extractDir = Join-Path $tempDir 'extracted'
         Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
 
-        # Copy files to script root (validate paths to prevent zip-slip)
+        # Apply the payload atomically and prune files dropped by this release.
         Write-SAProgress -Label "Update" -Text "Applying update..."
-        $items = Get-ChildItem -Path $extractDir -Force
-        foreach ($item in $items) {
-            $destPath = Join-Path $ScriptRoot $item.Name
-            Assert-SAPathUnderRoot -Path $destPath -Root $ScriptRoot
-            if ($item.PSIsContainer) {
-                if (Test-Path -LiteralPath $destPath) {
-                    Remove-Item -LiteralPath $destPath -Recurse -Force
-                }
-                Copy-Item -LiteralPath $item.FullName -Destination $destPath -Recurse -Force
-            } else {
-                Copy-Item -LiteralPath $item.FullName -Destination $destPath -Force
-            }
-        }
-
-        return $true
+        return Sync-SAUpdatePayload -SourceDir $extractDir -ScriptRoot $ScriptRoot -ManagedEntries $script:SAConstants.UpdateManagedEntries
     } catch {
         Write-SAVerbose -Text "ZIP update failed: $_"
         return $false

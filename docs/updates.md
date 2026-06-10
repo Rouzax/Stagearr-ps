@@ -61,17 +61,30 @@ For installations set up by downloading a release ZIP (the recommended installat
 updater:
 
 1. Queries the GitHub Releases API for the latest release.
-2. Downloads the release ZIP asset and its SHA256 checksum file.
-3. Verifies the SHA256 checksum before extracting.
-4. Extracts the ZIP to a temporary directory.
-5. Copies everything from the extracted ZIP over the script root in place. The release ZIP
-   contains only the runtime files (`Stagearr.ps1`, `Modules/`, `config-sample.toml`, `LICENSE`,
-   `README.md`), so the overwrite is limited to those. Your `config.toml`, queue data, and log
-   files live outside the ZIP and are not affected.
-6. Cleans up the temporary directory.
+2. Downloads the release ZIP asset and its `checksums.txt` file.
+3. Verifies the SHA256 checksum of the downloaded ZIP against the matching entry in
+   `checksums.txt`. If no entry matches the ZIP filename, or if the hashes differ, the update is
+   aborted and nothing is written to disk.
+4. Extracts the ZIP to a temporary directory (extraction only happens after verification passes).
+5. Applies the update atomically: for each top-level item in the release (`Stagearr.ps1`,
+   `Modules/`, `config-sample.toml`, `LICENSE`, `README.md`), the new content is staged into a
+   temporary sibling path, the existing item is moved aside to a backup, and then the new content
+   is swapped into place. If anything fails partway (disk full, locked file, interrupted run), all
+   already-swapped items are restored from their backups, leaving the previous working install
+   intact.
+6. Removes any file that belonged to the previous release but is absent from the new one (for
+   example, a module script that was renamed or deleted). This prevents stale files from being
+   loaded alongside the updated code.
+7. Cleans up the temporary directory.
 
-This is the primary update path. If the download or checksum verification fails, Stagearr falls
-back to printing the release URL so you can update manually.
+!!! note "What stays untouched"
+    Pruning is bounded to the files the release owns (listed in step 5). Everything else is
+    treated as user data and is never removed: `config.toml`, queue data (`queueRoot/`), log
+    archives (`logArchive/`), staging files (`stagingRoot/`), and the `.git` directory are all
+    left intact.
+
+If the download, checksum verification, or apply step fails, Stagearr reports the failure and
+prints the release URL so you can update manually.
 
 ### Git-clone installation
 

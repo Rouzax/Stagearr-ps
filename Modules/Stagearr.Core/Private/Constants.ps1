@@ -156,6 +156,14 @@ $script:SAConstants = @{
     # Checksum filename in release assets
     UpdateChecksumFile = 'checksums.txt'
 
+    # Top-level entries shipped inside the release ZIP. Used by the ZIP update
+    # path to prune orphaned files: any entry listed here that is absent from a
+    # new release is removed on update, so renamed/removed module files do not
+    # linger. Entries NOT listed here (config.toml, queueRoot/, logArchive/,
+    # stagingRoot/, .git, etc.) are user data and never touched.
+    # Keep in sync with the ZIP allowlist in .github/workflows/release.yml.
+    UpdateManagedEntries = @('Stagearr.ps1', 'Modules', 'config-sample.toml', 'LICENSE', 'README.md')
+
     #endregion
 }
 
