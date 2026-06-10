@@ -65,7 +65,9 @@ function Get-SAGlobalLock {
             
             if ($null -ne $existingLock) {
                 # Check if lock is stale
-                $isStale = Test-SALockStale -LockInfo $existingLock -StaleMinutes $StaleMinutes -QueueRoot $QueueRoot
+                # Interim: outer param is still $StaleMinutes (minutes); convert to seconds.
+                # Task 6 renames the outer parameter to -StaleSeconds and removes this conversion.
+                $isStale = Test-SALockStale -LockInfo $existingLock -StaleSeconds ($StaleMinutes * 60) -QueueRoot $QueueRoot
                 
                 if ($isStale) {
                     # Determine if this was a remote or local lock for better messaging
@@ -511,77 +513,87 @@ function Get-SALockInfo {
 function Test-SALockStale {
     <#
     .SYNOPSIS
-        Tests if a lock is stale (dead PID, PID reused, or timeout).
+        Tests if a lock is stale using heartbeat age (v4) or startedAt fallback (v3 legacy).
     .DESCRIPTION
-        A lock is considered stale if:
-        1. The lock-holding process is no longer running (PID dead) - local machine only
-        2. The PID was reused by a different process (start time mismatch) - local machine only
-        3. The lock has been held for longer than StaleMinutes
-        
-        For CROSS-MACHINE scenarios (lock held by different hostname):
-        - PID validation is skipped (PIDs are local to each machine)
-        - Only the StaleMinutes timeout is used for staleness detection
-        
-        When in doubt, this function returns $false (not stale) to prevent
-        incorrectly stealing locks from active workers.
-        
-        Emits a single verbose summary line rather than multiple detailed lines.
+        v4 locks: a lock is stale when no heartbeat has been written for StaleSeconds.
+        Same-machine fast-path: a dead PID is stale immediately regardless of heartbeat age.
+        Clock-backward safety: a future-dated heartbeat is treated as alive (never stolen).
+
+        v3 legacy fallback (no heartbeatAt): uses startedAt age for remote locks, and
+        PID liveness for same-machine locks.
+
+        When in doubt, returns $false (not stale) to prevent incorrectly stealing locks.
     #>
     [CmdletBinding()]
     [OutputType([bool])]
     param(
         [Parameter(Mandatory = $true)]
         [hashtable]$LockInfo,
-        
+
         [Parameter()]
-        [int]$StaleMinutes = 15,
-        
+        [int]$StaleSeconds = 120,
+
         [Parameter()]
         [string]$QueueRoot = $null
     )
-    
+
     $lockHostname = $LockInfo.hostname
     $currentHostname = $env:COMPUTERNAME
     $isRemoteLock = $lockHostname -and ($lockHostname -ne $currentHostname)
     $lockPid = $LockInfo.pid
-    
-    # Calculate lock age
-    $ageMinutes = 0
-    if ($null -ne $LockInfo.startedAt) {
-        $age = (Get-Date) - $LockInfo.startedAt
-        $ageMinutes = [int]$age.TotalMinutes
-    }
-    
-    if ($isRemoteLock) {
-        # CROSS-MACHINE: Lock held by different machine
-        # We CANNOT validate the PID - it's meaningless across machines
-        # Only rely on the StaleMinutes timeout
-        
-        if ($null -ne $LockInfo.startedAt -and $age.TotalMinutes -ge $StaleMinutes) {
-            Write-SAVerbose -Label "Lock" -Text "Stale (remote: $lockHostname, $ageMinutes min old, threshold: $StaleMinutes min)"
+
+    # --- v4: heartbeat-based staleness ---
+    if ($null -ne $LockInfo.heartbeatAt) {
+        $age = [datetime]::UtcNow - $LockInfo.heartbeatAt.ToUniversalTime()
+
+        # Clock-backward / future heartbeat: treat as alive, never steal
+        if ($age.TotalSeconds -lt 0) {
+            Write-SAVerbose -Label "Lock" -Text "Active (heartbeat in future; clock skew, treating as alive)"
+            return $false
+        }
+
+        # Same machine: dead PID is stale immediately (fast crash recovery)
+        if (-not $isRemoteLock) {
+            $processAlive = Test-SAProcessAlive -Pid $lockPid -ProcessStartTime $LockInfo.processStartTime -QueueRoot $QueueRoot
+            if (-not $processAlive) {
+                Write-SAVerbose -Label "Lock" -Text "Stale (PID $lockPid not alive)"
+                return $true
+            }
+        }
+
+        if ($age.TotalSeconds -ge $StaleSeconds) {
+            Write-SAVerbose -Label "Lock" -Text "Stale (no heartbeat for $([int]$age.TotalSeconds)s, threshold ${StaleSeconds}s)"
             return $true
         }
-        
-        Write-SAVerbose -Label "Lock" -Text "Active (remote: $lockHostname, PID $lockPid, $ageMinutes min old)"
+
+        Write-SAVerbose -Label "Lock" -Text "Active (heartbeat $([int]$age.TotalSeconds)s ago, threshold ${StaleSeconds}s)"
         return $false
     }
-    
-    # SAME MACHINE: Can validate PID
-    # Check if PID is still alive AND belongs to the same process (prevents PID reuse)
+
+    # --- v3 legacy fallback (no heartbeat): upgrade-transition only ---
+    $startedAge = $null
+    if ($null -ne $LockInfo.startedAt) {
+        $startedAge = (Get-Date) - $LockInfo.startedAt
+    }
+
+    if ($isRemoteLock) {
+        if ($null -ne $startedAge -and $startedAge.TotalSeconds -ge $StaleSeconds) {
+            Write-SAVerbose -Label "Lock" -Text "Stale (legacy remote: $lockHostname, $([int]$startedAge.TotalSeconds)s old)"
+            return $true
+        }
+        Write-SAVerbose -Label "Lock" -Text "Active (legacy remote: $lockHostname)"
+        return $false
+    }
+
     $processAlive = Test-SAProcessAlive -Pid $lockPid -ProcessStartTime $LockInfo.processStartTime -QueueRoot $QueueRoot
-    
     if (-not $processAlive) {
-        Write-SAVerbose -Label "Lock" -Text "Stale (PID $lockPid not alive)"
+        Write-SAVerbose -Label "Lock" -Text "Stale (legacy, PID $lockPid not alive)"
         return $true
     }
-    
-    # Check if lock is too old (safety timeout for hung processes)
-    if ($null -ne $LockInfo.startedAt -and $age.TotalMinutes -ge $StaleMinutes) {
-        Write-SAVerbose -Label "Lock" -Text "Stale (PID $lockPid, $ageMinutes min old, threshold: $StaleMinutes min)"
+    if ($null -ne $startedAge -and $startedAge.TotalSeconds -ge $StaleSeconds) {
+        Write-SAVerbose -Label "Lock" -Text "Stale (legacy, PID $lockPid, $([int]$startedAge.TotalSeconds)s old)"
         return $true
     }
-    
-    Write-SAVerbose -Label "Lock" -Text "Active (PID $lockPid, $ageMinutes min old, threshold: $StaleMinutes min)"
     return $false
 }
 
