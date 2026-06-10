@@ -22,7 +22,8 @@ movieLabels = ["movie", "radarr", "film"]
 [processing]
 tvImporter = "Medusa" # Medusa | Sonarr
 cleanupStaging = true # Remove staging folder after processing. Set false for debugging.
-staleLockMinutes = 15 # Release lock if held longer than this (crash recovery)
+heartbeatSeconds = 30 # How often the active worker refreshes the global lock (liveness proof)
+staleHeartbeatSeconds = 120 # Another worker may take the lock after this many seconds of no heartbeat. Assumes NTP-synced clocks; upgrade all machines that share a queue folder together.
 
 [tools]
 # Paths to external tools - only needed for enabled features

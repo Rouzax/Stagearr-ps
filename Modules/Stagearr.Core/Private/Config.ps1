@@ -23,9 +23,10 @@ $script:SAConfigDefaults = @{
         movieLabels = @()
     }
     processing = @{
-        tvImporter       = 'Medusa'
-        cleanupStaging   = $true
-        staleLockMinutes = 15
+        tvImporter            = 'Medusa'
+        cleanupStaging        = $true
+        heartbeatSeconds      = 30
+        staleHeartbeatSeconds = 120
     }
     tools = @{
         winrar       = ''
