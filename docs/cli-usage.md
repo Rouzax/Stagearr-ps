@@ -54,11 +54,22 @@ Run this after updating Stagearr to catch any new configuration keys.
 
 ### Setup
 
-Runs the interactive setup wizard to create or edit `config.toml`.
+Runs the interactive setup wizard to create a new `config.toml` or edit an existing one.
 
 ```powershell
 .\Stagearr.ps1 -Setup
 ```
+
+The wizard walks through every configuration section in order: paths, external tools, labels, processing, video, subtitles, importers (Radarr, Sonarr, Medusa), and email notifications. For each setting it shows the current or default value in `[brackets]`; press Enter to keep it, or type a new value. External tool paths are auto-detected from standard install locations where possible.
+
+Behavior worth knowing:
+
+- If `config.toml` does not exist, the wizard creates it from the defaults. If it already exists, the wizard edits it in place and pre-fills your current values.
+- Before overwriting an existing file, it writes a timestamped backup (`config.toml.backup-<timestamp>`).
+- It shows a summary and asks for confirmation before writing anything.
+- It is safe to re-run at any time. After an update, run it again to review or fill in new settings, then use `-SyncConfig` to confirm your config has every key the new release expects.
+
+See [Configuration Overview](configuration.md) for how config is loaded, and the [Settings Reference](settings-reference.md) for every key.
 
 ### Update
 

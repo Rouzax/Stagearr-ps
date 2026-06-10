@@ -42,9 +42,23 @@ If you prefer not to use git, download the latest release zip from the [Releases
 
 ---
 
+## Create your configuration
+
+Run the interactive setup wizard to generate your `config.toml`:
+
+```powershell
+.\Stagearr.ps1 -Setup
+```
+
+The wizard walks through your working paths, external tool locations, importer (Radarr, Sonarr, or Medusa) connection details, and email notifications, then writes `config.toml`. You can re-run it at any time to change settings, or edit `config.toml` by hand afterward. If you would rather start from a template, copy `config-sample.toml` to `config.toml` and edit it directly.
+
+Only the settings you change from the defaults need to be present in `config.toml`; everything else falls back to built-in defaults. See the [Settings Reference](settings-reference.md) for every available key.
+
+---
+
 ## Configure tool paths
 
-After installing the external tools, tell Stagearr where to find them. Tool paths are set in the `[tools]` section of `config.toml`. The config file itself is created by the setup wizard in the [Quick Start](quick-start.md) step, so you do not need to create it now.
+After installing the external tools, tell Stagearr where to find them. Tool paths are set in the `[tools]` section of `config.toml`. If you ran `-Setup` above, the wizard already created `config.toml` and recorded these paths; you can adjust them there or edit the file directly.
 
 The [Settings Reference](settings-reference.md) documents each path key, including the `[tools]` section. Default values in `config-sample.toml` point to standard installation locations:
 
@@ -64,4 +78,4 @@ If your tools are installed in the default locations, these values will work wit
 ## Next steps
 
 - **[qBittorrent Integration](qbittorrent.md):** Set up the completion hook so Stagearr runs automatically when a torrent finishes.
-- **[Quick Start](quick-start.md):** Run the interactive setup wizard and process your first download.
+- **[Quick Start](quick-start.md):** Process your first download and confirm the pipeline runs end to end.
