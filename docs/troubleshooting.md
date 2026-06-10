@@ -165,7 +165,7 @@ See [Subtitle Processing](subtitles.md) for a full explanation of extraction, st
 
 ### Email not sent or SMTP timeout
 
-- Check `smtp.host` and `smtp.port` in `config.toml`.
+- Check `smtp.server` and `smtp.port` in `config.toml`.
 - For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833) rather than your regular account password.
 - Port 465 (implicit SSL) requires the [Mailozaurr](https://github.com/EvotecIT/Mailozaurr) module. Without it, use port 587 (STARTTLS).
 - To test a run without sending email, add `-SkipEmail` (also aliased as `-NoMail`):
