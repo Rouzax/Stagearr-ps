@@ -16,6 +16,33 @@ The API key for Radarr and Sonarr is found under Settings > General > Security i
 
 ---
 
+## Prevent Radarr/Sonarr From Auto-Importing
+
+Stagearr sends **processed** files (remuxed, subtitle tracks stripped, subtitles cleaned) to Radarr and Sonarr through the ManualImport API. If Radarr or Sonarr also has Completed Download Handling active for your qBittorrent client, the *arr app will auto-import the **raw** torrent files before Stagearr has a chance to process them. You must stop the *arr app from importing on its own.
+
+This is the *arr side of the configuration. It is unrelated to Stagearr's own `remotePath` setting (covered later on this page).
+
+!!! warning "Required setup"
+    Without one of the options below, Radarr/Sonarr will import the unprocessed download and Stagearr's processing is wasted (or you get a duplicate import).
+
+### Option A: Point the *arr download client at an empty folder (recommended)
+
+1. In Radarr/Sonarr, go to **Settings > Download Clients** and select your qBittorrent client.
+2. Set the download/root folder to an empty folder that will never contain downloads (for example `C:\Empty` or `/data/empty`).
+3. If you use **Remote Path Mapping** in the *arr app, map the download client's path to that empty folder.
+4. The *arr app looks for completed downloads there, finds nothing, and never auto-imports.
+
+This is preferred because the *arr app still tracks download progress and shows queue status, while auto-import is prevented. Stagearr bypasses this entirely by calling ManualImport with explicit file paths.
+
+### Option B: Disable Completed Download Handling
+
+1. In Radarr/Sonarr, go to **Settings > Download Clients**.
+2. Disable **Completed Download Handling**.
+
+This stops the *arr app from monitoring the download client for completed downloads at all.
+
+---
+
 ## Dispatch: Which Importer Runs
 
 The dispatcher in `Import.ps1` checks the download label against your configured label lists and routes the job accordingly.
