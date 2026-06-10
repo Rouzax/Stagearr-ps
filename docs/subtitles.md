@@ -29,7 +29,7 @@ Stagearr extracts text subtitle tracks embedded in MKV files to standalone SRT f
 ```toml
 [subtitles.extraction]
 enabled = true
-duplicateLanguageMode = "largest"
+duplicateLanguageMode = "all"
 ```
 
 Disable extraction if you prefer your media player to select subtitle tracks directly from the MKV.
@@ -62,8 +62,8 @@ When an MKV contains multiple subtitle tracks for the same language, the `duplic
 
 | Mode | Behavior | Output filenames |
 |------|----------|-----------------|
-| `largest` | Keep only the biggest track per language (default) | `movie.en.srt` |
-| `all` | Keep all tracks with numeric suffixes | `movie.en.srt`, `movie.en.1.srt`, `movie.en.2.srt` |
+| `all` | Keep all tracks with numeric suffixes (default) | `movie.en.srt`, `movie.en.1.srt`, `movie.en.2.srt` |
+| `largest` | Keep only the biggest track per language | `movie.en.srt` |
 
 ### Protection rule
 
@@ -220,7 +220,7 @@ Cleanup runs on all SRT files present after extraction and download, regardless 
 | `subtitles.extraction.enabled` | `true` | Extract MKV text tracks to SRT |
 | `subtitles.stripping.enabled` | `true` | Remove unwanted MKV tracks |
 | `subtitles.cleanup.enabled` | `true` | Clean SRT files with SubtitleEdit |
-| `subtitles.openSubtitles.enabled` | `true` | Download from OpenSubtitles |
+| `subtitles.openSubtitles.enabled` | `false` | Download from OpenSubtitles |
 | `subtitles.openSubtitles.uploadCleaned` | `false` | Upload cleaned subtitles |
 
 For all subtitle settings and their defaults, see the [Settings Reference](settings-reference.md).
