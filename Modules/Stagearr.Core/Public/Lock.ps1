@@ -78,8 +78,10 @@ function Get-SAGlobalLock {
         Returns a lock object that must be released with Unlock-SAGlobalLock.
     .PARAMETER QueueRoot
         Path to the queue root directory.
-    .PARAMETER StaleMinutes
-        Minutes after which a lock is considered stale (default: 15).
+    .PARAMETER StaleSeconds
+        Seconds after which a lock with no recent heartbeat is considered stale (default: 120).
+    .PARAMETER HeartbeatSeconds
+        Interval in seconds between heartbeat refreshes (default: 30).
     .PARAMETER Wait
         Wait for lock to become available (default: false, fail immediately).
     .PARAMETER WaitTimeoutSeconds
@@ -100,8 +102,11 @@ function Get-SAGlobalLock {
         [string]$QueueRoot,
         
         [Parameter()]
-        [int]$StaleMinutes = 15,
-        
+        [int]$StaleSeconds = 120,
+
+        [Parameter()]
+        [int]$HeartbeatSeconds = 30,
+
         [Parameter()]
         [switch]$Wait,
         
@@ -123,9 +128,7 @@ function Get-SAGlobalLock {
             
             if ($null -ne $existingLock) {
                 # Check if lock is stale
-                # Interim: outer param is still $StaleMinutes (minutes); convert to seconds.
-                # Task 6 renames the outer parameter to -StaleSeconds and removes this conversion.
-                $isStale = Test-SALockStale -LockInfo $existingLock -StaleSeconds ($StaleMinutes * 60) -QueueRoot $QueueRoot
+                $isStale = Test-SALockStale -LockInfo $existingLock -StaleSeconds $StaleSeconds -QueueRoot $QueueRoot
                 
                 if ($isStale) {
                     # Determine if this was a remote or local lock for better messaging
@@ -142,8 +145,20 @@ function Get-SAGlobalLock {
                     
                     # Write to diagnostic log before removing
                     Write-SALockDiagnostic -QueueRoot $QueueRoot -Action 'remove_stale' -LockInfo $existingLock -Reason $staleReason
-                    
-                    Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue
+
+                    # Atomic compare-and-swap steal: rename the stale lock to a unique
+                    # name. Exactly one racer wins the rename; losers re-loop. This avoids
+                    # the remove-then-create TOCTOU where two workers both "win".
+                    $stealName = "$lockPath.steal-$([guid]::NewGuid().ToString('N'))"
+                    try {
+                        [System.IO.File]::Move($lockPath, $stealName)
+                        Remove-Item -LiteralPath $stealName -Force -ErrorAction SilentlyContinue
+                    } catch {
+                        # Lost the race (another worker already moved it, or holder resumed).
+                        Write-SAVerbose -Label "Lock" -Text "Lost steal race, retrying"
+                        if ($Wait) { Start-Sleep -Milliseconds 250; continue }
+                        return $null
+                    }
                 } else {
                     # Lock is held by active process
                     $lockHostname = $existingLock.hostname
@@ -181,10 +196,10 @@ function Get-SAGlobalLock {
                     $lockFileInfo = Get-Item -LiteralPath $lockPath -ErrorAction Stop
                     $fileAge = (Get-Date) - $lockFileInfo.LastWriteTime
                     
-                    if ($fileAge.TotalMinutes -ge $StaleMinutes) {
+                    if ($fileAge.TotalSeconds -ge $StaleSeconds) {
                         # Lock file is very old and unreadable - likely truly corrupt
-                        Write-SAOutcome -Level Warning -Text "Removing unreadable lock file (age: $([int]$fileAge.TotalMinutes) minutes)"
-                        Write-SALockDiagnostic -QueueRoot $QueueRoot -Action 'remove_corrupt' -Reason "Unreadable lock file, age: $([int]$fileAge.TotalMinutes) minutes"
+                        Write-SAOutcome -Level Warning -Text "Removing unreadable lock file (age: $([int]$fileAge.TotalSeconds) seconds)"
+                        Write-SALockDiagnostic -QueueRoot $QueueRoot -Action 'remove_corrupt' -Reason "Unreadable lock file, age: $([int]$fileAge.TotalSeconds) seconds"
                         Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue
                     } else {
                         # Lock file is recent but unreadable - be safe and wait
@@ -266,15 +281,36 @@ function Get-SAGlobalLock {
     if ($acquired) {
         Write-SAVerbose -Label "Lock" -Text "Acquired (PID $PID)"
         Write-SALockDiagnostic -QueueRoot $QueueRoot -Action 'acquire' -Reason "Lock acquired successfully"
-        return @{
+
+        $identity = @{
+            pid                  = $PID
+            hostname             = $env:COMPUTERNAME
+            processStartTimeUnix = $processStartUnix
+            processStartTime     = $processStartUtc.ToString('o')
+            startedAt            = $lockData.startedAt
+        }
+
+        try {
+            $heartbeat = Start-SALockHeartbeat -LockPath $lockPath -QueueRoot $QueueRoot `
+                -Identity $identity -IntervalMs ($HeartbeatSeconds * 1000)
+        } catch {
+            # Without a heartbeat the lock would be stolen mid-job: fail acquisition.
+            Write-SAOutcome -Level Warning -Text "Heartbeat failed to start, releasing lock: $($_.Exception.Message)"
+            Remove-Item -LiteralPath $lockPath -Force -ErrorAction SilentlyContinue
+            return $null
+        }
+
+        $script:SACurrentLock = @{
             Path      = $lockPath
             Pid       = $PID
             StartedAt = Get-Date
             Released  = $false
-            QueueRoot = $QueueRoot  # Store for diagnostic logging on release
+            QueueRoot = $QueueRoot
+            Heartbeat = $heartbeat
         }
+        return $script:SACurrentLock
     }
-    
+
     return $null
 }
 
@@ -301,15 +337,23 @@ function Unlock-SAGlobalLock {
     if ($Lock.Released) {
         return
     }
-    
+
+    # Stop the heartbeat BEFORE removing the lock file so a final in-flight beat
+    # cannot resurrect a just-deleted lock.
+    if ($Lock.Heartbeat) {
+        Stop-SALockHeartbeat -Heartbeat $Lock.Heartbeat
+        $Lock.Heartbeat = $null
+    }
+
     $lockPath = $Lock.Path
     $queueRoot = if ($Lock.QueueRoot) { $Lock.QueueRoot } else { Split-Path -Parent $lockPath }
     
     if (Test-Path -LiteralPath $lockPath) {
-        # Verify we own the lock before releasing
+        # Verify we still own the lock before releasing (full pid + hostname + start-time
+        # match, so we never delete a lock that was legitimately stolen from us).
         $lockInfo = Get-SALockInfo -LockPath $lockPath
-        
-        if ($null -ne $lockInfo -and $lockInfo.pid -eq $PID) {
+
+        if (Test-SALockOwnedBySelf -QueueRoot $queueRoot) {
             try {
                 Remove-Item -LiteralPath $lockPath -Force -ErrorAction Stop
                 Write-SAVerbose -Label "Lock" -Text "Released"
@@ -325,6 +369,10 @@ function Unlock-SAGlobalLock {
     }
     
     $Lock.Released = $true
+
+    if ($script:SACurrentLock -and $script:SACurrentLock.Path -eq $Lock.Path) {
+        $script:SACurrentLock = $null
+    }
 }
 
 function Start-SALockHeartbeat {
@@ -345,15 +393,25 @@ function Start-SALockHeartbeat {
     $stop = [System.Threading.ManualResetEventSlim]::new($false)
     $shared = [hashtable]::Synchronized(@{ stolen = $false })
 
-    $rs = [runspacefactory]::CreateRunspace()
-    $rs.Open()
-    $ps = [powershell]::Create()
-    $ps.Runspace = $rs
-    $null = $ps.AddScript($script:SAHeartbeatScriptText).
-        AddArgument($LockPath).AddArgument($QueueRoot).AddArgument($Identity).
-        AddArgument($IntervalMs).AddArgument($stop).AddArgument($shared)
-    # $Identity is passed by reference into the runspace; do not mutate it after this call.
-    $async = $ps.BeginInvoke()
+    $rs = $null
+    $ps = $null
+    try {
+        $rs = [runspacefactory]::CreateRunspace()
+        $rs.Open()
+        $ps = [powershell]::Create()
+        $ps.Runspace = $rs
+        $null = $ps.AddScript($script:SAHeartbeatScriptText).
+            AddArgument($LockPath).AddArgument($QueueRoot).AddArgument($Identity).
+            AddArgument($IntervalMs).AddArgument($stop).AddArgument($shared)
+        # $Identity is passed by reference into the runspace; do not mutate it after this call.
+        $async = $ps.BeginInvoke()
+    } catch {
+        # Partial-start failure: dispose anything created so we do not leak a thread/handle.
+        if ($null -ne $ps) { try { $ps.Dispose() } catch { } }
+        if ($null -ne $rs) { try { $rs.Close(); $rs.Dispose() } catch { } }
+        try { $stop.Dispose() } catch { }
+        throw
+    }
 
     return @{
         Runspace   = $rs

@@ -192,3 +192,40 @@ Describe 'Lock heartbeat runspace' {
         }
     }
 }
+
+Describe 'Get-SAGlobalLock with heartbeat' {
+    BeforeEach {
+        $script:tmp = Join-Path ([System.IO.Path]::GetTempPath()) "sa-acq-$(New-Guid)"
+        New-Item -ItemType Directory -Path $script:tmp -Force | Out-Null
+    }
+    AfterEach {
+        InModuleScope 'Stagearr.Core' { if ($script:SACurrentLock) { Unlock-SAGlobalLock -Lock $script:SACurrentLock } }
+        if (Test-Path $script:tmp) { Remove-Item $script:tmp -Recurse -Force }
+    }
+
+    It 'acquires, sets SACurrentLock, heartbeats, and releases cleanly' {
+        InModuleScope 'Stagearr.Core' -ArgumentList $script:tmp {
+            param($tmp)
+            $lock = Get-SAGlobalLock -QueueRoot $tmp -HeartbeatSeconds 1 -StaleSeconds 120
+            $lock | Should -Not -BeNullOrEmpty
+            $script:SACurrentLock | Should -Not -BeNullOrEmpty
+            Test-SALockOwnedBySelf -QueueRoot $tmp | Should -BeTrue
+            Unlock-SAGlobalLock -Lock $lock
+            $script:SACurrentLock | Should -BeNullOrEmpty
+            Test-Path (Join-Path $tmp '.lock') | Should -BeFalse
+        }
+    }
+
+    It 'a second acquisition fails while the first is held (not stale)' {
+        InModuleScope 'Stagearr.Core' -ArgumentList $script:tmp {
+            param($tmp)
+            $first = Get-SAGlobalLock -QueueRoot $tmp -HeartbeatSeconds 1 -StaleSeconds 120
+            try {
+                $second = Get-SAGlobalLock -QueueRoot $tmp -HeartbeatSeconds 1 -StaleSeconds 120
+                $second | Should -BeNullOrEmpty
+            } finally {
+                Unlock-SAGlobalLock -Lock $first
+            }
+        }
+    }
+}
