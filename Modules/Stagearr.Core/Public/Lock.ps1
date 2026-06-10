@@ -169,7 +169,8 @@ function Get-SAGlobalLock {
             processStartTime     = $processStartUtc.ToString('o')  # Human-readable backup for debugging
             hostname             = $env:COMPUTERNAME
             startedAt            = (Get-Date).ToString('o')
-            version              = 3  # Bump version for new format
+            heartbeatAt          = ([datetime]::UtcNow).ToString('o')
+            version              = 4
         }
         
         try {
@@ -464,12 +465,33 @@ function Get-SALockInfo {
                 }
             }
             
+            # Parse heartbeatAt (v4); RoundtripKind keeps the 'o'/Z format as UTC.
+            # ConvertFrom-Json may auto-convert ISO strings to [datetime]; handle both cases.
+            $heartbeatAt = $null
+            if ($data.heartbeatAt) {
+                try {
+                    if ($data.heartbeatAt -is [datetime]) {
+                        $heartbeatAt = $data.heartbeatAt
+                    } else {
+                        $heartbeatAt = [datetime]::Parse(
+                            [string]$data.heartbeatAt,
+                            [System.Globalization.CultureInfo]::InvariantCulture,
+                            [System.Globalization.DateTimeStyles]::RoundtripKind
+                        )
+                    }
+                } catch {
+                    $heartbeatAt = $null
+                }
+            }
+
             return @{
-                pid              = [int]$data.pid
-                processStartTime = $processStartTime
-                hostname         = $data.hostname
-                startedAt        = $startedAt
-                version          = if ($data.version) { [int]$data.version } else { 1 }
+                pid                  = [int]$data.pid
+                processStartTime     = $processStartTime
+                processStartTimeUnix = if ($null -ne $data.processStartTimeUnix) { [long]$data.processStartTimeUnix } else { $null }
+                hostname             = $data.hostname
+                startedAt            = $startedAt
+                heartbeatAt          = $heartbeatAt
+                version              = if ($data.version) { [int]$data.version } else { 1 }
             }
         } catch {
             if ($attempt -lt $MaxRetries) {
