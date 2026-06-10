@@ -274,6 +274,10 @@ switch ($PSCmdlet.ParameterSetName) {
             if ($lockInfo) {
                 $lockSince = $lockInfo.startedAt.ToString('HH:mm:ss')
                 Write-SAKeyValue -Key "Lock" -Value "Held (PID $($lockInfo.pid), since $lockSince)"
+                if ($lockInfo.heartbeatAt) {
+                    $hbAge = [int]([datetime]::UtcNow - $lockInfo.heartbeatAt.ToUniversalTime()).TotalSeconds
+                    Write-SAKeyValue -Key "Heartbeat" -Value ('{0}s ago' -f $hbAge)
+                }
             } else {
                 Write-SAKeyValue -Key "Lock" -Value "Held"
             }

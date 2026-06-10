@@ -294,3 +294,36 @@ Describe 'Test-SALockStolen checkpoint integration' {
         }
     }
 }
+
+Describe 'Test-SAGlobalLock heartbeat-aware' {
+    BeforeEach {
+        $script:tmp = Join-Path ([System.IO.Path]::GetTempPath()) "sa-held-$(New-Guid)"
+        New-Item -ItemType Directory -Path $script:tmp -Force | Out-Null
+    }
+    AfterEach { if (Test-Path $script:tmp) { Remove-Item $script:tmp -Recurse -Force } }
+
+    It 'reports held for a fresh-heartbeat lock' {
+        InModuleScope 'Stagearr.Core' -ArgumentList $script:tmp {
+            param($tmp)
+            $epoch = [datetime]::new(1970,1,1,0,0,0,[System.DateTimeKind]::Utc)
+            $startUnix = [long](((Get-Process -Id $PID).StartTime.ToUniversalTime() - $epoch).TotalSeconds)
+            @{ pid = $PID; hostname = $env:COMPUTERNAME; processStartTimeUnix = $startUnix
+               processStartTime = (Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o')
+               startedAt = (Get-Date).ToString('o'); heartbeatAt = [datetime]::UtcNow.ToString('o'); version = 4 } |
+                ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $tmp '.lock') -Encoding UTF8
+            Test-SAGlobalLock -QueueRoot $tmp | Should -BeTrue
+        }
+    }
+
+    It 'reports NOT held for a silent (stale) heartbeat lock' {
+        InModuleScope 'Stagearr.Core' -ArgumentList $script:tmp {
+            param($tmp)
+            @{ pid = 999999; hostname = 'OTHER-HOST'; processStartTimeUnix = 1
+               processStartTime = [datetime]::UtcNow.ToString('o')
+               startedAt = (Get-Date).AddMinutes(-30).ToString('o')
+               heartbeatAt = [datetime]::UtcNow.AddSeconds(-300).ToString('o'); version = 4 } |
+                ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $tmp '.lock') -Encoding UTF8
+            Test-SAGlobalLock -QueueRoot $tmp | Should -BeFalse
+        }
+    }
+}

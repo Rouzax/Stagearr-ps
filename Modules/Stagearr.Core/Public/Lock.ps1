@@ -456,19 +456,16 @@ function Test-SAGlobalLock {
     )
     
     $lockPath = Join-Path -Path $QueueRoot -ChildPath '.lock'
-    
+
     if (-not (Test-Path -LiteralPath $lockPath)) {
         return $false
     }
-    
+
     $lockInfo = Get-SALockInfo -LockPath $lockPath
-    
-    if ($null -eq $lockInfo) {
-        return $false
-    }
-    
-    # Check if PID is alive AND belongs to the same process (prevents PID reuse)
-    return Test-SAProcessAlive -Pid $lockInfo.pid -ProcessStartTime $lockInfo.processStartTime
+    if ($null -eq $lockInfo) { return $false }
+
+    # Held == not stale (heartbeat fresh for v4, PID/age for legacy)
+    return (-not (Test-SALockStale -LockInfo $lockInfo -StaleSeconds 120 -QueueRoot $QueueRoot))
 }
 
 function Test-SALockOwnedBySelf {
