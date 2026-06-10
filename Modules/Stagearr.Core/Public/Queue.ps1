@@ -373,7 +373,9 @@ function Start-SAWorker {
     )
 
     # Try to acquire lock
-    $lock = Get-SAGlobalLock -QueueRoot $QueueRoot -StaleMinutes $Config.processing.staleLockMinutes -Wait:$Wait
+    $lock = Get-SAGlobalLock -QueueRoot $QueueRoot `
+        -StaleSeconds $Config.processing.staleHeartbeatSeconds `
+        -HeartbeatSeconds $Config.processing.heartbeatSeconds -Wait:$Wait
 
     if ($null -eq $lock) {
         # Lock not acquired — if we have deferred params, write the job anyway
