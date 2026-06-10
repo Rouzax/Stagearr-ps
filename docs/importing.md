@@ -35,7 +35,7 @@ tvImporter = "Medusa"   # Medusa | Sonarr
 
 When `tvImporter = "Medusa"` and `importers.medusa.enabled = true`, TV jobs go to Medusa. Otherwise, TV jobs go to Sonarr (when `importers.sonarr.enabled = true`). If neither importer is enabled and configured, the import is skipped with a warning.
 
-Note on the stock default: `tvImporter` ships set to `"Medusa"`, but `importers.medusa.enabled` ships set to `false`. With the stock config, TV jobs therefore fall through to Sonarr until you explicitly enable Medusa.
+By default, `tvImporter` is set to `"Medusa"`, but `importers.medusa.enabled` is set to `false`. With the default configuration, TV jobs therefore fall through to Sonarr until you explicitly enable Medusa.
 
 Movie jobs always go to Radarr. There is no alternative movie importer.
 
@@ -121,40 +121,22 @@ Example: if Stagearr stages to `C:\Staging\Movie\Film.2024` and the importer see
 
 ## Configuration Reference
 
-Full configuration for all importers:
+The settings most relevant to the import flow discussed on this page:
 
 ```toml
 [importers.radarr]
-enabled = true
-host = "localhost"
-port = 7878
-apiKey = "your_radarr_api_key"
-ssl = false
-urlRoot = ""          # Set if behind a reverse proxy (e.g., "/radarr")
+importMode = "move"   # move | copy
 timeoutMinutes = 10
 remotePath = ""       # Leave empty if Stagearr and Radarr share the same file paths
-importMode = "move"   # move | copy
 
 [importers.sonarr]
-enabled = true
-host = "localhost"
-port = 8989
-apiKey = "your_sonarr_api_key"
-ssl = false
-urlRoot = ""
+importMode = "move"
 timeoutMinutes = 10
 remotePath = ""
-importMode = "move"
 
 [importers.medusa]
-enabled = false
-host = "localhost"
-port = 8081
-apiKey = "your_medusa_api_key"
-ssl = false
-urlRoot = ""
 timeoutMinutes = 15
 remotePath = ""
 ```
 
-For all available settings and their defaults, see the [Settings Reference](settings-reference.md).
+For all available settings (host, port, apiKey, ssl, urlRoot, and their defaults), see the [Settings Reference](settings-reference.md).

@@ -8,13 +8,13 @@ Stagearr provides comprehensive subtitle handling with multiple acquisition sour
 
 Subtitles are processed in this order:
 
-1. **Strip** unwanted tracks from the MKV container (if enabled)
-2. **Extract** remaining text tracks to SRT files (if enabled)
+1. **Extract** text tracks from the MKV container to SRT files (Video phase, if enabled)
+2. **Strip** unwanted tracks from the MKV container (Video phase, if enabled)
 3. **Download** missing subtitles from OpenSubtitles (if enabled)
 4. **Clean** all SRT files with SubtitleEdit (if enabled)
 5. **Upload** cleaned extracted subtitles back to OpenSubtitles (if enabled)
 
-Track stripping happens in the [Video phase](video-processing.md) just before extraction. The sections below cover each step in detail.
+Steps 1 and 2 both happen in the [Video phase](video-processing.md); extraction runs first so the extracted SRT files are preserved before any tracks are removed from the MKV. The sections below cover each step in detail.
 
 ---
 
@@ -99,7 +99,7 @@ namePatternsToRemove = ["Forced", "Signs", "Songs"]
 
 A track named "English (Forced)" is removed only if another English track without those patterns exists. This ensures you always have at least one subtitle track per wanted language.
 
-The same protection rule applies here: if none of your wanted languages are found, no tracks are stripped.
+The same protection rule described under [Subtitle Extraction](#protection-rule) applies: if none of your wanted languages are found, no tracks are stripped.
 
 ---
 

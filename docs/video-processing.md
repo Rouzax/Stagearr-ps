@@ -1,6 +1,6 @@
 # Video Processing
 
-The Video phase handles three tasks in order: extracting RAR archives, remuxing MP4/M4V files to MKV, and stripping unwanted subtitle tracks from MKV containers. Each step runs only when the input requires it.
+The Video phase handles three tasks in order: extracting RAR archives, remuxing MP4/M4V files to MKV, and stripping unwanted subtitle tracks from MKV containers. Each step runs only when the input requires it. This phase runs only for TV and movie labels; downloads with unknown labels go through [passthrough mode](labels.md) and skip video processing entirely.
 
 ---
 
