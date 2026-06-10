@@ -1,0 +1,17 @@
+/* stagearr palette: blue accent over Material light/slate, tuned to the
+ * landing page (site/index.html) slate/navy backgrounds. */
+:root {
+  --md-primary-fg-color: #5391FE;
+  --md-primary-fg-color--light: #7DABFF;
+  --md-primary-fg-color--dark: #2F6FE0;
+  --md-accent-fg-color: #5391FE;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #60A5FA;
+  --md-primary-fg-color--light: #93C5FD;
+  --md-primary-fg-color--dark: #3B82F6;
+  --md-accent-fg-color: #60A5FA;
+  --md-default-bg-color: #0F172A;
+  --md-default-bg-color--light: #1E293B;
+}
