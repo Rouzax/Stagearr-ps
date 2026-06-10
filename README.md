@@ -3,6 +3,7 @@
   <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License">
   <img src="https://img.shields.io/badge/Version-2.0.0-blue?style=for-the-badge" alt="Version 2.0.0">
+  <a href="https://rouzax.github.io/Stagearr-ps/docs/"><img src="https://img.shields.io/badge/Docs-MkDocs-526CFE?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation"></a>
 </p>
 
 <h1 align="center">🎬 Stagearr-ps</h1>
@@ -13,6 +14,10 @@
 
 <p align="center">
   Seamlessly process torrent downloads from completion to library — RAR extraction, MKV processing, subtitle acquisition, and automated import to Radarr, Sonarr, or Medusa.
+</p>
+
+<p align="center">
+  <strong>📖 <a href="https://rouzax.github.io/Stagearr-ps/docs/">Read the Documentation</a></strong>
 </p>
 
 ---
@@ -52,21 +57,21 @@ flowchart LR
 | 📋 **Job Queue** | Persistent file-backed queue survives reboots |
 | 🔒 **Safe Processing** | Global locks, security validation, atomic operations |
 
-> 📖 **Detailed documentation:** [Wiki](https://github.com/rouzax/Stagearr-ps/wiki) · [Email Notifications](https://github.com/rouzax/Stagearr-ps/wiki/Email-Notifications) · [Subtitle Processing](https://github.com/rouzax/Stagearr-ps/wiki/Subtitle-Processing) · [Architecture](https://github.com/rouzax/Stagearr-ps/wiki/Architecture)
+> 📖 **Detailed documentation:** [Documentation Site](https://rouzax.github.io/Stagearr-ps/docs/) · [Email Notifications](https://rouzax.github.io/Stagearr-ps/docs/email/) · [Subtitle Processing](https://rouzax.github.io/Stagearr-ps/docs/subtitles/) · [Pipeline Overview](https://rouzax.github.io/Stagearr-ps/docs/pipeline/)
 
 ### 📧 Email Previews
 
 <p align="center">
-  <img src="Docs/images/email-success.png" alt="Success Email with metadata" width="270">
-  <img src="Docs/images/email-warning.png" alt="Warning Email" width="270">
+  <img src="docs/assets/email-success.png" alt="Success Email with metadata" width="270">
+  <img src="docs/assets/email-warning.png" alt="Warning Email" width="270">
 </p>
 <p align="center">
-  <img src="Docs/images/email-failed.png" alt="Failed Email" width="270">
-  <img src="Docs/images/email-success-no-metadata.png" alt="Success Email without metadata" width="270">
+  <img src="docs/assets/email-failed.png" alt="Failed Email" width="270">
+  <img src="docs/assets/email-success-no-metadata.png" alt="Success Email without metadata" width="270">
 </p>
 
 <p align="center">
-  <em>See all email types in the <a href="https://github.com/rouzax/Stagearr-ps/wiki/Email-Notifications">Email Notifications</a> wiki page.</em>
+  <em>See all email types on the <a href="https://rouzax.github.io/Stagearr-ps/docs/email/">Email Notifications</a> page.</em>
 </p>
 
 ---
@@ -122,7 +127,7 @@ Stagearr handles imports via the ManualImport API, so Radarr/Sonarr must **not**
 
 **Recommended:** In the *arr app, point the download client's root folder to an empty folder (e.g., `C:\Empty`) so it never finds completed downloads. Alternatively, disable **Completed Download Handling** under Settings > Download Clients.
 
-> 📖 **Full details:** [Importer Prerequisites](https://github.com/rouzax/Stagearr-ps/wiki/Configuration-Reference#importer-prerequisites) in the wiki.
+> 📖 **Full details:** [Prevent Radarr/Sonarr From Auto-Importing](https://rouzax.github.io/Stagearr-ps/docs/importing/#prevent-radarrsonarr-from-auto-importing).
 
 ### 5. Install Optional Modules
 
@@ -144,7 +149,7 @@ This reports missing/extra settings. Only settings you want to change from defau
 
 ## ⚙️ Quick-Start Configuration
 
-Minimal config to get running. See the **[full Configuration Reference](https://github.com/rouzax/Stagearr-ps/wiki/Configuration-Reference)** for all options.
+Minimal config to get running. See the **[full Settings Reference](https://rouzax.github.io/Stagearr-ps/docs/settings-reference/)** for all options.
 
 ```toml
 [paths]
@@ -269,7 +274,7 @@ Once configured, Stagearr runs automatically when torrents complete.
 - **Queue locked** — Run `-Status` to check for stuck jobs
 - **Email issues** — Gmail requires App Passwords; use port 587 without Mailozaurr
 
-> 📖 **Detailed troubleshooting:** [Wiki](https://github.com/rouzax/Stagearr-ps/wiki/Troubleshooting)
+> 📖 **Detailed troubleshooting:** [Troubleshooting & FAQ](https://rouzax.github.io/Stagearr-ps/docs/troubleshooting/)
 
 ---
 
