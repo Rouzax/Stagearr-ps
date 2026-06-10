@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/PowerShell-5.1%20%7C%207.x-5391FE?style=for-the-badge&logo=powershell&logoColor=white" alt="PowerShell 5.1+ | 7.x">
+  <img src="https://img.shields.io/badge/PowerShell-7.x%20%7C%205.1-5391FE?style=for-the-badge&logo=powershell&logoColor=white" alt="PowerShell 7.x | 5.1">
   <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License">
   <img src="https://img.shields.io/badge/Version-2.7.0-blue?style=for-the-badge" alt="Version 2.7.0">
@@ -79,7 +79,7 @@ flowchart LR
 ## 📦 Requirements
 
 ### PowerShell
-- **PowerShell 5.1** (Windows built-in) or **PowerShell 7.x**
+- **PowerShell 7.x** (recommended, [free install](https://aka.ms/powershell)) or **Windows PowerShell 5.1** (built in)
 
 ### External Tools
 
@@ -118,8 +118,10 @@ Copy-Item config-sample.toml config.toml
 Go to **Tools → Options → Downloads** and set **Run external program on torrent finished:**
 
 ```
-powershell.exe -ExecutionPolicy Bypass -File "C:\Stagearr-ps\Stagearr.ps1" -DownloadPath "%F" -DownloadLabel "%L" -TorrentHash "%I"
+pwsh.exe -ExecutionPolicy Bypass -File "C:\Stagearr-ps\Stagearr.ps1" -DownloadPath "%F" -DownloadLabel "%L" -TorrentHash "%I"
 ```
+
+> `pwsh.exe` runs PowerShell 7 (recommended). If you only have the built-in Windows PowerShell 5.1, use `powershell.exe` instead.
 
 ### 4. Set Up Radarr / Sonarr
 
