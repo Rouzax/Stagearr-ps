@@ -72,7 +72,7 @@ Shows:
 .\Stagearr.ps1 -Status
 ```
 
-Orphaned jobs (from crashes/reboots) are automatically recovered when the next job runs. Stale locks (held longer than `processing.staleLockMinutes`) are automatically released. No manual intervention is needed — the next torrent completion or manual run will pick up any pending jobs.
+Orphaned jobs (from crashes/reboots) are automatically recovered when the next job runs. A lock whose holder stops refreshing its heartbeat for more than `processing.staleHeartbeatSeconds` (default: 120) is automatically taken over. No manual intervention is needed; the next torrent completion or manual run will pick up any pending jobs.
 
 If you're running manually and another instance is active, use `-Wait` to wait for the lock instead of exiting immediately:
 

@@ -56,7 +56,8 @@ Labels not in either list trigger **passthrough mode** — files are extracted/c
 [processing]
 tvImporter = "Medusa"       # Medusa | Sonarr
 cleanupStaging = true       # Remove staging folder after processing
-staleLockMinutes = 15       # Release lock if held longer than this (crash recovery)
+heartbeatSeconds = 30          # Active worker refreshes the global lock this often (liveness proof)
+staleHeartbeatSeconds = 120    # Take over a lock after this many seconds with no heartbeat (crash recovery)
 ```
 
 ---

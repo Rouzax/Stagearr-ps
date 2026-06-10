@@ -406,11 +406,13 @@ Controls how files are handled during import to Radarr/Sonarr.
 |-------------|------|---------|-------------|
 | `processing.tvImporter` | string | `Medusa` | Default TV importer (`Medusa` or `Sonarr`) |
 | `processing.cleanupStaging` | bool | `true` | Remove staging folder after processing |
-| `processing.staleLockMinutes` | int | `15` | Lock considered stale after this many minutes |
+| `processing.heartbeatSeconds` | int | `30` | How often the lock holder refreshes its heartbeat |
+| `processing.staleHeartbeatSeconds` | int | `120` | Lock is considered stale if no heartbeat for this many seconds |
 
 **Behavior notes:**
 - **cleanupStaging**: Set to `false` to preserve staging folder for debugging. Can also be overridden per-job with `-NoCleanup` switch.
-- **staleLockMinutes**: Worker lock is released if held longer than this, allowing recovery from crashes/hangs.
+- **heartbeatSeconds**: The active worker writes a timestamp to the lock file on this interval. Shorter values respond faster to crashes; longer values reduce I/O on shared storage.
+- **staleHeartbeatSeconds**: A competing worker may take over the lock only after heartbeat silence exceeds this threshold. Must be larger than `heartbeatSeconds`.
 
 ### Label Configuration
 
@@ -463,10 +465,32 @@ Multiple labels can be configured to route downloads to the correct importer.
 
 | Function | Purpose | File |
 |----------|---------|------|
-| `Get-SAGlobalLock` | Acquire worker lock | Lock.ps1 |
-| `Unlock-SAGlobalLock` | Release lock | Lock.ps1 |
-| `Test-SAGlobalLock` | Check if locked | Lock.ps1 |
-| `Get-SAGlobalLockInfo` | Get lock holder info | Lock.ps1 |
+| `Get-SAGlobalLock` | Acquire worker lock, start background heartbeat | Lock.ps1 |
+| `Unlock-SAGlobalLock` | Stop heartbeat and release lock | Lock.ps1 |
+| `Test-SAGlobalLock` | Check if lock is currently held (not stale) | Lock.ps1 |
+| `Get-SAGlobalLockInfo` | Get lock holder info including heartbeatAt | Lock.ps1 |
+
+**`Get-SAGlobalLock` parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `-QueueRoot` | string | (required) | Path to the queue directory |
+| `-StaleSeconds` | int | `120` | Heartbeat silence threshold before a lock is considered stale |
+| `-HeartbeatSeconds` | int | `30` | Interval at which the heartbeat runspace refreshes the lock file |
+| `-Force` | switch | | Skip the wait loop and fail immediately if locked |
+| `-WaitTimeoutSeconds` | int | `60` | How long to wait for the lock before giving up |
+
+**Internal lock helpers (not exported):**
+
+| Function | Purpose |
+|----------|---------|
+| `Start-SALockHeartbeat` | Start a background runspace that refreshes `heartbeatAt` in the lock file |
+| `Stop-SALockHeartbeat` | Signal the heartbeat runspace to stop and wait for it to exit |
+| `Test-SALockOwnedBySelf` | Return `$true` if the current process holds the lock (checks PID + hostname) |
+| `Test-SAImportLockOk` | Return `$true` if no lock is held or if the current process owns it; aborts import if stolen |
+| `Test-SALockStolen` | Return `$true` if the heartbeat runspace has set the stolen flag (lock taken by another worker) |
+
+`Test-SALockStale` parameter: `-StaleSeconds` (was `-StaleMinutes` in older versions).
 
 ### RAR Extraction
 

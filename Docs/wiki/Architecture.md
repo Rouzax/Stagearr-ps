@@ -38,6 +38,7 @@ Stagearr-ps/
 │       │   ├── MkvAnalysis.ps1        # Video track analysis
 │       │   ├── Omdb.ps1               # OMDb API client
 │       │   ├── PathSecurity.ps1       # Path traversal prevention
+│       │   ├── SafetyCheck.ps1       # Dangerous file detection & blocklisting
 │       │   ├── Process.ps1            # External tool execution
 │       │   ├── Toml.ps1               # TOML parser
 │       │   └── Utility.ps1            # Common utilities
@@ -68,11 +69,12 @@ The main orchestrator is `Invoke-SAJobProcessing` in `Public/JobProcessor.ps1`. 
 
 ```
 1. Initialize    → Load config, create context, initialize output system
-2. Stage         → Copy/extract files to staging folder
-3. Video         → RAR extraction, MP4 remux, subtitle track stripping
-4. Subtitles     → Extract from MKV, download from OpenSubtitles, clean with SubtitleEdit
-5. Import        → Send to Radarr/Sonarr/Medusa, poll for completion
-6. Notify        → Save log file, send email notification
+2. Safety Check  → Detect dangerous files (exe/scripts), blocklist if found (TV/Movie only)
+3. Stage         → Copy/extract files to staging folder
+4. Video         → RAR extraction, MP4 remux, subtitle track stripping
+5. Subtitles     → Extract from MKV, download from OpenSubtitles, clean with SubtitleEdit
+6. Import        → Send to Radarr/Sonarr/Medusa, poll for completion
+7. Notify        → Save log file, send email notification
 ```
 
 ---
@@ -117,6 +119,7 @@ See `Docs/OUTPUT-STYLE-GUIDE.md` for the full design philosophy and rules.
 | `ImportResultParser.ps1` | API response parsing, error categorization, hints |
 | `ArrMetadata.ps1` | Extract metadata from Radarr/Sonarr ManualImport results |
 | `PathSecurity.ps1` | Path traversal and zip-slip prevention |
+| `SafetyCheck.ps1` | Dangerous file detection and *arr queue blocklisting |
 | `Http.ps1` | HTTP client with exponential backoff retry |
 | `Language.ps1` | ISO 639-1/639-2 language code normalization |
 | `Context.ps1` | Job context object creation (carries state through pipeline) |
@@ -168,11 +171,14 @@ The `.lock` file prevents concurrent workers from processing jobs simultaneously
 - **PID** and **process start time** — identifies the lock holder (start time prevents PID reuse false-positives on Windows)
 - **Hostname** — identifies which machine holds the lock
 - **Timestamp** — when the lock was acquired
+- **heartbeatAt**: UTC timestamp refreshed every `processing.heartbeatSeconds` (default: 30) by a background runspace while the lock is held
 
 **Stale lock recovery:** If a worker crashes or the machine reboots, the lock becomes stale. Stagearr detects this in two ways:
 
-- **Same machine:** Checks if the lock-holding PID is still alive (with start time validation to catch PID reuse)
-- **Cross-machine:** Cannot validate remote PIDs, so relies purely on the `processing.staleLockMinutes` timeout (default: 15 minutes)
+- **Same machine:** Checks if the lock-holding PID is still alive (with start time validation to catch PID reuse). A dead PID is treated as stale immediately, regardless of heartbeat age.
+- **Cross-machine:** Cannot validate remote PIDs, so relies on heartbeat age. If the `heartbeatAt` field has not been updated for more than `processing.staleHeartbeatSeconds` (default: 120), the lock is considered stale and may be taken over by an atomic compare-and-swap write.
+
+**Import ownership guard:** At the point of sending files to Radarr or Sonarr, Stagearr re-checks that it still owns the lock. If another worker has taken over (e.g., the original worker was presumed dead due to a long pause), the import is aborted rather than risking a double import. Phase boundaries between major processing steps also check for lock theft and abort the job early.
 
 A diagnostic log (`.lock-diagnostic.log`) records all lock events for troubleshooting.
 
@@ -182,7 +188,7 @@ Stagearr supports running from multiple machines **if they share the same `queue
 
 - Lock files include the hostname, so each machine knows whether a lock is local or remote
 - Lock status messages show which machine holds the lock (e.g., `Already held by SERVER2 (PID 1234)`)
-- Stale lock recovery uses timeout-only for remote locks (since PIDs can't be validated across machines)
+- Stale lock recovery for remote machines uses heartbeat age rather than PID checks (PIDs cannot be validated across machines). Clocks on participating machines should be NTP-synchronized for accurate staleness detection.
 
 **Requirements for multi-machine operation:**
 
@@ -203,3 +209,4 @@ Stagearr supports running from multiple machines **if they share the same `queue
 - **Argument Escaping** — Safe external tool execution with proper quoting
 - **Token Management** — Secure API token caching with expiry
 - **Archive Validation** — Archives with dangerous patterns (`..\\`, absolute paths) are rejected
+- **Dangerous File Detection**: Downloads containing only executables/scripts (`.exe`, `.msi`, `.bat`, etc.) are detected, blocklisted in Sonarr/Radarr, and removed from the download client. Only applies to TV/Movie labels; passthrough jobs are unaffected.
