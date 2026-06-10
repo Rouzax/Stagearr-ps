@@ -23,17 +23,19 @@ The dispatcher in `Import.ps1` checks the download label against your configured
 | Label type | Importer |
 |-----------|---------|
 | Movie label | Radarr |
-| TV label, `tvImporter = "Sonarr"` (default) | Sonarr |
-| TV label, `tvImporter = "Medusa"` | Medusa |
+| TV label, `tvImporter = "Medusa"` and Medusa enabled | Medusa |
+| TV label, otherwise | Sonarr |
 
 The dispatch rule for TV is:
 
 ```toml
 [processing]
-tvImporter = "Sonarr"   # Sonarr | Medusa
+tvImporter = "Medusa"   # Medusa | Sonarr
 ```
 
 When `tvImporter = "Medusa"` and `importers.medusa.enabled = true`, TV jobs go to Medusa. Otherwise, TV jobs go to Sonarr (when `importers.sonarr.enabled = true`). If neither importer is enabled and configured, the import is skipped with a warning.
+
+Note on the stock default: `tvImporter` ships set to `"Medusa"`, but `importers.medusa.enabled` ships set to `false`. With the stock config, TV jobs therefore fall through to Sonarr until you explicitly enable Medusa.
 
 Movie jobs always go to Radarr. There is no alternative movie importer.
 
