@@ -93,3 +93,40 @@ Describe 'Test-SALockStale (heartbeat-based)' {
         }
     }
 }
+
+Describe 'Test-SALockOwnedBySelf' {
+    BeforeEach {
+        $script:tmp = Join-Path ([System.IO.Path]::GetTempPath()) "sa-own-$(New-Guid)"
+        New-Item -ItemType Directory -Path $script:tmp -Force | Out-Null
+    }
+    AfterEach { if (Test-Path $script:tmp) { Remove-Item $script:tmp -Recurse -Force } }
+
+    It 'returns true when the lock matches this process' {
+        InModuleScope 'Stagearr.Core' -ArgumentList $script:tmp {
+            param($tmp)
+            $epoch = [datetime]::new(1970,1,1,0,0,0,[System.DateTimeKind]::Utc)
+            $startUnix = [long](((Get-Process -Id $PID).StartTime.ToUniversalTime() - $epoch).TotalSeconds)
+            @{ pid = $PID; hostname = $env:COMPUTERNAME; processStartTimeUnix = $startUnix
+               startedAt = (Get-Date).ToString('o'); heartbeatAt = [datetime]::UtcNow.ToString('o'); version = 4 } |
+                ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $tmp '.lock') -Encoding UTF8
+            Test-SALockOwnedBySelf -QueueRoot $tmp | Should -BeTrue
+        }
+    }
+
+    It 'returns false when the lock pid is a different process' {
+        InModuleScope 'Stagearr.Core' -ArgumentList $script:tmp {
+            param($tmp)
+            @{ pid = 999999; hostname = $env:COMPUTERNAME; processStartTimeUnix = 1
+               startedAt = (Get-Date).ToString('o'); heartbeatAt = [datetime]::UtcNow.ToString('o'); version = 4 } |
+                ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $tmp '.lock') -Encoding UTF8
+            Test-SALockOwnedBySelf -QueueRoot $tmp | Should -BeFalse
+        }
+    }
+
+    It 'returns false when no lock file exists' {
+        InModuleScope 'Stagearr.Core' -ArgumentList $script:tmp {
+            param($tmp)
+            Test-SALockOwnedBySelf -QueueRoot $tmp | Should -BeFalse
+        }
+    }
+}

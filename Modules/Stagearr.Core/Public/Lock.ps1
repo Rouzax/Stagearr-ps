@@ -301,6 +301,38 @@ function Test-SAGlobalLock {
     return Test-SAProcessAlive -Pid $lockInfo.pid -ProcessStartTime $lockInfo.processStartTime
 }
 
+function Test-SALockOwnedBySelf {
+    <#
+    .SYNOPSIS
+        Returns $true only if the lock file in QueueRoot is currently owned by THIS process.
+    .DESCRIPTION
+        Compares pid + hostname + process start time (Unix seconds) against this process.
+        Used by the import guard to refuse importing if the lock was stolen mid-job.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$QueueRoot
+    )
+
+    $lockPath = Join-Path -Path $QueueRoot -ChildPath '.lock'
+    $info = Get-SALockInfo -LockPath $lockPath
+    if ($null -eq $info) { return $false }
+
+    if ($info.pid -ne $PID) { return $false }
+    if ($info.hostname -ne $env:COMPUTERNAME) { return $false }
+
+    # Compare process start time (Unix seconds) to defeat PID reuse
+    $epoch = [datetime]::new(1970, 1, 1, 0, 0, 0, [System.DateTimeKind]::Utc)
+    $myUnix = [long](((Get-Process -Id $PID).StartTime.ToUniversalTime() - $epoch).TotalSeconds)
+    if ($null -ne $info.processStartTimeUnix -and [long]$info.processStartTimeUnix -ne $myUnix) {
+        return $false
+    }
+
+    return $true
+}
+
 function Get-SAGlobalLockInfo {
     <#
     .SYNOPSIS
