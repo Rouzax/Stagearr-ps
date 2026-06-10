@@ -64,9 +64,10 @@ updater:
 2. Downloads the release ZIP asset and its SHA256 checksum file.
 3. Verifies the SHA256 checksum before extracting.
 4. Extracts the ZIP to a temporary directory.
-5. Copies the extracted files over the script root in place, replacing only the files included
-   in the release (a curated allowlist of runtime files). Your `config.toml`, queue data, and
-   log files are not touched.
+5. Copies everything from the extracted ZIP over the script root in place. The release ZIP
+   contains only the runtime files (`Stagearr.ps1`, `Modules/`, `config-sample.toml`, `LICENSE`,
+   `README.md`), so the overwrite is limited to those. Your `config.toml`, queue data, and log
+   files live outside the ZIP and are not affected.
 6. Cleans up the temporary directory.
 
 This is the primary update path. If the download or checksum verification fails, Stagearr falls
