@@ -20,12 +20,13 @@ flowchart LR
 The pipeline runs these phases in order for every job:
 
 1. **Initialize** - load config, create job context, set up logging
-2. **Safety Check** - detect dangerous files (executables, scripts); blocklist and remove if found
-3. **Stage** - copy or extract files to a staging folder
-4. **Video** - extract from RAR archives, remux MP4 to MKV, strip unwanted subtitle tracks
-5. **Subtitles** - extract embedded subtitles, download from OpenSubtitles, clean with SubtitleEdit
-6. **Import** - submit to Radarr, Sonarr, or Medusa via ManualImport API; poll for completion
-7. **Notify** - write log file, send HTML email notification
+2. **Stage** - copy or extract files to a staging folder
+3. **Video** - extract from RAR archives, remux MP4 to MKV, strip unwanted subtitle tracks
+4. **Subtitles** - extract embedded subtitles, download from OpenSubtitles, clean with SubtitleEdit
+5. **Import** - submit to Radarr, Sonarr, or Medusa via ManualImport API; poll for completion
+6. **Notify** - write log file, send HTML email notification
+
+Before Stage runs, Stagearr checks for dangerous files (executables, scripts). If any are found, the job is aborted and the download is blocklisted in the media server.
 
 ---
 
