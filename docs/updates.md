@@ -12,7 +12,7 @@ controlled by the `[updates]` section in `config.toml`.
 # "off"    = disable all update checking
 mode = "auto"
 
-# Hours between automatic update checks (0 = check on every run)
+# Hours between automatic update checks
 checkIntervalHours = 24
 ```
 
@@ -75,6 +75,11 @@ back to printing the release URL so you can update manually.
 
 ### Git-clone installation
 
+!!! warning
+    This path is for development only, not for production use. If you installed Stagearr by
+    downloading a release ZIP, you will never hit this path. Do not run `git pull` manually;
+    the `-Update` flag and automatic background checks handle updates for you.
+
 If Stagearr's script root contains a `.git` directory, the updater treats the installation as a
 git clone and uses `git` commands instead of the ZIP download:
 
@@ -82,11 +87,6 @@ git clone and uses `git` commands instead of the ZIP download:
 2. Stashes any uncommitted local changes if present.
 3. Attempts `git checkout <tag>` for the new release tag.
 4. If tag checkout fails, falls back to `git pull` on the current branch.
-
-!!! note
-    You do not need to run `git pull` manually. The `-Update` flag and automatic background
-    checks handle this for you. Running `git pull` directly is only appropriate if you are
-    actively developing Stagearr, not for production use.
 
 ## After an Update
 

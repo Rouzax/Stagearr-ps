@@ -75,10 +75,10 @@ Interactively re-runs a recent completed or failed job. Shows a numbered list, p
 selection, and re-dispatches the job with `-Force -Wait`. See [Re-running Jobs](rerun.md) for
 details.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `-Rerun` | switch | Enter the re-run selector. |
-| `-RerunLimit` | int | Number of recent jobs to show in the list. Default: `10`. |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `-Rerun` | switch | | Enter the re-run selector. |
+| `-RerunLimit` | int | `10` | Number of recent jobs to show in the list. |
 
 ```powershell
 .\Stagearr.ps1 -Rerun
@@ -103,19 +103,6 @@ error context.
 ```powershell
 .\Stagearr.ps1 -DownloadPath "C:\Downloads\Movie.2024" -DownloadLabel "Movie" -Verbose
 ```
-
-## qBittorrent Hook
-
-Set this as the "Run external program on torrent finished" command in qBittorrent:
-
-```
-powershell -ExecutionPolicy Bypass -File "C:\Stagearr\Stagearr.ps1" -DownloadPath "%F" -DownloadLabel "%L" -TorrentHash "%I"
-```
-
-Each torrent completion enqueues a job and starts processing. If another job is already running,
-the new job waits in the queue and is processed automatically when the current one finishes.
-
-For full qBittorrent setup instructions, see [qBittorrent Integration](qbittorrent.md).
 
 ## Examples
 
@@ -150,3 +137,9 @@ For full qBittorrent setup instructions, see [qBittorrent Integration](qbittorre
 # Check for and apply updates
 .\Stagearr.ps1 -Update
 ```
+
+## qBittorrent Integration
+
+The qBittorrent completion hook is how jobs are normally enqueued. See
+[qBittorrent Integration](qbittorrent.md) for the exact hook command and full setup
+instructions.

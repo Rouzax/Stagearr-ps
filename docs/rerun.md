@@ -42,9 +42,9 @@ Example table output:
 ```
 #    State      Date             Label      Name
 --   -----      ----             -----      ----
-1    completed  10-06-26 14:32   Movie      The.Movie.2024.MKV
-2    failed     10-06-26 12:11   TV         Show.S01E03.HDTV
-3    completed  09-06-26 22:05   Movie      Another.Film.2023
+1    completed  2026-06-10 14:32 Movie      The.Movie.2024.MKV
+2    failed     2026-06-10 12:11 TV         Show.S01E03.HDTV
+3    completed  2026-06-09 22:05 Movie      Another.Film.2023
 ```
 
 Enter `q` or press Enter without a number to cancel.
