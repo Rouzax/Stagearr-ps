@@ -11,6 +11,64 @@
     same PID after the original process died.
 #>
 
+# Module-scope reference to the lock currently held by this worker (set by Get-SAGlobalLock,
+# cleared by Unlock-SAGlobalLock). Used by the import guard and stolen-flag checks.
+$script:SACurrentLock = $null
+
+# Self-contained heartbeat loop body. Runs in a SEPARATE runspace with NO Stagearr module
+# loaded, so it may use ONLY .NET primitives plus ConvertTo-Json / ConvertFrom-Json
+# (Microsoft.PowerShell.Utility is present in a default runspace). Arguments, in order:
+#   $lockPath, $queueRoot, $identity (hashtable), $intervalMs, $stop (ManualResetEventSlim),
+#   $shared (synchronized hashtable with a 'stolen' key).
+$script:SAHeartbeatScriptText = @'
+param($lockPath, $queueRoot, $identity, $intervalMs, $stop, $shared)
+while (-not $stop.Wait($intervalMs)) {
+    try {
+        if (-not [System.IO.File]::Exists($lockPath)) { $shared.stolen = $true; break }
+        $cur = [System.IO.File]::ReadAllText($lockPath) | ConvertFrom-Json
+        if ($cur.pid -ne $identity.pid -or
+            $cur.hostname -ne $identity.hostname -or
+            [long]$cur.processStartTimeUnix -ne [long]$identity.processStartTimeUnix) {
+            # Lock was stolen: stop refreshing (do not clobber the new owner) and exit the loop.
+            $shared.stolen = $true
+            break
+        }
+        $data = @{
+            pid                  = $identity.pid
+            processStartTimeUnix = $identity.processStartTimeUnix
+            processStartTime     = $identity.processStartTime
+            hostname             = $identity.hostname
+            startedAt            = $identity.startedAt
+            heartbeatAt          = ([datetime]::UtcNow).ToString('o')
+            version              = 4
+        }
+        $json = $data | ConvertTo-Json -Compress
+        $tmpFile = [System.IO.Path]::Combine($queueRoot, '.lock.hb-' + [guid]::NewGuid().ToString('N'))
+        [System.IO.File]::WriteAllText($tmpFile, $json)
+        try {
+            # Atomic overwrite. Replace(src, dst, $null) works on .NET Framework (Windows/PS5.1).
+            # On Linux/.NET 5+ a null backup path throws; fall back to Replace with a real backup
+            # path (works on both runtimes) then clean up the backup file.
+            try {
+                [System.IO.File]::Replace($tmpFile, $lockPath, $null)
+            } catch {
+                # Unique backup name so two workers sharing a network queue folder never collide.
+                $backupFile = $lockPath + '.hb-bak-' + [guid]::NewGuid().ToString('N')
+                [System.IO.File]::Replace($tmpFile, $lockPath, $backupFile)
+                if ([System.IO.File]::Exists($backupFile)) { [System.IO.File]::Delete($backupFile) }
+            }
+        } catch {
+            # Lock vanished between the ownership check and the replace (rare steal race):
+            # drop our temp file and let the next tick re-evaluate ownership.
+            if ([System.IO.File]::Exists($tmpFile)) { [System.IO.File]::Delete($tmpFile) }
+        }
+    } catch {
+        # Best-effort: a failed beat (share unreachable, AV lock) is non-fatal.
+        # The import guard / stolen flag handle any resulting steal.
+    }
+}
+'@
+
 function Get-SAGlobalLock {
     <#
     .SYNOPSIS
@@ -267,6 +325,60 @@ function Unlock-SAGlobalLock {
     }
     
     $Lock.Released = $true
+}
+
+function Start-SALockHeartbeat {
+    <#
+    .SYNOPSIS
+        Starts a background runspace that refreshes the lock's heartbeatAt and detects theft.
+    .OUTPUTS
+        Hashtable: @{ Runspace; PowerShell; Async; Stop; Shared } or throws on failure.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)] [string]$LockPath,
+        [Parameter(Mandatory = $true)] [string]$QueueRoot,
+        [Parameter(Mandatory = $true)] [hashtable]$Identity,
+        [Parameter()] [int]$IntervalMs = 30000
+    )
+
+    $stop = [System.Threading.ManualResetEventSlim]::new($false)
+    $shared = [hashtable]::Synchronized(@{ stolen = $false })
+
+    $rs = [runspacefactory]::CreateRunspace()
+    $rs.Open()
+    $ps = [powershell]::Create()
+    $ps.Runspace = $rs
+    $null = $ps.AddScript($script:SAHeartbeatScriptText).
+        AddArgument($LockPath).AddArgument($QueueRoot).AddArgument($Identity).
+        AddArgument($IntervalMs).AddArgument($stop).AddArgument($shared)
+    # $Identity is passed by reference into the runspace; do not mutate it after this call.
+    $async = $ps.BeginInvoke()
+
+    return @{
+        Runspace   = $rs
+        PowerShell = $ps
+        Async      = $async
+        Stop       = $stop
+        Shared     = $shared
+    }
+}
+
+function Stop-SALockHeartbeat {
+    <#
+    .SYNOPSIS
+        Signals the heartbeat runspace to stop, waits for it to end, and disposes it.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()] [AllowNull()] $Heartbeat
+    )
+    if ($null -eq $Heartbeat) { return }
+    try { $Heartbeat.Stop.Set() } catch { }
+    try { if ($Heartbeat.Async) { $null = $Heartbeat.PowerShell.EndInvoke($Heartbeat.Async) } } catch { }
+    try { $Heartbeat.PowerShell.Dispose() } catch { }
+    try { $Heartbeat.Runspace.Close(); $Heartbeat.Runspace.Dispose() } catch { }
+    try { $Heartbeat.Stop.Dispose() } catch { }
 }
 
 function Test-SAGlobalLock {
@@ -644,7 +756,7 @@ function Test-SAProcessAlive {
         cause data corruption from concurrent workers.
         
         This function uses .NET directly for maximum reliability across PowerShell versions.
-        
+
         Diagnostic details are written to .lock-process-check.log for forensic analysis,
         but not to Write-Verbose (to avoid verbose noise).
     .PARAMETER Pid

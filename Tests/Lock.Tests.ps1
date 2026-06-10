@@ -130,3 +130,65 @@ Describe 'Test-SALockOwnedBySelf' {
         }
     }
 }
+
+Describe 'Lock heartbeat runspace' {
+    BeforeEach {
+        $script:tmp = Join-Path ([System.IO.Path]::GetTempPath()) "sa-hb-$(New-Guid)"
+        New-Item -ItemType Directory -Path $script:tmp -Force | Out-Null
+    }
+    AfterEach { if (Test-Path $script:tmp) { Remove-Item $script:tmp -Recurse -Force } }
+
+    It 'advances heartbeatAt while running and stops cleanly' {
+        InModuleScope 'Stagearr.Core' -ArgumentList $script:tmp {
+            param($tmp)
+            $lockPath = Join-Path $tmp '.lock'
+            $epoch = [datetime]::new(1970,1,1,0,0,0,[System.DateTimeKind]::Utc)
+            $startUnix = [long](((Get-Process -Id $PID).StartTime.ToUniversalTime() - $epoch).TotalSeconds)
+            $identity = @{ pid = $PID; hostname = $env:COMPUTERNAME; processStartTimeUnix = $startUnix
+                          processStartTime = (Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o')
+                          startedAt = (Get-Date).ToString('o') }
+            @{ pid = $PID; hostname = $env:COMPUTERNAME; processStartTimeUnix = $startUnix
+               processStartTime = $identity.processStartTime; startedAt = $identity.startedAt
+               heartbeatAt = [datetime]::UtcNow.AddSeconds(-60).ToString('o'); version = 4 } |
+                ConvertTo-Json -Compress | Set-Content -LiteralPath $lockPath -Encoding UTF8
+
+            $hb = Start-SALockHeartbeat -LockPath $lockPath -QueueRoot $tmp -Identity $identity -IntervalMs 200
+            try {
+                Start-Sleep -Milliseconds 700
+                $info = Get-SALockInfo -LockPath $lockPath
+                ([datetime]::UtcNow - $info.heartbeatAt.ToUniversalTime()).TotalSeconds | Should -BeLessThan 5
+                $hb.Shared.stolen | Should -BeFalse
+            } finally {
+                Stop-SALockHeartbeat -Heartbeat $hb
+            }
+        }
+    }
+
+    It 'sets the stolen flag when the lock is replaced by another identity' {
+        InModuleScope 'Stagearr.Core' -ArgumentList $script:tmp {
+            param($tmp)
+            $lockPath = Join-Path $tmp '.lock'
+            $epoch = [datetime]::new(1970,1,1,0,0,0,[System.DateTimeKind]::Utc)
+            $startUnix = [long](((Get-Process -Id $PID).StartTime.ToUniversalTime() - $epoch).TotalSeconds)
+            $identity = @{ pid = $PID; hostname = $env:COMPUTERNAME; processStartTimeUnix = $startUnix
+                          processStartTime = (Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o')
+                          startedAt = (Get-Date).ToString('o') }
+            @{ pid = $PID; hostname = $env:COMPUTERNAME; processStartTimeUnix = $startUnix
+               processStartTime = $identity.processStartTime; startedAt = $identity.startedAt
+               heartbeatAt = [datetime]::UtcNow.ToString('o'); version = 4 } |
+                ConvertTo-Json -Compress | Set-Content -LiteralPath $lockPath -Encoding UTF8
+
+            $hb = Start-SALockHeartbeat -LockPath $lockPath -QueueRoot $tmp -Identity $identity -IntervalMs 200
+            try {
+                Start-Sleep -Milliseconds 300
+                @{ pid = 999999; hostname = 'OTHER'; processStartTimeUnix = 1
+                   startedAt = (Get-Date).ToString('o'); heartbeatAt = [datetime]::UtcNow.ToString('o'); version = 4 } |
+                    ConvertTo-Json -Compress | Set-Content -LiteralPath $lockPath -Encoding UTF8
+                Start-Sleep -Milliseconds 800
+                $hb.Shared.stolen | Should -BeTrue
+            } finally {
+                Stop-SALockHeartbeat -Heartbeat $hb
+            }
+        }
+    }
+}

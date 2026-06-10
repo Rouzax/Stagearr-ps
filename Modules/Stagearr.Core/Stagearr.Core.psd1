@@ -71,7 +71,7 @@
         'Get-SAGlobalLockInfo'
         'Unlock-SAGlobalLock'
         'Test-SAGlobalLock'
-        
+
         # --- Video processing ---
         'Invoke-SAVideoProcessing'
         'Start-SAUnrar'
