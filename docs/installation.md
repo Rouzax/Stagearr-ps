@@ -32,13 +32,17 @@ Install-Module Mailozaurr -AllowPrerelease
 
 ## Download Stagearr
 
-Clone the repository to a stable path on your Windows machine. Stagearr reads its own location at startup, so do not move the folder after configuring qBittorrent.
+Download the latest release zip from the [Releases page](https://github.com/Rouzax/Stagearr-ps/releases) and extract it to a stable path on your Windows machine (for example `C:\Stagearr-ps`). This is the recommended method: a release-zip install updates itself cleanly in place (see [Auto-Update](updates.md)).
+
+Stagearr reads its own location at startup, so do not move the folder after you configure qBittorrent.
+
+If you plan to develop or contribute to Stagearr, you can instead clone the repository with git:
 
 ```powershell
 git clone https://github.com/Rouzax/Stagearr-ps.git C:\Stagearr-ps
 ```
 
-If you prefer not to use git, download the latest release zip from the [Releases page](https://github.com/Rouzax/Stagearr-ps/releases) and extract it to your chosen path.
+A git clone updates with `git pull` rather than from the release zip, and that path is intended for development. See [Auto-Update](updates.md) for the difference between the two.
 
 ---
 

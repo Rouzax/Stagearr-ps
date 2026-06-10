@@ -99,8 +99,12 @@ flowchart LR
 
 ### 1. Download
 
+Download the latest release zip from the [Releases page](https://github.com/Rouzax/Stagearr-ps/releases) and extract it to a stable path (e.g. `C:\Stagearr-ps`). This is the recommended method: release-zip installs self-update cleanly in place.
+
+To develop or contribute, you can instead clone with git (this install updates via `git pull`, the development path):
+
 ```powershell
-git clone https://github.com/rouzax/Stagearr-ps.git C:\Stagearr-ps
+git clone https://github.com/Rouzax/Stagearr-ps.git C:\Stagearr-ps
 ```
 
 ### 2. Configure
