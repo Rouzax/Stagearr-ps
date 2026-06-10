@@ -503,6 +503,33 @@ function Test-SALockOwnedBySelf {
     return $true
 }
 
+function Test-SAImportLockOk {
+    <#
+    .SYNOPSIS
+        Returns $true if it is safe to import: either no worker lock is held
+        (e.g. -Rerun runs without Start-SAWorker), or this process still owns it.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+
+    if ($null -eq $script:SACurrentLock) { return $true }
+    return (Test-SALockOwnedBySelf -QueueRoot $script:SACurrentLock.QueueRoot)
+}
+
+function Test-SALockStolen {
+    <#
+    .SYNOPSIS
+        Returns $true if the heartbeat has detected our lock was stolen.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+    if ($null -eq $script:SACurrentLock) { return $false }
+    if ($null -eq $script:SACurrentLock.Heartbeat) { return $false }
+    return [bool]$script:SACurrentLock.Heartbeat.Shared.stolen
+}
+
 function Get-SAGlobalLockInfo {
     <#
     .SYNOPSIS

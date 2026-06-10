@@ -112,7 +112,18 @@ function Invoke-SAImport {
     }
     
     Write-SAPhaseHeader -Title "Import ($importerName)"
-    
+
+    # Ownership guard: never import if our global lock was stolen mid-job.
+    # Closes the freeze-then-steal double-import window. No-op when no lock is held.
+    if (-not (Test-SAImportLockOk)) {
+        Write-SAOutcome -Level Error -Label "Import" -Text "Aborting: global lock no longer owned by this worker (possible concurrent worker)" -Indent 1
+        return [PSCustomObject]@{
+            Success   = $false
+            Message   = 'Aborted: global lock lost before import'
+            ErrorType = 'lock-lost'
+        }
+    }
+
     # Get staging root for remote path mapping
     $stagingRoot = $config.paths.stagingRoot
     

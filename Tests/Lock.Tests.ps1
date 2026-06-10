@@ -229,3 +229,50 @@ Describe 'Get-SAGlobalLock with heartbeat' {
         }
     }
 }
+
+Describe 'Import ownership guard' {
+    BeforeEach {
+        $script:tmp = Join-Path ([System.IO.Path]::GetTempPath()) "sa-guard-$(New-Guid)"
+        New-Item -ItemType Directory -Path $script:tmp -Force | Out-Null
+    }
+    AfterEach {
+        InModuleScope 'Stagearr.Core' { $script:SACurrentLock = $null }
+        if (Test-Path $script:tmp) { Remove-Item $script:tmp -Recurse -Force }
+    }
+
+    It 'guard helper proceeds when no lock is held' {
+        InModuleScope 'Stagearr.Core' {
+            $script:SACurrentLock = $null
+            Test-SAImportLockOk | Should -BeTrue
+        }
+    }
+
+    It 'guard helper aborts when the lock is owned by another process' {
+        InModuleScope 'Stagearr.Core' -ArgumentList $script:tmp {
+            param($tmp)
+            @{ pid = 999999; hostname = $env:COMPUTERNAME; processStartTimeUnix = 1
+               startedAt = (Get-Date).ToString('o'); heartbeatAt = [datetime]::UtcNow.ToString('o'); version = 4 } |
+                ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $tmp '.lock') -Encoding UTF8
+            $script:SACurrentLock = @{ Path = (Join-Path $tmp '.lock'); QueueRoot = $tmp }
+            Test-SAImportLockOk | Should -BeFalse
+        }
+    }
+}
+
+Describe 'Test-SALockStolen checkpoint helper' {
+    AfterEach { InModuleScope 'Stagearr.Core' { $script:SACurrentLock = $null } }
+
+    It 'returns false when no lock is held' {
+        InModuleScope 'Stagearr.Core' {
+            $script:SACurrentLock = $null
+            Test-SALockStolen | Should -BeFalse
+        }
+    }
+
+    It 'returns true when the shared stolen flag is set' {
+        InModuleScope 'Stagearr.Core' {
+            $script:SACurrentLock = @{ Heartbeat = @{ Shared = [hashtable]::Synchronized(@{ stolen = $true }) } }
+            Test-SALockStolen | Should -BeTrue
+        }
+    }
+}
