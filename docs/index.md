@@ -26,7 +26,7 @@ The pipeline runs these phases in order for every job:
 5. **Import** - submit to Radarr, Sonarr, or Medusa via ManualImport API; poll for completion
 6. **Notify** - write log file, send HTML email notification
 
-Before Stage runs, Stagearr checks for dangerous files (executables, scripts). If any are found, the job is aborted and the download is blocklisted in the media server.
+Before Stage runs, Stagearr checks for dangerous files (executables, scripts). If any are found, the job is aborted. When the download is still in the Radarr or Sonarr queue, Stagearr also removes and blocklists it to prevent re-download.
 
 ---
 
