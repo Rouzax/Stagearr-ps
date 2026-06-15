@@ -2,7 +2,7 @@
   <img src="https://img.shields.io/badge/PowerShell-7.x%20%7C%205.1-5391FE?style=for-the-badge&logo=powershell&logoColor=white" alt="PowerShell 7.x | 5.1">
   <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-2.8.0-blue?style=for-the-badge" alt="Version 2.8.0">
+  <img src="https://img.shields.io/badge/Version-2.9.0-blue?style=for-the-badge" alt="Version 2.9.0">
   <a href="https://rouzax.github.io/Stagearr-ps/docs/"><img src="https://img.shields.io/badge/Docs-MkDocs-526CFE?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation"></a>
 </p>
 
@@ -52,6 +52,7 @@ flowchart LR
 | 🎥 **Video Processing** | MP4→MKV remux, subtitle track stripping |
 | 📝 **Subtitle Handling** | Extract, download from OpenSubtitles, clean with SubtitleEdit |
 | 🔄 **Media Server Import** | Radarr, Sonarr, and Medusa integration |
+| 📚 **MDBList Sync** | Mark imports as collected / In Library on MDBList (free account) |
 | 📧 **Email Notifications** | Dark-themed HTML emails with configurable subject templates |
 | 🎬 **Metadata Enrichment** | Movie posters, IMDb/RT/Metacritic ratings in emails |
 | 📋 **Job Queue** | Persistent file-backed queue survives reboots |
