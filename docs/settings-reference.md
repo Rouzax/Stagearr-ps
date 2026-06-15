@@ -306,6 +306,22 @@ Get a free API key (1,000 requests/day) at [omdbapi.com](https://www.omdbapi.com
 
 ---
 
+## [mdblist]
+
+Optional MDBList API integration for marking imported movies and episodes as collected (In Library) on MDBList. Disabled by default; requires a free account and API key.
+
+Get your API key at [mdblist.com/preferences/](https://mdblist.com/preferences/) under the API section. No paid subscription is required.
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `enabled` | Enable MDBList collection sync after a successful import. | `false` |
+| `apiKey` | MDBList API key. Required when enabled. | `""` |
+| `timeoutSeconds` | HTTP request timeout for MDBList API calls. | `10` |
+
+See [MDBList Collection Sync](mdblist.md) for what it does and how it behaves.
+
+---
+
 ## [updates]
 
 Controls automatic update checking from GitHub Releases.

@@ -176,6 +176,24 @@ See [Subtitle Processing](subtitles.md) for a full explanation of extraction, st
 
 ---
 
+### MDBList: Not marked (non-fatal)
+
+This warning appears in the console and email when MDBList collection sync is enabled but the API call did not succeed. The import itself completed normally; this is a best-effort, non-fatal step.
+
+Common causes and fixes:
+
+| Symptom / cause | Fix |
+|-----------------|-----|
+| Invalid or empty API key | Check `mdblist.apiKey` in `config.toml`. Retrieve your key from [mdblist.com/preferences/](https://mdblist.com/preferences/) under the API section. |
+| No internet access or MDBList is unavailable | Confirm the machine running Stagearr can reach `api.mdblist.com`. Try again later if MDBList is experiencing an outage. |
+| Item has no tmdb, tvdb, or imdb ID | The Radarr or Sonarr import response did not include a usable ID. Verify that the movie or episode is correctly matched in your media server. |
+
+Run with `-Verbose` to see the full HTTP response from MDBList and confirm which error was returned.
+
+See [MDBList Collection Sync](mdblist.md) for setup instructions and expected console output.
+
+---
+
 ## FAQ
 
 ### Which external tools do I actually need?

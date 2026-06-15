@@ -148,11 +148,19 @@ function ConvertTo-SAArrMetadata {
         $totalSeasons = [string]$media.statistics.seasonCount
     }
 
+    # External IDs for downstream integrations (e.g. MDBList collection sync).
+    # Radarr exposes tmdbId; Sonarr exposes tvdbId (and sometimes tmdbId). These
+    # come straight off the scan movie/series object - no extra API call needed.
+    $tmdbId = if ($media.tmdbId -gt 0) { [string]$media.tmdbId } else { $null }
+    $tvdbId = if ($AppType -eq 'Sonarr' -and $media.tvdbId -gt 0) { [string]$media.tvdbId } else { $null }
+
     # Build normalized result (poster comes from OMDb, not *arr)
     $result = @{
         Title          = & $normalizeValue $media.title
         Year           = if ($media.year -gt 0) { [string]$media.year } else { $null }
         ImdbId         = & $normalizeValue $media.imdbId
+        TmdbId         = $tmdbId
+        TvdbId         = $tvdbId
         ImdbRating     = $imdbRating
         RottenTomatoes = $rottenTomatoes
         Metacritic     = $metacritic

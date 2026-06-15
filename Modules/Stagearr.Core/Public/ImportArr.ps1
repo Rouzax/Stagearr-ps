@@ -66,6 +66,89 @@ $script:ArrConfig = @{
 
 #region Generic Arr Functions
 
+function Get-SAImportedEpisodeList {
+    <#
+    .SYNOPSIS
+        Derives the list of imported (season, episode) pairs for a Sonarr import.
+    .DESCRIPTION
+        Pure function - no I/O. Walks the importable scan files (each carries an
+        `.episodes` array with `id`, `seasonNumber`, `episodeNumber`) and returns the
+        distinct season/episode pairs.
+
+        When a verification result is supplied (Sonarr history of
+        `downloadFolderImported` events, each carrying an `episodeId`), the list is
+        filtered to only the episodes history confirms were imported. This makes the
+        result precise for season packs and partial imports, where some episodes were
+        already owned (filtered out before import) or silently skipped.
+
+        When no verification is available (e.g. no DownloadId), all episodes from the
+        importable files are returned as a best-effort fallback.
+    .PARAMETER ImportableFiles
+        Array of scan file objects that were sent for import.
+    .PARAMETER Verification
+        Optional verification result from Get-SAImportVerification (uses its .Records).
+    .OUTPUTS
+        Array of PSCustomObject with Season and Episode (int). May be empty.
+    #>
+    [CmdletBinding()]
+    [OutputType([array])]
+    param(
+        [Parameter()]
+        [AllowNull()]
+        [object]$ImportableFiles,
+
+        [Parameter()]
+        [AllowNull()]
+        [object]$Verification
+    )
+
+    $episodes = @()
+    if ($null -eq $ImportableFiles) {
+        return , $episodes
+    }
+
+    # Build the set of confirmed-imported episode IDs from verification history.
+    # If history has no usable episodeIds, fall back to no filter (best-effort).
+    $importedIds = $null
+    if ($null -ne $Verification -and $null -ne $Verification.Records -and @($Verification.Records).Count -gt 0) {
+        $importedIds = @{}
+        foreach ($rec in @($Verification.Records)) {
+            if ($null -ne $rec.episodeId) {
+                $importedIds["$($rec.episodeId)"] = $true
+            }
+        }
+        if ($importedIds.Count -eq 0) {
+            $importedIds = $null
+        }
+    }
+
+    $seen = @{}
+    foreach ($file in @($ImportableFiles)) {
+        if ($null -eq $file.episodes) {
+            continue
+        }
+        foreach ($ep in @($file.episodes)) {
+            if ($null -eq $ep.seasonNumber -or $null -eq $ep.episodeNumber) {
+                continue
+            }
+            if ($null -ne $importedIds -and -not $importedIds.ContainsKey("$($ep.id)")) {
+                continue
+            }
+            $key = "$($ep.seasonNumber):$($ep.episodeNumber)"
+            if ($seen.ContainsKey($key)) {
+                continue
+            }
+            $seen[$key] = $true
+            $episodes += [PSCustomObject]@{
+                Season  = [int]$ep.seasonNumber
+                Episode = [int]$ep.episodeNumber
+            }
+        }
+    }
+
+    return , $episodes
+}
+
 function Invoke-SAArrImport {
     <#
     .SYNOPSIS
@@ -477,22 +560,31 @@ function Invoke-SAArrImport {
 
         $silentlySkipped = if ($isPartialVerification) { $importableFiles.Count - $verifiedCount } else { 0 }
 
+        # Imported episodes (Sonarr) for downstream collection sync (e.g. MDBList).
+        # Precise even for season packs / partial imports via verification history.
+        $importedEpisodes = if ($AppType -eq 'Sonarr') {
+            Get-SAImportedEpisodeList -ImportableFiles $importableFiles -Verification $verification
+        } else {
+            @()
+        }
+
         return [PSCustomObject]@{
-            Success         = $true
-            Status          = if ($isPartialVerification) { 'partial' } else { $null }
-            Message         = if ($isPartialVerification) { "Imported $verifiedCount of $($importableFiles.Count) files" } else { $successMsg }
-            Duration        = $importResult.Duration
-            ImportedFiles   = $importedFilePaths
-            ImportedCount   = $verifiedCount
-            SkippedFiles    = $skippedFilePaths
-            SkippedCount    = $rejectionSummary.RejectedCount
-            AbortedFiles    = @()
-            AbortedCount    = $silentlySkipped
-            AbortReason     = if ($isPartialVerification) { "silently skipped by $label" } else { '' }
-            ArrMetadata     = $arrMetadata
-            Skipped         = $false
-            QualityRejected = $false
-            ErrorType       = $null
+            Success          = $true
+            Status           = if ($isPartialVerification) { 'partial' } else { $null }
+            Message          = if ($isPartialVerification) { "Imported $verifiedCount of $($importableFiles.Count) files" } else { $successMsg }
+            Duration         = $importResult.Duration
+            ImportedFiles    = $importedFilePaths
+            ImportedCount    = $verifiedCount
+            ImportedEpisodes = $importedEpisodes
+            SkippedFiles     = $skippedFilePaths
+            SkippedCount     = $rejectionSummary.RejectedCount
+            AbortedFiles     = @()
+            AbortedCount     = $silentlySkipped
+            AbortReason      = if ($isPartialVerification) { "silently skipped by $label" } else { '' }
+            ArrMetadata      = $arrMetadata
+            Skipped          = $false
+            QualityRejected  = $false
+            ErrorType        = $null
         }
     } else {
         # Import command failed - but check if import actually succeeded despite the error.
@@ -528,22 +620,29 @@ function Invoke-SAArrImport {
                 $isPartialNre = $verifiedCount -lt $importableFiles.Count
                 $silentlySkippedNre = $importableFiles.Count - $verifiedCount
 
+                $importedEpisodesNre = if ($AppType -eq 'Sonarr') {
+                    Get-SAImportedEpisodeList -ImportableFiles $importableFiles -Verification $verification
+                } else {
+                    @()
+                }
+
                 return [PSCustomObject]@{
-                    Success         = $true
-                    Status          = if ($isPartialNre) { 'partial' } else { $null }
-                    Message         = "Imported ($verifiedCount verified via history)"
-                    Duration        = $importResult.Duration
-                    ImportedFiles   = $importedFilePaths
-                    ImportedCount   = $verifiedCount
-                    SkippedFiles    = $skippedFilePaths
-                    SkippedCount    = $rejectionSummary.RejectedCount
-                    AbortedFiles    = @()
-                    AbortedCount    = if ($isPartialNre) { $silentlySkippedNre } else { 0 }
-                    AbortReason     = if ($isPartialNre) { "silently skipped by $label" } else { '' }
-                    ArrMetadata     = $arrMetadata
-                    Skipped         = $false
-                    QualityRejected = $false
-                    ErrorType       = $null
+                    Success          = $true
+                    Status           = if ($isPartialNre) { 'partial' } else { $null }
+                    Message          = "Imported ($verifiedCount verified via history)"
+                    Duration         = $importResult.Duration
+                    ImportedFiles    = $importedFilePaths
+                    ImportedCount    = $verifiedCount
+                    ImportedEpisodes = $importedEpisodesNre
+                    SkippedFiles     = $skippedFilePaths
+                    SkippedCount     = $rejectionSummary.RejectedCount
+                    AbortedFiles     = @()
+                    AbortedCount     = if ($isPartialNre) { $silentlySkippedNre } else { 0 }
+                    AbortReason      = if ($isPartialNre) { "silently skipped by $label" } else { '' }
+                    ArrMetadata      = $arrMetadata
+                    Skipped          = $false
+                    QualityRejected  = $false
+                    ErrorType        = $null
                 }
             }
         }

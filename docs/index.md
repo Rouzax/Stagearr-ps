@@ -42,6 +42,7 @@ Before Stage runs, Stagearr checks for dangerous files (executables, scripts). I
 | **Metadata Enrichment** | Movie posters, IMDb / Rotten Tomatoes / Metacritic ratings in notification emails |
 | **Job Queue** | Persistent file-backed queue; survives reboots and process crashes |
 | **Safe Processing** | Heartbeat-based global lock, path traversal prevention, zip-slip protection |
+| **MDBList Collection Sync** | Mark imported movies and episodes as In Library on MDBList |
 
 ---
 
@@ -57,6 +58,7 @@ Before Stage runs, Stagearr checks for dangerous files (executables, scripts). I
 | **[Subtitle Processing](subtitles.md)** | Extract, download, and clean subtitles |
 | **[Importing](importing.md)** | How Radarr, Sonarr, and Medusa imports work |
 | **[Email Notifications](email.md)** | Template syntax, metadata, and preview |
+| **[MDBList Collection Sync](mdblist.md)** | Mark imports as collected on MDBList |
 | **[Configuration Overview](configuration.md)** | TOML config file structure and sync workflow |
 | **[Settings Reference](settings-reference.md)** | Every setting, its default, and what it controls |
 | **[Labels and Content Routing](labels.md)** | How download labels map to TV, movie, or passthrough processing |

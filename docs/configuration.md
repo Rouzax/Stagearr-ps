@@ -54,4 +54,6 @@ A minimal working config needs:
 - `tools.mkvmerge` and/or `tools.mkvextract` if the video/subtitle features that need them are enabled
 - API keys and hosts for whichever importers (Radarr, Sonarr, Medusa) you use
 
+Optional integrations (OMDb metadata enrichment, OpenSubtitles downloading, MDBList collection sync) are all disabled by default and only need to be configured if you want to use them.
+
 Everything else has a working default. See [Settings Reference](settings-reference.md) for the full list, and [Labels & Content Routing](labels.md) for how torrent labels map to content types and importers.

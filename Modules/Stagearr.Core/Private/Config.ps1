@@ -135,6 +135,11 @@ $script:SAConfigDefaults = @{
             plotMaxLength = 150
         }
     }
+    mdblist = @{
+        enabled        = $false
+        apiKey         = ''
+        timeoutSeconds = 10
+    }
     logging = @{
         dateFormat    = 'yyyy.MM.dd_HH.mm.ss'
         consoleColors = $true
@@ -385,7 +390,14 @@ function Test-SAConfigValid {
             $errors.Add("omdb.apiKey is required when enabled (get free key at https://www.omdbapi.com/apikey.aspx)")
         }
     }
-    
+
+    # MDBList validation (optional section - only validate when enabled)
+    if ($Config.mdblist -and $Config.mdblist.enabled) {
+        if ([string]::IsNullOrWhiteSpace($Config.mdblist.apiKey)) {
+            $errors.Add("mdblist.apiKey is required when enabled (get your key at https://mdblist.com/preferences/)")
+        }
+    }
+
     return $errors.ToArray()
 }
 
@@ -539,8 +551,8 @@ function Test-SAFeatureEnabled {
         [hashtable]$Config,
         
         [Parameter(Mandatory)]
-        [ValidateSet('SubtitleExtraction', 'SubtitleStripping', 'SubtitleCleanup', 
-                     'OpenSubtitles', 'Mp4Remux', 'omdb')]
+        [ValidateSet('SubtitleExtraction', 'SubtitleStripping', 'SubtitleCleanup',
+                     'OpenSubtitles', 'Mp4Remux', 'omdb', 'MDBList')]
         [string]$Feature
     )
     
@@ -601,6 +613,15 @@ function Test-SAFeatureEnabled {
             # OMDb enrichment is optional - requires explicit enablement
             if ($null -ne $Config.omdb) {
                 return ($Config.omdb.enabled -eq $true)
+            }
+            # Default: disabled
+            return $false
+        }
+        'MDBList' {
+            # Opt-in: disabled unless explicitly enabled with API key
+            # MDBList collection sync is optional - requires explicit enablement
+            if ($null -ne $Config.mdblist) {
+                return ($Config.mdblist.enabled -eq $true)
             }
             # Default: disabled
             return $false

@@ -13,7 +13,7 @@ function Invoke-SASetup {
         Interactive setup wizard to create or edit config.toml.
     .DESCRIPTION
         Walks through configuration sections in order, prompting for values.
-        Shows current/default values in brackets — pressing Enter keeps them.
+        Shows current/default values in brackets - pressing Enter keeps them.
         Writes config.toml using the sample file's comment structure.
     .PARAMETER ConfigPath
         Path to config.toml (created if it doesn't exist).
@@ -189,6 +189,11 @@ function Invoke-SASetup {
         $config.omdb.apiKey = Read-SASetupValue -Prompt "  OMDb API key (get free key at omdbapi.com/apikey.aspx)" -Current $config.omdb.apiKey
     }
 
+    $config.mdblist.enabled = Read-SASetupBool -Prompt "Enable MDBList collection sync (mark imports as In Library)" -Current $config.mdblist.enabled
+    if ($config.mdblist.enabled) {
+        $config.mdblist.apiKey = Read-SASetupValue -Prompt "  MDBList API key (free, from mdblist.com/preferences)" -Current $config.mdblist.apiKey
+    }
+
     # --- Review & Save ---
     Write-Host "`n--- Summary ---" -ForegroundColor Yellow
     Write-Host "Paths:         $($config.paths.stagingRoot)"
@@ -197,6 +202,7 @@ function Invoke-SASetup {
     Write-Host "Subtitles:     languages=$($config.subtitles.wantedLanguages -join ','), OpenSubs=$($config.subtitles.openSubtitles.enabled)"
     Write-Host "Importers:     Radarr=$($config.importers.radarr.enabled), Sonarr=$($config.importers.sonarr.enabled), Medusa=$($config.importers.medusa.enabled)"
     Write-Host "Email:         $($config.notifications.email.enabled)"
+    Write-Host "MDBList:       $($config.mdblist.enabled)"
     Write-Host ""
 
     $save = Read-SASetupBool -Prompt "Save configuration" -Current $true

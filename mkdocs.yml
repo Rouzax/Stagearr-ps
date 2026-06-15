@@ -72,6 +72,7 @@ nav:
       - Subtitle Processing: subtitles.md
       - Importing to Radarr / Sonarr / Medusa: importing.md
       - Email Notifications: email.md
+      - MDBList Collection Sync: mdblist.md
   - Configuration:
       - Configuration Overview: configuration.md
       - Settings Reference: settings-reference.md

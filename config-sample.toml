@@ -145,6 +145,16 @@ enabled = true
 plot = false # Include plot synopsis in email (adds length)
 plotMaxLength = 150
 
+[mdblist]
+# After a successful import, mark the item as "collected" / In Library on MDBList.
+# This lets your MDBList dynamic lists (e.g. "not collected") exclude what you own.
+# Best-effort: a failure here never fails the job. Works on a free MDBList account
+# (no Patreon needed). Movies are marked at the title level, TV at the episode level.
+# Get your API key at: https://mdblist.com/preferences/
+enabled = false
+apiKey = ""
+timeoutSeconds = 10
+
 [updates]
 # Auto-update from GitHub Releases
 # "auto" = download and apply updates from GitHub Releases

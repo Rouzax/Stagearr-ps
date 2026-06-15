@@ -642,7 +642,7 @@ function Invoke-SAStandardJob {
         Write-SAVerbose -Text "Quality: $($qualityParts -join ', ')"
     }
 
-    # Early *arr queue lookup — get IMDB ID and metadata before OMDb query
+    # Early *arr queue lookup - get IMDB ID and metadata before OMDb query
     # This avoids OMDb title-based ambiguity (e.g., anime vs live-action "One Piece")
     # and caches queue records for reuse during import (no duplicate API call)
     $labelType = Get-SALabelType -Label $Job.input.downloadLabel -Config $Context.Config
@@ -808,7 +808,7 @@ function Invoke-SAStandardJob {
         }
     }
 
-    # Query OMDb — uses *arr IMDB ID for exact lookup, or falls back to title search
+    # Query OMDb - uses *arr IMDB ID for exact lookup, or falls back to title search
     if (Test-SAFeatureEnabled -Feature 'omdb' -Config $Context.Config) {
         $omdbParams = @{
             Config = $Context.Config.omdb
@@ -818,7 +818,7 @@ function Invoke-SAStandardJob {
             # Tier 1: Exact IMDB ID lookup (most reliable)
             $omdbParams.ImdbId = $Context.State.ArrImdbId
         } else {
-            # Tier 2/3: Title search — prefer *arr title/year over filename-parsed
+            # Tier 2/3: Title search - prefer *arr title/year over filename-parsed
             $omdbTitle = if ($Context.State.ArrTitle) { $Context.State.ArrTitle } else { if ($releaseInfo) { $releaseInfo.Title } }
             $omdbYear = if ($Context.State.ArrYear) { $Context.State.ArrYear } else { if ($releaseInfo) { $releaseInfo.Year } }
             if (-not [string]::IsNullOrWhiteSpace($omdbTitle)) {
@@ -893,6 +893,25 @@ function Invoke-SAStandardJob {
             $importSuccess = $true  # Skipped is OK (unknown label)
         } elseif ($importResult.Success -eq $true) {
             $importSuccess = $true
+        }
+    }
+
+    # MDBList collection sync (best-effort, non-fatal) - mark the imported item as
+    # "collected" / In Library. Only on a genuine import (not a skip), and only when
+    # enabled. A failure here never changes the job outcome.
+    if ($null -ne $importResult -and $importResult.Success -eq $true -and $importResult.Skipped -ne $true `
+            -and (Test-SAFeatureEnabled -Feature 'MDBList' -Config $Context.Config)) {
+        $mdbMediaType = if ($labelType -eq 'tv') { 'tv' } else { 'movie' }
+        Write-SAProgress -Label 'MDBList' -Text 'Marking as collected...' -Indent 1 -ConsoleOnly
+        $mdbResult = Invoke-SAMDBListCollect -Config $Context.Config.mdblist `
+            -ArrMetadata $importResult.ArrMetadata `
+            -MediaType $mdbMediaType `
+            -ImportedEpisodes $importResult.ImportedEpisodes
+        if ($mdbResult.Success) {
+            Write-SAOutcome -Level Success -Label 'MDBList' -Text 'Marked as collected' -Duration $mdbResult.Duration -Indent 1 -EmailInclude
+        } elseif (-not $mdbResult.Skipped) {
+            Write-SAOutcome -Level Warning -Label 'MDBList' -Text 'Not marked (non-fatal)' -Indent 1
+            Add-SAEmailException -Message "MDBList: $($mdbResult.ErrorMessage)" -Type Warning
         }
     }
 

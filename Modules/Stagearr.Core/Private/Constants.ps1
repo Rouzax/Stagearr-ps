@@ -83,7 +83,17 @@ $script:SAConstants = @{
     OpenSubtitlesUploadBlockedNames = @('_unpack', 'video', 'output', 'movie', 'film')
 
     #endregion
-    
+
+    #region MDBList Defaults
+
+    # MDBList REST API base URL (collection sync after import)
+    MDBListApiUrl = 'https://api.mdblist.com'
+
+    # Default request timeout for MDBList calls (seconds) - best-effort, keep short
+    MDBListTimeoutSeconds = 10
+
+    #endregion
+
     #region SubtitleEdit Defaults
     
     # Base timeout for SubtitleEdit processing (seconds)
