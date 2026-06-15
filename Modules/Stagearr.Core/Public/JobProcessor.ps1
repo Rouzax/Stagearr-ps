@@ -908,7 +908,13 @@ function Invoke-SAStandardJob {
             -MediaType $mdbMediaType `
             -ImportedEpisodes $importResult.ImportedEpisodes
         if ($mdbResult.Success) {
-            Write-SAOutcome -Level Success -Label 'MDBList' -Text 'Marked as collected' -Duration $mdbResult.Duration -Indent 1 -EmailInclude
+            if ($mdbResult.Updated -gt 0) {
+                Write-SAOutcome -Level Success -Label 'MDBList' -Text 'Marked as collected' -Duration $mdbResult.Duration -Indent 1 -EmailInclude
+            } else {
+                # HTTP 200 but nothing changed: already collected, or MDBList could not
+                # resolve the supplied ID. Either way it is not a failure, just no-op.
+                Write-SAOutcome -Level Success -Label 'MDBList' -Text 'Already collected (no change)' -Duration $mdbResult.Duration -Indent 1
+            }
         } elseif (-not $mdbResult.Skipped) {
             Write-SAOutcome -Level Warning -Label 'MDBList' -Text 'Not marked (non-fatal)' -Indent 1
             Add-SAEmailException -Message "MDBList: $($mdbResult.ErrorMessage)" -Type Warning

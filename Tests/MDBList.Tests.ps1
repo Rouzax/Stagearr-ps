@@ -183,6 +183,70 @@ Describe 'Test-SAFeatureEnabled - MDBList' {
     }
 }
 
+Describe 'ConvertTo-SAArrMetadata external IDs' {
+    It 'captures TmdbId from a Radarr scan movie object' {
+        InModuleScope 'Stagearr.Core' {
+            $scan = @{ movie = @{ title = 'Test Movie'; year = 2024; imdbId = 'tt1234567'; tmdbId = 678512 } }
+            $m = ConvertTo-SAArrMetadata -ScanResult $scan -AppType 'Radarr'
+            $m.TmdbId | Should -Be '678512'
+            $m.ImdbId | Should -Be 'tt1234567'
+            $m.TvdbId | Should -BeNullOrEmpty
+        }
+    }
+
+    It 'captures TvdbId and TmdbId from a Sonarr scan series object' {
+        InModuleScope 'Stagearr.Core' {
+            $scan = @{ series = @{ title = 'Test Show'; year = 2026; imdbId = 'tt33332385'; tvdbId = 454109; tmdbId = 270476 } }
+            $m = ConvertTo-SAArrMetadata -ScanResult $scan -AppType 'Sonarr'
+            $m.TvdbId | Should -Be '454109'
+            $m.TmdbId | Should -Be '270476'
+            $m.ImdbId | Should -Be 'tt33332385'
+        }
+    }
+}
+
+Describe 'Invoke-SAArrImport surfaces ImportedEpisodes (integration)' {
+    It 'returns only the episodes confirmed by import history' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Write-SAVerbose {}
+            Mock Write-SAProgress {}
+            Mock Write-SAOutcome {}
+            Mock Write-SAPhaseHeader {}
+            Mock Add-SAEmailException {}
+            Mock Get-SAImportHint { return $null }
+            Mock Get-SAImporterBaseUrl { return @{ Url = 'http://localhost:8989'; DisplayUrl = 'http://localhost:8989'; HostHeader = $null } }
+            Mock Test-SAArrConnection { return $true }
+
+            # Two episodes scanned; each carries season/episode numbers and an episode id.
+            Mock Invoke-SAArrManualImportScan {
+                return [PSCustomObject]@{
+                    Success     = $true
+                    ScanResults = @(
+                        @{ path = 'C:\T\S01E01.mkv'; quality = @{ quality = @{ id = 3 }; revision = @{ version = 1 } }; series = @{ id = 100; title = 'T'; year = 2026; tvdbId = 454109 }; episodes = @( @{ id = 200; seasonNumber = 1; episodeNumber = 1 } ); seriesId = 100; rejections = @() },
+                        @{ path = 'C:\T\S01E02.mkv'; quality = @{ quality = @{ id = 3 }; revision = @{ version = 1 } }; series = @{ id = 100; title = 'T'; year = 2026; tvdbId = 454109 }; episodes = @( @{ id = 201; seasonNumber = 1; episodeNumber = 2 } ); seriesId = 100; rejections = @() }
+                    )
+                    ErrorMessage = $null
+                }
+            }
+            Mock Invoke-SAArrQueueEnrichment { return $ScanResults }
+            Mock ConvertTo-SAArrMetadata { return @{ Title = 'T'; Year = 2026; TvdbId = '454109' } }
+            Mock Invoke-SAArrManualImportExecute { return [PSCustomObject]@{ Success = $true; Message = 'Completed'; Duration = 5; CommandId = 1; Status = 'completed'; Result = 'successful' } }
+            # History confirms only episode 200 (S01E01) imported.
+            Mock Get-SAImportVerification {
+                return [PSCustomObject]@{ ImportedCount = 1; ExpectedCount = 2; IsComplete = $false
+                    Records = @( @{ eventType = 'downloadFolderImported'; downloadId = 'HASH'; episodeId = 200 } ) }
+            }
+
+            $config = @{ apiKey = 'k'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = ''; timeoutMinutes = 1 }
+            $result = Invoke-SAArrImport -AppType 'Sonarr' -Config $config -StagingPath 'C:\T' -DownloadId 'HASH'
+
+            @($result.ImportedEpisodes).Count | Should -Be 1
+            $result.ImportedEpisodes[0].Season | Should -Be 1
+            $result.ImportedEpisodes[0].Episode | Should -Be 1
+        }
+    }
+}
+
 Describe 'Get-SAImportedEpisodeList' {
     It 'returns distinct season/episode pairs from importable files' {
         InModuleScope 'Stagearr.Core' {
