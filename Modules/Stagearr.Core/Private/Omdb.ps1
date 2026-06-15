@@ -453,7 +453,7 @@ function Get-SAOmdbMetadata {
         return $null
     }
 
-    # Build request URL — IMDB ID lookup takes priority
+    # Build request URL - IMDB ID lookup takes priority
     if ($hasImdbId) {
         # Ensure tt prefix
         $normalizedId = if ($ImdbId -match '^tt') { $ImdbId } else { "tt$ImdbId" }

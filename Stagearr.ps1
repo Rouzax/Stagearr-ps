@@ -1,11 +1,11 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     Stagearr vNext - qBittorrent Post-Processing Automation
 .DESCRIPTION
     Handles post-processing of completed torrent downloads:
     - Unrar archives to staging
-    - MP4→MKV remux
+    - MP4->MKV remux
     - Subtitle extraction/stripping from MKV
     - OpenSubtitles download
     - Subtitle cleanup via SubtitleEdit
@@ -233,7 +233,7 @@ try {
 $Config['_scriptRoot'] = $ScriptRoot
 $Config['_configPath'] = $ConfigPath
 
-# Check for updates (respects interval and mode config) — skip if -Update handles it
+# Check for updates (respects interval and mode config) - skip if -Update handles it
 if ($PSCmdlet.ParameterSetName -ne 'Update') {
     Invoke-SAUpdateCheck -Config $Config -LocalVersion $StagearrVersion -ScriptRoot $ScriptRoot
 }

@@ -378,7 +378,7 @@ function Start-SAWorker {
         -HeartbeatSeconds $Config.processing.heartbeatSeconds -Wait:$Wait
 
     if ($null -eq $lock) {
-        # Lock not acquired — if we have deferred params, write the job anyway
+        # Lock not acquired - if we have deferred params, write the job anyway
         # so the background worker will process it (job must not be lost)
         if ($DeferredJobParams) {
             Add-SAJob @DeferredJobParams | Out-Null
@@ -418,7 +418,7 @@ function Start-SAWorker {
                 break
             }
             
-            # Move to running (update job content BEFORE moving for atomicity —
+            # Move to running (update job content BEFORE moving for atomicity -
             # crash between move and write would lose attempt counter)
             $pendingJob.attempts = $pendingJob.attempts + 1
             $pendingJob.startedAt = Get-SATimestamp

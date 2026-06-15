@@ -133,14 +133,16 @@ function Send-SAEmailMailozaurr {
         Images are serialized as base64 for job boundary crossing, then written to temp
         files for attachment. MailKit (used by Mailozaurr) handles the CID linking.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '',
+        Justification = 'SMTP password comes from the user''s own config.toml and must be converted to a SecureString to build the PSCredential for sending mail.')]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [hashtable]$Config,
-        
+
         [Parameter(Mandatory = $true)]
         [string]$Subject,
-        
+
         [Parameter(Mandatory = $true)]
         [string]$Body,
         
@@ -314,11 +316,13 @@ function Send-SAEmailBuiltin {
         
         Recommend using port 587 with STARTTLS, or PowerShell 7+ with Mailozaurr module.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '',
+        Justification = 'SMTP password comes from the user''s own config.toml and must be converted to a SecureString to build the PSCredential for Send-MailMessage.')]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [hashtable]$Config,
-        
+
         [Parameter(Mandatory = $true)]
         [string]$Subject,
         

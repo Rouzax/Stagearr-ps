@@ -79,7 +79,7 @@ function ConvertFrom-SAToml {
             continue
         }
 
-        # Unrecognized line — skip
+        # Unrecognized line - skip
         $i++
     }
 
@@ -115,7 +115,7 @@ function ConvertFrom-SATomlValue {
         return @{ Value = $false; NextIndex = $StartIndex + 1 }
     }
 
-    # Quoted string — unescape TOML basic string escapes
+    # Quoted string - unescape TOML basic string escapes
     if ($value -match '^"(.*)"$') {
         $str = $Matches[1] -replace '\\\\', "`0" -replace '\\"', '"' -replace "`0", '\'
         return @{ Value = $str; NextIndex = $StartIndex + 1 }
@@ -312,7 +312,7 @@ function ConvertTo-SAToml {
         $line = $sampleLines[$i]
         $trimmed = $line.Trim()
 
-        # Blank lines and comment lines — pass through
+        # Blank lines and comment lines - pass through
         if ($trimmed -eq '' -or $trimmed.StartsWith('#')) {
             [void]$output.AppendLine($line)
             $i++
@@ -327,7 +327,7 @@ function ConvertTo-SAToml {
             continue
         }
 
-        # Key-value pair — replace value from config
+        # Key-value pair - replace value from config
         if ($trimmed -match '^([A-Za-z0-9_-]+)\s*=\s*(.*)$') {
             $key = $Matches[1].Trim()
             $rawValue = $Matches[2].Trim()
@@ -352,7 +352,7 @@ function ConvertTo-SAToml {
             $sampleValue = Remove-SATomlInlineComment -Text $Matches[2].Trim()
             $afterValue = $Matches[2].Trim()
             if ($afterValue.Length -gt $sampleValue.Length) {
-                # There's content after the value — it's an inline comment
+                # There's content after the value - it's an inline comment
                 $commentStart = $afterValue.IndexOf('#', $sampleValue.Length)
                 if ($commentStart -ge 0) {
                     $inlineComment = ' ' + $afterValue.Substring($commentStart)
@@ -408,7 +408,7 @@ function ConvertTo-SAToml {
             continue
         }
 
-        # Other lines — pass through
+        # Other lines - pass through
         [void]$output.AppendLine($line)
         $i++
     }
@@ -450,6 +450,6 @@ function ConvertTo-SATomlValueString {
         return '[' + ($elements -join ', ') + ']'
     }
 
-    # String — quote it
+    # String - quote it
     return '"' + $Value.ToString().Replace('\', '\\').Replace('"', '\"') + '"'
 }
