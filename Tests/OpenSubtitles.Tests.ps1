@@ -697,3 +697,45 @@ Describe 'Start-SAOpenSubtitlesUpload guard integration' {
         }
     }
 }
+
+Describe 'Get-SAOpenSubtitlesToken failure messaging' {
+
+    Context 'When the login endpoint returns a server error' {
+
+        It 'should report OpenSubtitles as unavailable, not an auth/credential failure' {
+            InModuleScope 'Stagearr.Core' {
+                $script:CapturedWarning = $null
+                Mock Write-SAVerbose {}
+                Mock Get-SAOpenSubtitlesTokenPath { return (Join-Path ([System.IO.Path]::GetTempPath()) 'sa-nonexistent-token.json') }
+                Mock Write-SAOutcome { $script:CapturedWarning = $Text }
+                Mock Invoke-SAWebRequest { return @{ Success = $false; StatusCode = 500; ErrorMessage = 'HTTP 500' } }
+
+                $config = @{ user = 'u'; password = 'p'; apiKey = 'k' }
+                $token = Get-SAOpenSubtitlesToken -Config $config -ForceRefresh
+
+                $token | Should -BeNullOrEmpty
+                $script:CapturedWarning | Should -Match 'unavailable'
+                $script:CapturedWarning | Should -Not -Match 'credential'
+            }
+        }
+    }
+
+    Context 'When the login endpoint rejects the credentials' {
+
+        It 'should report an authentication/credential failure' {
+            InModuleScope 'Stagearr.Core' {
+                $script:CapturedWarning = $null
+                Mock Write-SAVerbose {}
+                Mock Get-SAOpenSubtitlesTokenPath { return (Join-Path ([System.IO.Path]::GetTempPath()) 'sa-nonexistent-token.json') }
+                Mock Write-SAOutcome { $script:CapturedWarning = $Text }
+                Mock Invoke-SAWebRequest { return @{ Success = $false; StatusCode = 401; ErrorMessage = 'HTTP 401' } }
+
+                $config = @{ user = 'u'; password = 'p'; apiKey = 'k' }
+                $token = Get-SAOpenSubtitlesToken -Config $config -ForceRefresh
+
+                $token | Should -BeNullOrEmpty
+                $script:CapturedWarning | Should -Match 'credential'
+            }
+        }
+    }
+}

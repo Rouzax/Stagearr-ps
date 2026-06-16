@@ -149,7 +149,14 @@ function Get-SAOpenSubtitlesToken {
         return $script:SAOpenSubtitlesToken
     }
     
-    Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "Authentication failed" -Indent 1
+    # Distinguish a real credential rejection from an upstream outage so the
+    # warning does not send the user chasing a config problem that isn't there.
+    # A 5xx/timeout means api.opensubtitles.com was unavailable, not bad creds.
+    if ($null -ne $result.StatusCode -and (Test-SAHttpStatusAuthError -StatusCode $result.StatusCode)) {
+        Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "Authentication failed (check credentials)" -Indent 1
+    } else {
+        Write-SAOutcome -Level Warning -Label "OpenSubs" -Text "OpenSubtitles unavailable (server error), skipping" -Indent 1
+    }
     return $null
 }
 
