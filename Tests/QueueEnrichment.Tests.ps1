@@ -504,3 +504,111 @@ Describe 'Invoke-SAArrQueueEnrichment' {
         }
     }
 }
+
+Describe 'Get-SAImportVerification' {
+
+    Context 'When -Since scopes the history window' {
+
+        It 'should count only import events at or after Since, ignoring stale events for the same hash' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Get-SAImporterBaseUrl { return @{ Url = 'http://localhost:8989'; HostHeader = $null } }
+                Mock Invoke-SAWebRequest {
+                    return @{
+                        Success = $true
+                        Data    = @{
+                            records = @(
+                                @{ eventType = 'downloadFolderImported'; downloadId = 'HASH1'; episodeId = 10486; date = '2026-06-16T11:19:39Z' }
+                                @{ eventType = 'downloadFolderImported'; downloadId = 'HASH1'; episodeId = 10486; date = '2026-06-15T03:07:08Z' }
+                            )
+                        }
+                    }
+                }
+
+                $config = @{ apiKey = 'k'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $since = [datetime]::Parse('2026-06-16T00:00:00Z', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                $result = Get-SAImportVerification -AppType 'Sonarr' -Config $config -DownloadId 'HASH1' -ExpectedCount 1 -Since $since
+
+                $result.ImportedCount | Should -Be 1
+                $result.IsComplete | Should -BeTrue
+                @($result.Records).Count | Should -Be 1
+            }
+        }
+
+        It 'should flag a season pack as incomplete when a stale event would otherwise mask a silent skip' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Get-SAImporterBaseUrl { return @{ Url = 'http://localhost:8989'; HostHeader = $null } }
+                Mock Invoke-SAWebRequest {
+                    return @{
+                        Success = $true
+                        Data    = @{
+                            records = @(
+                                @{ eventType = 'downloadFolderImported'; downloadId = 'PACK'; episodeId = 1; date = '2026-06-16T11:19:39Z' }
+                                @{ eventType = 'downloadFolderImported'; downloadId = 'PACK'; episodeId = 2; date = '2026-06-16T11:19:40Z' }
+                                @{ eventType = 'downloadFolderImported'; downloadId = 'PACK'; episodeId = 3; date = '2026-06-15T03:07:08Z' }
+                            )
+                        }
+                    }
+                }
+
+                $config = @{ apiKey = 'k'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $since = [datetime]::Parse('2026-06-16T00:00:00Z', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                $result = Get-SAImportVerification -AppType 'Sonarr' -Config $config -DownloadId 'PACK' -ExpectedCount 3 -Since $since
+
+                $result.ImportedCount | Should -Be 2
+                $result.IsComplete | Should -BeFalse
+            }
+        }
+
+        It 'should keep a record whose date cannot be parsed (fail-open)' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Get-SAImporterBaseUrl { return @{ Url = 'http://localhost:8989'; HostHeader = $null } }
+                Mock Invoke-SAWebRequest {
+                    return @{
+                        Success = $true
+                        Data    = @{
+                            records = @(
+                                @{ eventType = 'downloadFolderImported'; downloadId = 'HASH1'; episodeId = 5; date = 'not-a-date' }
+                            )
+                        }
+                    }
+                }
+
+                $config = @{ apiKey = 'k'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $since = [datetime]::Parse('2026-06-16T00:00:00Z', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                $result = Get-SAImportVerification -AppType 'Sonarr' -Config $config -DownloadId 'HASH1' -ExpectedCount 1 -Since $since
+
+                $result.ImportedCount | Should -Be 1
+            }
+        }
+    }
+
+    Context 'When -Since is not supplied (backwards compatible)' {
+
+        It 'should count all matching import events regardless of date' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Get-SAImporterBaseUrl { return @{ Url = 'http://localhost:8989'; HostHeader = $null } }
+                Mock Invoke-SAWebRequest {
+                    return @{
+                        Success = $true
+                        Data    = @{
+                            records = @(
+                                @{ eventType = 'downloadFolderImported'; downloadId = 'HASH1'; episodeId = 10486; date = '2026-06-16T11:19:39Z' }
+                                @{ eventType = 'downloadFolderImported'; downloadId = 'HASH1'; episodeId = 10486; date = '2026-06-15T03:07:08Z' }
+                            )
+                        }
+                    }
+                }
+
+                $config = @{ apiKey = 'k'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $result = Get-SAImportVerification -AppType 'Sonarr' -Config $config -DownloadId 'HASH1' -ExpectedCount 1
+
+                $result.ImportedCount | Should -Be 2
+                $result.IsComplete | Should -BeTrue
+            }
+        }
+    }
+}

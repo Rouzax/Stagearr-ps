@@ -107,6 +107,11 @@ function Get-SAImportVerification {
         downloadFolderImported events matching the downloadId to determine
         the actual import count. This catches silently skipped files that
         the command result doesn't report.
+
+        The history API retains records indefinitely, so the same torrent hash
+        re-imported on a later run (e.g. an upgrade or -Rerun) accumulates
+        multiple downloadFolderImported events. Pass -Since to scope the count
+        to the current run and avoid counting stale events from earlier runs.
     .PARAMETER AppType
         The *arr application type: 'Radarr' or 'Sonarr'.
     .PARAMETER Config
@@ -115,6 +120,11 @@ function Get-SAImportVerification {
         Download client ID (torrent hash).
     .PARAMETER ExpectedCount
         Number of files we sent for import.
+    .PARAMETER Since
+        Optional UTC cutoff. When supplied, only history events dated at or
+        after this time are counted, scoping verification to the current run.
+        Records whose date cannot be parsed are kept (fail-open) so a real
+        import is never silently dropped. Omit for all-time behavior.
     .OUTPUTS
         PSCustomObject with ImportedCount, ExpectedCount, IsComplete, or $null on failure.
     #>
@@ -131,7 +141,10 @@ function Get-SAImportVerification {
         [string]$DownloadId,
 
         [Parameter(Mandatory = $true)]
-        [int]$ExpectedCount
+        [int]$ExpectedCount,
+
+        [Parameter()]
+        [datetime]$Since
     )
 
     $urlInfo = Get-SAImporterBaseUrl -Config $Config
@@ -154,10 +167,29 @@ function Get-SAImportVerification {
         return $null
     }
 
+    $applySince = $PSBoundParameters.ContainsKey('Since')
+    $sinceUtc = if ($applySince) { $Since.ToUniversalTime() } else { $null }
+
     $records = @()
     if ($null -ne $result.Data -and $null -ne $result.Data.records) {
         $records = @($result.Data.records | Where-Object {
-            $_.eventType -eq 'downloadFolderImported' -and $_.downloadId -eq $DownloadId
+            $rec = $_
+            if ($rec.eventType -ne 'downloadFolderImported' -or $rec.downloadId -ne $DownloadId) {
+                $false
+            } elseif (-not $applySince) {
+                $true
+            } else {
+                # Scope to the current run. Keep records we cannot date (fail-open)
+                # so a genuine import is never dropped over an unexpected format.
+                $keep = $true
+                try {
+                    $recDate = [datetime]::Parse([string]$rec.date, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                    $keep = $recDate.ToUniversalTime() -ge $sinceUtc
+                } catch {
+                    $keep = $true
+                }
+                $keep
+            }
         })
     }
 

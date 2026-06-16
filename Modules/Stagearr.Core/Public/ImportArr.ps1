@@ -224,6 +224,12 @@ function Invoke-SAArrImport {
 
     $startTime = Get-Date
 
+    # UTC cutoff for scoping import verification to this run. $startTime predates
+    # the scan and the ManualImport command, so every import event from this run
+    # is newer; stale events from earlier imports of the same hash are older. A
+    # small skew buffer absorbs minor clock differences with the *arr host.
+    $verifySince = $startTime.ToUniversalTime().AddSeconds(-60)
+
     # Get app-specific configuration
     $appConfig = $script:ArrConfig[$AppType]
     $label = $appConfig.Label
@@ -527,7 +533,7 @@ function Invoke-SAArrImport {
         $verification = $null
         $verifiedCount = $importableFiles.Count
         if (-not [string]::IsNullOrWhiteSpace($DownloadId)) {
-            $verification = Get-SAImportVerification -AppType $AppType -Config $Config -DownloadId $DownloadId -ExpectedCount $importableFiles.Count
+            $verification = Get-SAImportVerification -AppType $AppType -Config $Config -DownloadId $DownloadId -ExpectedCount $importableFiles.Count -Since $verifySince
             if ($null -ne $verification) {
                 $verifiedCount = $verification.ImportedCount
                 if (-not $verification.IsComplete) {
@@ -591,7 +597,7 @@ function Invoke-SAArrImport {
         # Both Radarr and Sonarr can throw NullReferenceException in the tracked download
         # post-import path even though the file was already imported successfully.
         if (-not [string]::IsNullOrWhiteSpace($DownloadId) -and $importResult.Message -match 'NullReferenceException') {
-            $verification = Get-SAImportVerification -AppType $AppType -Config $Config -DownloadId $DownloadId -ExpectedCount $importableFiles.Count
+            $verification = Get-SAImportVerification -AppType $AppType -Config $Config -DownloadId $DownloadId -ExpectedCount $importableFiles.Count -Since $verifySince
             if ($null -ne $verification -and $verification.ImportedCount -gt 0) {
                 $verifiedCount = $verification.ImportedCount
                 Write-SAVerbose -Text "$label command failed with NullReferenceException but history shows $verifiedCount file(s) imported"
