@@ -181,10 +181,30 @@ function Get-SAImportVerification {
             } else {
                 # Scope to the current run. Keep records we cannot date (fail-open)
                 # so a genuine import is never dropped over an unexpected format.
+                #
+                # ConvertFrom-Json (Http.ps1) auto-converts the ISO-8601 date to a
+                # [datetime] (Kind=Utc), so $rec.date is usually already a [datetime].
+                # Do NOT round-trip it through [string]: that drops the zone marker,
+                # the re-parse yields Kind=Unspecified, and ToUniversalTime() then
+                # shifts it backward by the host UTC offset, wrongly dropping the
+                # current run's own import. Use the value as-is, only parsing when it
+                # arrives as a raw string (assume UTC, matching how *arr stores dates).
                 $keep = $true
                 try {
-                    $recDate = [datetime]::Parse([string]$rec.date, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
-                    $keep = $recDate.ToUniversalTime() -ge $sinceUtc
+                    $rawDate = $rec.date
+                    if ($rawDate -is [datetime]) {
+                        $recDate = ([datetime]$rawDate).ToUniversalTime()
+                    } else {
+                        # AssumeUniversal honors a trailing 'Z' and treats a zoneless
+                        # string as UTC (matching how *arr stores dates); AdjustToUniversal
+                        # normalizes to UTC. RoundtripKind cannot be combined with these.
+                        $recDate = [datetime]::Parse(
+                            [string]$rawDate,
+                            [System.Globalization.CultureInfo]::InvariantCulture,
+                            ([System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal)
+                        ).ToUniversalTime()
+                    }
+                    $keep = $recDate -ge $sinceUtc
                 } catch {
                     $keep = $true
                 }

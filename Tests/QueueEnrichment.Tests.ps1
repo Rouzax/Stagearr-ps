@@ -585,6 +585,57 @@ Describe 'Get-SAImportVerification' {
         }
     }
 
+    Context 'When history dates arrive as [datetime] from ConvertFrom-Json (production shape)' {
+
+        # The HTTP layer parses *arr responses with ConvertFrom-Json, which
+        # auto-converts the ISO-8601 date string into a [datetime] (Kind=Utc).
+        # These tests feed records through ConvertFrom-Json so $rec.date is a
+        # [datetime] exactly as in production, rather than a raw '...Z' string.
+        # This is the shape that exposed the timezone double-conversion bug where
+        # the current run's own import was wrongly dropped (ImportedCount = 0).
+        #
+        # Note: the bug only changes behavior on hosts whose local UTC offset is
+        # non-zero, so on a UTC host these assertions pass with or without the fix
+        # (they never produce a false failure); on any offset host the buggy code
+        # drops the current-run event and these fail.
+
+        It 'should count a current-run import whose date is a [datetime] just after Since' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Get-SAImporterBaseUrl { return @{ Url = 'http://localhost:8989'; HostHeader = $null } }
+                Mock Invoke-SAWebRequest {
+                    $payload = ConvertFrom-Json '{"records":[{"eventType":"downloadFolderImported","downloadId":"HASH1","episodeId":10486,"date":"2026-06-16T11:19:39Z"}]}'
+                    return @{ Success = $true; Data = $payload }
+                }
+
+                $config = @{ apiKey = 'k'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $since = [datetime]::Parse('2026-06-16T11:00:00Z', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                $result = Get-SAImportVerification -AppType 'Sonarr' -Config $config -DownloadId 'HASH1' -ExpectedCount 1 -Since $since
+
+                $result.ImportedCount | Should -Be 1
+                $result.IsComplete | Should -BeTrue
+            }
+        }
+
+        It 'should still drop a genuinely stale [datetime] event from an earlier run' {
+            InModuleScope 'Stagearr.Core' {
+                Mock Write-SAVerbose {}
+                Mock Get-SAImporterBaseUrl { return @{ Url = 'http://localhost:8989'; HostHeader = $null } }
+                Mock Invoke-SAWebRequest {
+                    $payload = ConvertFrom-Json '{"records":[{"eventType":"downloadFolderImported","downloadId":"HASH1","episodeId":10486,"date":"2026-06-16T11:19:39Z"},{"eventType":"downloadFolderImported","downloadId":"HASH1","episodeId":10486,"date":"2026-06-15T03:07:08Z"}]}'
+                    return @{ Success = $true; Data = $payload }
+                }
+
+                $config = @{ apiKey = 'k'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = '' }
+                $since = [datetime]::Parse('2026-06-16T11:00:00Z', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
+                $result = Get-SAImportVerification -AppType 'Sonarr' -Config $config -DownloadId 'HASH1' -ExpectedCount 1 -Since $since
+
+                $result.ImportedCount | Should -Be 1
+                @($result.Records).Count | Should -Be 1
+            }
+        }
+    }
+
     Context 'When -Since is not supplied (backwards compatible)' {
 
         It 'should count all matching import events regardless of date' {
