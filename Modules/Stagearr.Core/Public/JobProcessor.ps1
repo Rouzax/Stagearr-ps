@@ -903,10 +903,21 @@ function Invoke-SAStandardJob {
             -and (Test-SAFeatureEnabled -Feature 'MDBList' -Config $Context.Config)) {
         $mdbMediaType = if ($labelType -eq 'tv') { 'tv' } else { 'movie' }
         Write-SAProgress -Label 'MDBList' -Text 'Marking as collected...' -Indent 1 -ConsoleOnly
+
+        # For TV, a fully-downloaded show is marked show-level so it leaves MDBList
+        # "not collected" lists; a partial show is marked episode-level. Completeness is
+        # read fresh from Sonarr (post-import, so it includes the file we just imported).
+        $mdbShowComplete = $false
+        if ($mdbMediaType -eq 'tv' -and $null -ne $importResult.ArrMetadata) {
+            $mdbShowComplete = Test-SAArrShowFullyDownloaded -AppType 'Sonarr' `
+                -Config $Context.Config.importers.sonarr -SeriesId $importResult.ArrMetadata.ArrId
+        }
+
         $mdbResult = Invoke-SAMDBListCollect -Config $Context.Config.mdblist `
             -ArrMetadata $importResult.ArrMetadata `
             -MediaType $mdbMediaType `
-            -ImportedEpisodes $importResult.ImportedEpisodes
+            -ImportedEpisodes $importResult.ImportedEpisodes `
+            -ShowComplete:$mdbShowComplete
         if ($mdbResult.Success) {
             if ($mdbResult.Updated -gt 0) {
                 Write-SAOutcome -Level Success -Label 'MDBList' -Text 'Marked as collected' -Duration $mdbResult.Duration -Indent 1 -EmailInclude

@@ -41,7 +41,13 @@ function New-SAMDBListPayload {
     .PARAMETER Ids
         Hashtable of external IDs: tmdb, tvdb, imdb, trakt (any subset, empty allowed).
     .PARAMETER Episodes
-        For TV: array of objects with Season and Episode (int). Ignored for movies.
+        For TV: array of objects with Season and Episode (int). Ignored for movies and
+        when -ShowLevel is set.
+    .PARAMETER ShowLevel
+        For TV: mark the whole show as collected (a show entry with ids only, no seasons).
+        MDBList's list filters ("not collected" etc.) only treat a show as collected when
+        it has a show-level entry, so this is used when the show is fully downloaded.
+        Episode-level marking (the default) does NOT remove a show from those lists.
     .OUTPUTS
         Hashtable payload ready for ConvertTo-Json, or $null when nothing to send.
     #>
@@ -57,7 +63,10 @@ function New-SAMDBListPayload {
 
         [Parameter()]
         [AllowNull()]
-        [object]$Episodes
+        [object]$Episodes,
+
+        [Parameter()]
+        [switch]$ShowLevel
     )
 
     # Build a clean ids object, dropping empty values. Numeric ids (tmdb/tvdb/trakt)
@@ -87,6 +96,12 @@ function New-SAMDBListPayload {
 
     if ($MediaType -eq 'movie') {
         return @{ movies = @(@{ ids = $cleanIds }) }
+    }
+
+    # TV, show-level: mark the whole show (ids only, no seasons). This is what makes the
+    # show drop off MDBList "not collected" list filters.
+    if ($ShowLevel) {
+        return @{ shows = @(@{ ids = $cleanIds }) }
     }
 
     # TV: group imported episodes by season -> distinct, sorted episode numbers
@@ -143,7 +158,13 @@ function Invoke-SAMDBListCollect {
     .PARAMETER MediaType
         'movie' or 'tv'.
     .PARAMETER ImportedEpisodes
-        For TV: array of objects with Season and Episode (int). Ignored for movies.
+        For TV: array of objects with Season and Episode (int). Ignored for movies and
+        when -ShowComplete is set.
+    .PARAMETER ShowComplete
+        For TV: the show is fully downloaded, so mark it at the show level (whole show)
+        instead of per-episode. This is what removes a show from MDBList "not collected"
+        list filters; per-episode marking does not. Partial shows omit this and stay
+        episode-level (accurate, and they remain on "get more" lists).
     .OUTPUTS
         PSCustomObject: Success, Skipped, Updated, ErrorMessage, Duration.
     #>
@@ -164,7 +185,10 @@ function Invoke-SAMDBListCollect {
 
         [Parameter()]
         [AllowNull()]
-        [object]$ImportedEpisodes
+        [object]$ImportedEpisodes,
+
+        [Parameter()]
+        [switch]$ShowComplete
     )
 
     $startTime = Get-Date
@@ -205,9 +229,12 @@ function Invoke-SAMDBListCollect {
         imdb = $ArrMetadata.ImdbId
     }
 
-    $payload = New-SAMDBListPayload -MediaType $MediaType -Ids $ids -Episodes $ImportedEpisodes
+    # TV: a fully-downloaded show is marked show-level (drops off "not collected" lists);
+    # a partial show is marked episode-level (accurate, stays on "get more" lists).
+    $useShowLevel = ($MediaType -eq 'tv' -and $ShowComplete)
+    $payload = New-SAMDBListPayload -MediaType $MediaType -Ids $ids -Episodes $ImportedEpisodes -ShowLevel:$useShowLevel
     if ($null -eq $payload) {
-        if ($MediaType -eq 'tv') {
+        if ($MediaType -eq 'tv' -and -not $useShowLevel) {
             Write-SAVerbose -Label 'MDBList' -Text 'No usable ID or no imported episodes - skipping'
         } else {
             Write-SAVerbose -Label 'MDBList' -Text 'No usable ID (tmdb/tvdb/imdb) - skipping'
@@ -227,12 +254,16 @@ function Invoke-SAMDBListCollect {
             $idParts += "${k}:$($ids[$k])"
         }
     }
-    $epDesc = ''
+    $scopeDesc = ''
     if ($MediaType -eq 'tv') {
-        $epCount = @($ImportedEpisodes | Where-Object { $null -ne $_ }).Count
-        $epDesc = ", $epCount episode(s)"
+        if ($useShowLevel) {
+            $scopeDesc = ', whole show (fully downloaded)'
+        } else {
+            $epCount = @($ImportedEpisodes | Where-Object { $null -ne $_ }).Count
+            $scopeDesc = ", $epCount episode(s) (partial)"
+        }
     }
-    Write-SAVerbose -Label 'MDBList' -Text "Marking $MediaType as collected ($($idParts -join ', ')$epDesc)"
+    Write-SAVerbose -Label 'MDBList' -Text "Marking $MediaType as collected ($($idParts -join ', ')$scopeDesc)"
 
     try {
         $result = Invoke-SAWebRequest -Uri $uri -Method POST -Body $payload -TimeoutSeconds $timeout -MaxRetries 2

@@ -1,6 +1,6 @@
 # MDBList Collection Sync
 
-After a successful import to Radarr or Sonarr, Stagearr can mark the imported movie or episode as "collected" on [MDBList](https://mdblist.com/). This updates the In Library status on your MDBList account, which powers dynamic list filtering.
+After a successful import to Radarr or Sonarr, Stagearr can mark the imported movie or TV show as "collected" on [MDBList](https://mdblist.com/). This updates the In Library status on your MDBList account, which powers dynamic list filtering.
 
 ---
 
@@ -89,15 +89,14 @@ A warning is included in the email notification. Nothing prints if MDBList is di
 
 Movies are marked at the title level: the entire movie is flagged as collected.
 
-### TV episodes
+### TV shows
 
-Stagearr marks the exact season and episode that imported, not the whole show. Season packs and partial imports are handled precisely: only the episodes that actually imported are marked as collected. Episodes you already owned were filtered out before import and are not re-marked.
+TV is marked based on whether the show is fully downloaded, because MDBList's title-level list filters (such as a "not collected" list) only treat a show as collected when it has a show-level entry. Per-episode marking alone does not remove a show from those lists, even at 100% episode coverage.
 
-### Title-level list behavior
+- **Fully downloaded** (you have every aired, monitored episode): Stagearr marks the whole show as collected, so it drops off "not collected" title-level lists.
+- **Partial** (you are missing one or more aired episodes): Stagearr marks only the episodes you imported, so the show stays on "not collected" / "get more" lists until you are caught up.
 
-MDBList evaluates a show as "collected" for title-level lists (such as a "not collected" TV list) as soon as any episode is collected. This means that once Stagearr marks even one episode, the show drops off that list. This is the intended behavior of such a list: you have started collecting the show, so it is no longer "not collected."
-
-If you are using episode-level filtering rather than title-level filtering, only the specific episodes you have collected are considered.
+"Fully downloaded" is judged against aired, monitored episodes (using Sonarr's own episode counts), so a show you are caught up on counts as complete even if future episodes have not aired yet. When a new season starts and you are behind again, imports are marked episode-level until you complete it.
 
 ---
 

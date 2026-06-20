@@ -154,6 +154,10 @@ function ConvertTo-SAArrMetadata {
     $tmdbId = if ($media.tmdbId -gt 0) { [string]$media.tmdbId } else { $null }
     $tvdbId = if ($AppType -eq 'Sonarr' -and $media.tvdbId -gt 0) { [string]$media.tvdbId } else { $null }
 
+    # *arr internal id (Radarr movieId / Sonarr seriesId). Used post-import to query the
+    # show's download completeness (MDBList show-level marking).
+    $arrId = if ($media.id) { $media.id } else { $null }
+
     # Build normalized result (poster comes from OMDb, not *arr)
     $result = @{
         Title          = & $normalizeValue $media.title
@@ -161,6 +165,7 @@ function ConvertTo-SAArrMetadata {
         ImdbId         = & $normalizeValue $media.imdbId
         TmdbId         = $tmdbId
         TvdbId         = $tvdbId
+        ArrId          = $arrId
         ImdbRating     = $imdbRating
         RottenTomatoes = $rottenTomatoes
         Metacritic     = $metacritic

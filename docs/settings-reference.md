@@ -308,7 +308,7 @@ Get a free API key (1,000 requests/day) at [omdbapi.com](https://www.omdbapi.com
 
 ## [mdblist]
 
-Optional MDBList API integration for marking imported movies and episodes as collected (In Library) on MDBList. Disabled by default; requires a free account and API key.
+Optional MDBList API integration for marking imported movies and TV shows as collected (In Library) on MDBList. Disabled by default; requires a free account and API key. Movies are marked at the title level; a fully-downloaded show is marked show-level (so it leaves "not collected" lists), while a partially-downloaded show is marked per-episode.
 
 Get your API key at [mdblist.com/preferences/](https://mdblist.com/preferences/) under the API section. No paid subscription is required.
 

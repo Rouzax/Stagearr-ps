@@ -68,6 +68,24 @@ Describe 'New-SAMDBListPayload' {
                 (New-SAMDBListPayload -MediaType 'tv' -Ids @{} -Episodes $eps) | Should -BeNullOrEmpty
             }
         }
+
+        It 'builds a show-level payload (ids only, no seasons) with -ShowLevel' {
+            InModuleScope 'Stagearr.Core' {
+                $p = New-SAMDBListPayload -MediaType 'tv' -Ids @{ tvdb = '454109'; tmdb = '270476' } -ShowLevel
+                $p.shows | Should -HaveCount 1
+                $p.shows[0].ids.tvdb | Should -Be 454109
+                $p.shows[0].Keys | Should -Not -Contain 'seasons'
+            }
+        }
+
+        It 'show-level ignores episodes and still needs an ID' {
+            InModuleScope 'Stagearr.Core' {
+                # No episodes needed for show-level
+                (New-SAMDBListPayload -MediaType 'tv' -Ids @{ tvdb = '1' } -ShowLevel).shows | Should -HaveCount 1
+                # But still null with no usable id
+                (New-SAMDBListPayload -MediaType 'tv' -Ids @{} -ShowLevel) | Should -BeNullOrEmpty
+            }
+        }
     }
 }
 
@@ -99,6 +117,41 @@ Describe 'Invoke-SAMDBListCollect' {
                 $r.Updated | Should -Be 5
                 $script:CapturedUri | Should -Match '/sync/collection\?apikey=test-key'
                 $script:CapturedBody.shows[0].ids.tvdb | Should -Be 454109
+            }
+        }
+    }
+
+    Context 'Show-level vs episode-level routing' {
+        It 'sends a show-level payload (no seasons) when -ShowComplete' {
+            InModuleScope 'Stagearr.Core' {
+                $script:Body = $null
+                Mock Write-SAVerbose {}
+                Mock Invoke-SAWebRequest {
+                    $script:Body = $Body
+                    return [PSCustomObject]@{ Success = $true; Data = [PSCustomObject]@{ updated = [PSCustomObject]@{ shows = 1; seasons = 0; episodes = 0; movies = 0 } } }
+                }
+                $r = Invoke-SAMDBListCollect -Config @{ enabled = $true; apiKey = 'k'; timeoutSeconds = 10 } `
+                    -ArrMetadata @{ TvdbId = '454109'; TmdbId = '270476'; ImdbId = 'tt33332385' } `
+                    -MediaType 'tv' -ImportedEpisodes @([pscustomobject]@{ Season = 1; Episode = 1 }) -ShowComplete
+                $r.Success | Should -BeTrue
+                $script:Body.shows | Should -HaveCount 1
+                $script:Body.shows[0].Keys | Should -Not -Contain 'seasons'
+            }
+        }
+
+        It 'sends an episode-level payload (with seasons) when partial (no -ShowComplete)' {
+            InModuleScope 'Stagearr.Core' {
+                $script:Body = $null
+                Mock Write-SAVerbose {}
+                Mock Invoke-SAWebRequest {
+                    $script:Body = $Body
+                    return [PSCustomObject]@{ Success = $true; Data = [PSCustomObject]@{ updated = [PSCustomObject]@{ shows = 0; seasons = 0; episodes = 1; movies = 0 } } }
+                }
+                $r = Invoke-SAMDBListCollect -Config @{ enabled = $true; apiKey = 'k'; timeoutSeconds = 10 } `
+                    -ArrMetadata @{ TvdbId = '454109' } `
+                    -MediaType 'tv' -ImportedEpisodes @([pscustomobject]@{ Season = 1; Episode = 1 })
+                $r.Success | Should -BeTrue
+                $script:Body.shows[0].seasons | Should -HaveCount 1
             }
         }
     }
@@ -243,6 +296,45 @@ Describe 'Invoke-SAArrImport surfaces ImportedEpisodes (integration)' {
             @($result.ImportedEpisodes).Count | Should -Be 1
             $result.ImportedEpisodes[0].Season | Should -Be 1
             $result.ImportedEpisodes[0].Episode | Should -Be 1
+        }
+    }
+}
+
+Describe 'Test-SAArrShowFullyDownloaded' {
+    It 'returns true when all aired episodes are on disk' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Write-SAVerbose {}
+            Mock Get-SAImporterBaseUrl { return @{ Url = 'http://localhost:8989'; DisplayUrl = 'http://localhost:8989'; HostHeader = $null } }
+            Mock Invoke-SAWebRequest { return [PSCustomObject]@{ Success = $true; Data = [PSCustomObject]@{ statistics = [PSCustomObject]@{ episodeCount = 10; episodeFileCount = 10 } } } }
+            Test-SAArrShowFullyDownloaded -AppType 'Sonarr' -Config @{ apiKey = 'k'; host = 'localhost'; port = 8989; ssl = $false } -SeriesId 1 | Should -BeTrue
+        }
+    }
+
+    It 'returns false when partially downloaded' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Write-SAVerbose {}
+            Mock Get-SAImporterBaseUrl { return @{ Url = 'http://localhost:8989'; DisplayUrl = 'http://localhost:8989'; HostHeader = $null } }
+            Mock Invoke-SAWebRequest { return [PSCustomObject]@{ Success = $true; Data = [PSCustomObject]@{ statistics = [PSCustomObject]@{ episodeCount = 10; episodeFileCount = 5 } } } }
+            Test-SAArrShowFullyDownloaded -AppType 'Sonarr' -Config @{ apiKey = 'k'; host = 'localhost'; port = 8989; ssl = $false } -SeriesId 1 | Should -BeFalse
+        }
+    }
+
+    It 'returns false on HTTP failure (best-effort fallback)' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Write-SAVerbose {}
+            Mock Get-SAImporterBaseUrl { return @{ Url = 'http://localhost:8989'; DisplayUrl = 'http://localhost:8989'; HostHeader = $null } }
+            Mock Invoke-SAWebRequest { return [PSCustomObject]@{ Success = $false; ErrorMessage = 'boom' } }
+            Test-SAArrShowFullyDownloaded -AppType 'Sonarr' -Config @{ apiKey = 'k'; host = 'localhost'; port = 8989; ssl = $false } -SeriesId 1 | Should -BeFalse
+        }
+    }
+
+    It 'returns false for Radarr or null series id without calling the API' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Write-SAVerbose {}
+            Mock Invoke-SAWebRequest { throw 'should not be called' }
+            Test-SAArrShowFullyDownloaded -AppType 'Radarr' -Config @{ apiKey = 'k' } -SeriesId 1 | Should -BeFalse
+            Test-SAArrShowFullyDownloaded -AppType 'Sonarr' -Config @{ apiKey = 'k' } -SeriesId $null | Should -BeFalse
+            Should -Invoke Invoke-SAWebRequest -Times 0
         }
     }
 }

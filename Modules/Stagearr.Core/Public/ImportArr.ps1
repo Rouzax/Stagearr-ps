@@ -149,6 +149,72 @@ function Get-SAImportedEpisodeList {
     return , $episodes
 }
 
+function Test-SAArrShowFullyDownloaded {
+    <#
+    .SYNOPSIS
+        Returns whether a Sonarr series has every aired, monitored episode on disk.
+    .DESCRIPTION
+        Queries GET /api/v3/series/{id} and compares the series statistics:
+        fully downloaded = episodeCount > 0 AND episodeFileCount >= episodeCount.
+        Sonarr's episodeCount already excludes unaired episodes and respects monitoring,
+        so "complete" means "I have everything that is available to have."
+
+        Best-effort: returns $false on any error (caller falls back to episode-level
+        marking, which never over-claims).
+    .PARAMETER AppType
+        Must be 'Sonarr' (movies are single entities and do not use this).
+    .PARAMETER Config
+        Sonarr configuration hashtable (host, port, apiKey, ssl, urlRoot).
+    .PARAMETER SeriesId
+        Sonarr internal series id.
+    .OUTPUTS
+        [bool] $true when fully downloaded, else $false.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Radarr', 'Sonarr')]
+        [string]$AppType,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config,
+
+        [Parameter(Mandatory = $true)]
+        [AllowNull()]
+        [object]$SeriesId
+    )
+
+    if ($AppType -ne 'Sonarr' -or $null -eq $SeriesId) {
+        return $false
+    }
+
+    try {
+        $urlInfo = Get-SAImporterBaseUrl -Config $Config
+        $uri = "$($urlInfo.Url)/api/v3/series/$SeriesId"
+        $headers = @{ 'X-Api-Key' = $Config.apiKey; 'Accept' = 'application/json' }
+        if ($urlInfo.HostHeader) {
+            $headers['Host'] = $urlInfo.HostHeader
+        }
+
+        $result = Invoke-SAWebRequest -Uri $uri -Method GET -Headers $headers -TimeoutSeconds 15 -MaxRetries 1
+        if (-not $result.Success -or $null -eq $result.Data -or $null -eq $result.Data.statistics) {
+            Write-SAVerbose -Text "Show completeness check failed for series $SeriesId"
+            return $false
+        }
+
+        $stats = $result.Data.statistics
+        $count = [int]$stats.episodeCount
+        $fileCount = [int]$stats.episodeFileCount
+        $complete = ($count -gt 0 -and $fileCount -ge $count)
+        Write-SAVerbose -Text "Show completeness (series ${SeriesId}): $fileCount/$count downloaded -> $(if ($complete) { 'complete' } else { 'partial' })"
+        return $complete
+    } catch {
+        Write-SAVerbose -Text "Show completeness check error for series ${SeriesId}: $($_.Exception.Message)"
+        return $false
+    }
+}
+
 function Invoke-SAArrImport {
     <#
     .SYNOPSIS
