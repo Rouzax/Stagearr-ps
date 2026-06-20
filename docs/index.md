@@ -42,7 +42,7 @@ Before Stage runs, Stagearr checks for dangerous files (executables, scripts). I
 | **Metadata Enrichment** | Movie posters, IMDb / Rotten Tomatoes / Metacritic ratings in notification emails |
 | **Job Queue** | Persistent file-backed queue; survives reboots and process crashes |
 | **Safe Processing** | Heartbeat-based global lock, path traversal prevention, zip-slip protection |
-| **MDBList Collection Sync** | Mark imported movies and episodes as In Library on MDBList |
+| **MDBList Collection Sync** | Mark imported movies and TV shows as In Library on MDBList |
 
 ---
 

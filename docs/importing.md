@@ -170,4 +170,4 @@ For all available settings (host, port, apiKey, ssl, urlRoot, and their defaults
 
 ## MDBList Collection Sync
 
-After a successful Radarr or Sonarr import, Stagearr can optionally mark the imported movie or episode as collected on MDBList. This is disabled by default and requires a free MDBList API key. See [MDBList Collection Sync](mdblist.md) for setup instructions and behavior details.
+After a successful Radarr or Sonarr import, Stagearr can optionally mark the imported movie or TV show as collected on MDBList. This is disabled by default and requires a free MDBList API key. See [MDBList Collection Sync](mdblist.md) for setup instructions and behavior details.
