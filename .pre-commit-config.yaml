@@ -1,0 +1,40 @@
+# Pre-commit hooks for Stagearr.
+#
+# Local hooks only: both shell out to pwsh and reuse the same logic as
+# .github/workflows/ci.yml, so commit, push, and CI stay identical. No
+# third-party hook repos are referenced, to keep remote code out of the
+# commit path.
+#
+# One-time setup:
+#   - PowerShell 7+ (pwsh) on PATH
+#   - Modules:     Install-Module PSScriptAnalyzer, Pester -Scope CurrentUser
+#   - pre-commit:  pipx install pre-commit        (or: pip install pre-commit)
+#   - Activate:    pre-commit install                          # lint on commit
+#                  pre-commit install --hook-type pre-push     # tests on push
+#
+# Run manually:
+#   pre-commit run --all-files
+#   pre-commit run --hook-stage pre-push --all-files
+
+repos:
+  - repo: local
+    hooks:
+      # Lint changed PowerShell files. Mirrors the CI "lint" job: gates on
+      # Error severity only (Warnings are advisory) using the repo settings
+      # file. pre-commit passes the staged .ps1/.psm1/.psd1 files as arguments.
+      - id: psscriptanalyzer
+        name: PSScriptAnalyzer
+        language: system
+        entry: pwsh -NoProfile -File hooks/Invoke-PSSALint.ps1
+        files: \.(ps1|psm1|psd1)$
+        pass_filenames: true
+
+      # Run the full Pester suite before push. Mirrors the CI "test" job.
+      # Staged at pre-push (not commit) so day-to-day commits stay fast.
+      - id: pester
+        name: Pester
+        language: system
+        entry: pwsh -NoProfile -File hooks/Invoke-PesterTests.ps1
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

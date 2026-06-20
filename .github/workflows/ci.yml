@@ -24,6 +24,21 @@ jobs:
       - name: Analyze
         shell: pwsh
         run: |
+          # Syntax-error check. PSScriptAnalyzer reports unparseable files with
+          # Severity 'ParseError', which PSScriptAnalyzerSettings.psd1 (Severity =
+          # Error,Warning) filters out, so a file that does not parse would slip
+          # through. Catch it directly with the language parser first.
+          $parseErrors = Get-ChildItem -Path . -Recurse -File -Include *.ps1, *.psm1, *.psd1 | ForEach-Object {
+              $errs = $null
+              [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errs)
+              foreach ($e in $errs) {
+                  [pscustomobject]@{ File = $_.FullName; Line = $e.Extent.StartLineNumber; Message = $e.Message }
+              }
+          }
+          if ($parseErrors) {
+              $parseErrors | Format-Table File, Line, Message -AutoSize | Out-String -Width 200 | Write-Host
+          }
+
           $results = Invoke-ScriptAnalyzer -Path . -Recurse -Settings ./PSScriptAnalyzerSettings.psd1
           if ($results) {
               $results | Sort-Object Severity, ScriptName, Line |
@@ -31,10 +46,11 @@ jobs:
           }
           $errors = @($results | Where-Object Severity -eq 'Error')
           $warnings = @($results | Where-Object Severity -eq 'Warning')
-          Write-Host ("Errors: {0}  Warnings: {1}" -f $errors.Count, $warnings.Count)
-          # Gate on errors only; warnings are advisory while the legacy baseline is reduced.
-          if ($errors.Count -gt 0) {
-              Write-Error "PSScriptAnalyzer found $($errors.Count) error(s)."
+          $parseCount = @($parseErrors).Count
+          Write-Host ("ParseErrors: {0}  Errors: {1}  Warnings: {2}" -f $parseCount, $errors.Count, $warnings.Count)
+          # Gate on parse errors and errors; warnings are advisory while the legacy baseline is reduced.
+          if ($parseCount -gt 0 -or $errors.Count -gt 0) {
+              Write-Error "PSScriptAnalyzer found $parseCount parse error(s) and $($errors.Count) error(s)."
               exit 1
           }
 
