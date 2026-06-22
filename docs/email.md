@@ -58,7 +58,7 @@ A typical success email looks like this:
 | Value | Meaning |
 |-------|---------|
 | Imported to library | The file was imported and is now in your library |
-| Pending retry | Episode title is TBA in Sonarr; an automatic retry is scheduled for ~48 hours later |
+| Pending retry | Episode title is TBA in Sonarr; an automatic retry is scheduled for ~49 hours later |
 | Skipped (quality exists) | A better-quality version already exists; the file was not replaced |
 
 ---

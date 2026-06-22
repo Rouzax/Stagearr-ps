@@ -9,7 +9,7 @@ job and run it again. This is useful when:
 
 !!! note "Automatic TBA retries"
     Sonarr rejects episodes whose title is still listed as "TBA". Stagearr automatically
-    schedules a retry 48 hours later for these cases. Use `-Rerun` only if the automatic
+    schedules a retry 49 hours later for these cases. Use `-Rerun` only if the automatic
     retry also fails.
 
 ## Usage

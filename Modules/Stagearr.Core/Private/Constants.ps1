@@ -42,8 +42,8 @@ $script:SAConstants = @{
     # How long to wait for series metadata refresh before giving up (minutes)
     TbaRefreshTimeoutMinutes = 2
 
-    # How long to wait before retrying a TBA-rejected import (hours)
-    TbaRetryDelayHours = 48
+    # How long to wait before retrying a TBA-rejected import (hours); 49 keeps us past Sonarr's 48h TBA window
+    TbaRetryDelayHours = 49
 
     #endregion
     

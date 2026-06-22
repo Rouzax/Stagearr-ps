@@ -96,7 +96,7 @@ The fix is described on the [Importing](importing.md#prevent-radarrsonarr-from-a
 Sonarr rejects imports when an episode title is still listed as "TBA" in its database. Stagearr handles this automatically:
 
 1. It refreshes the series metadata in Sonarr and re-scans.
-2. If the title is still TBA, it schedules a retry approximately 48 hours later. Staged files are kept until the retry runs.
+2. If the title is still TBA, it schedules a retry approximately 49 hours later. Staged files are kept until the retry runs.
 3. The email for the original run shows `Import: Pending retry` with the expected retry date. The retry run sends its own separate email.
 4. If the retry also fails (for example, Sonarr is unreachable), no further automatic retries are scheduled. Use `-Rerun` to try again manually.
 
