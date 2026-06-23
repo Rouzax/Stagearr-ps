@@ -2,7 +2,7 @@
   <img src="https://img.shields.io/badge/PowerShell-7.x%20%7C%205.1-5391FE?style=for-the-badge&logo=powershell&logoColor=white" alt="PowerShell 7.x | 5.1">
   <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-2.9.4-blue?style=for-the-badge" alt="Version 2.9.4">
+  <img src="https://img.shields.io/badge/Version-2.9.5-blue?style=for-the-badge" alt="Version 2.9.5">
   <a href="https://rouzax.github.io/Stagearr-ps/docs/"><img src="https://img.shields.io/badge/Docs-MkDocs-526CFE?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation"></a>
 </p>
 
