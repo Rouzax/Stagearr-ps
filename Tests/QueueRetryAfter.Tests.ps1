@@ -201,6 +201,47 @@ Describe 'Get-SANextPendingJob retryAfter filtering' {
         }
     }
 
+    It 'skips future retry jobs under a non-US date culture (nl-NL)' {
+        InModuleScope 'Stagearr.Core' {
+            # Regression: ConvertFrom-Json turns retryAfter into a [datetime], which
+            # PowerShell coerces back to an invariant MM/dd/yyyy string. The old code
+            # called [datetime]::Parse without a culture, so under nl-NL (and other
+            # non-US cultures) the day/month swap made the parse throw, and the catch
+            # block processed the TBA retry immediately instead of waiting.
+            $futureTime = (Get-Date).AddHours(49).ToString('o')
+            $job = @{
+                id        = 'job-future-culture'
+                version   = 1
+                state     = 'pending'
+                attempts  = 0
+                lastError = $null
+                input     = @{
+                    downloadPath  = 'C:\Downloads\Show.S01E06'
+                    downloadLabel = 'TV'
+                    torrentHash   = ''
+                    downloadRoot  = ''
+                    noCleanup     = $false
+                    noMail        = $false
+                    retryAfter    = $futureTime
+                    tbaRetry      = $true
+                    stagingPath   = ''
+                }
+                result    = $null
+            }
+            $job | ConvertTo-Json -Depth 10 | Set-Content -Path (Join-Path $script:testQueue 'pending/job-future-culture.json')
+
+            $originalCulture = [System.Threading.Thread]::CurrentThread.CurrentCulture
+            try {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::new('nl-NL')
+                $result = Get-SANextPendingJob -QueueRoot $script:testQueue
+            } finally {
+                [System.Threading.Thread]::CurrentThread.CurrentCulture = $originalCulture
+            }
+
+            $result | Should -BeNullOrEmpty
+        }
+    }
+
     It 'returns null when only future retry jobs exist' {
         InModuleScope 'Stagearr.Core' {
             $futureTime1 = (Get-Date).AddHours(1).ToString('o')

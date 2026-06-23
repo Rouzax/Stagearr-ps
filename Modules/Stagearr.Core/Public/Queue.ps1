@@ -662,9 +662,21 @@ function Get-SANextPendingJob {
         $job = Read-SAJobFile -Path $file.FullName
         if ($null -eq $job) { continue }
 
-        if (-not [string]::IsNullOrWhiteSpace($job.input.retryAfter)) {
+        $rawRetryAfter = $job.input.retryAfter
+        if ($rawRetryAfter -is [datetime]) {
+            # ConvertFrom-Json already deserialized the ISO string into a [datetime].
+            if ($now -lt $rawRetryAfter) {
+                continue
+            }
+        } elseif (-not [string]::IsNullOrWhiteSpace($rawRetryAfter)) {
             try {
-                $retryTime = [datetime]::Parse($job.input.retryAfter)
+                # Parse with InvariantCulture so non-US date cultures (e.g. nl-NL)
+                # don't swap day/month and throw, which would skip the retry delay.
+                $retryTime = [datetime]::Parse(
+                    [string]$rawRetryAfter,
+                    [System.Globalization.CultureInfo]::InvariantCulture,
+                    [System.Globalization.DateTimeStyles]::RoundtripKind
+                )
                 if ($now -lt $retryTime) {
                     continue
                 }
