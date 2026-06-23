@@ -954,6 +954,9 @@ function Invoke-SAStandardJob {
         if ($null -ne $retryJob) {
             $tbaRetryScheduled = $true
             $Context.Flags.NoCleanup = $true
+            # Signal the worker: this job re-queued itself as a pending retry under
+            # the same deterministic id, so it must not be written to completed.
+            $Context.Flags.TbaRetryScheduled = $true
             Write-SAVerbose -Text "TBA retry scheduled for $(($tbaRetryAfter).ToString('yyyy-MM-dd HH:mm')) (job: $($retryJob.id))"
         }
     }

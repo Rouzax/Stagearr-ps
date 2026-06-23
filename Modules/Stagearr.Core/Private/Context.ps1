@@ -81,10 +81,14 @@ function New-SAContext {
         
         # Runtime flags
         Flags = @{
-            NoCleanup   = $false
-            NoMail      = $false
-            DryRun      = $false
-            VerboseMode = [bool]$VerboseMode
+            NoCleanup          = $false
+            NoMail             = $false
+            DryRun             = $false
+            VerboseMode        = [bool]$VerboseMode
+            # Set when the job re-queued itself as a TBA retry (same deterministic
+            # id, future retryAfter). The worker uses this to leave the job in
+            # pending instead of writing a duplicate completed record.
+            TbaRetryScheduled  = $false
         }
         
         # Results/stats (accumulated during processing)

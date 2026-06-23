@@ -468,7 +468,14 @@ function Start-SAWorker {
                     $success = $true
                 }
                 
-                if ($success) {
+                if ($success -and $context.Flags.TbaRetryScheduled) {
+                    # The job re-queued itself as a pending TBA retry under the same
+                    # deterministic id (Add-SAJob -Force already removed the running
+                    # file and wrote a new pending file). Writing a completed record
+                    # here would leave two files for one id, so the job would show as
+                    # both pending and completed. Leave it as the pending retry.
+                    Write-SAOutcome -Level Success -Label "Job" -Text "TBA retry queued, kept in pending"
+                } elseif ($success) {
                     # Move to completed
                     $pendingJob.state = 'completed'
                     $pendingJob.updatedAt = Get-SATimestamp
@@ -482,7 +489,7 @@ function Start-SAWorker {
 
                     Move-SAJobState -QueueRoot $QueueRoot -JobId $pendingJob.id -FromState 'running' -ToState 'completed'
                     Update-SAJobFile -QueueRoot $QueueRoot -Job $pendingJob
-                    
+
                     Write-SAOutcome -Level Success -Label "Job" -Text "Completed successfully"
                 } else {
                     throw "Job processor returned false"
