@@ -38,7 +38,7 @@ function Test-SADangerousDownload {
     # Single file
     if (Test-Path -LiteralPath $SourcePath -PathType Leaf) {
         $ext = [System.IO.Path]::GetExtension($SourcePath)
-        if ($ext -and ($dangerousExts -contains $ext.ToLower())) {
+        if ($ext -and ($dangerousExts -contains $ext.ToLowerInvariant())) {
             return [PSCustomObject]@{
                 IsDangerous    = $true
                 DangerousFiles = @([System.IO.Path]::GetFileName($SourcePath))
@@ -59,7 +59,7 @@ function Test-SADangerousDownload {
 
     $dangerous = @($allFiles | Where-Object {
         $ext = $_.Extension
-        $ext -and ($dangerousExts -contains $ext.ToLower())
+        $ext -and ($dangerousExts -contains $ext.ToLowerInvariant())
     })
 
     if ($dangerous.Count -eq 0) {
@@ -69,7 +69,7 @@ function Test-SADangerousDownload {
     # Only flag if ALL files are dangerous (no harmless files mixed in)
     $nonDangerous = @($allFiles | Where-Object {
         $ext = $_.Extension
-        (-not $ext) -or ($dangerousExts -notcontains $ext.ToLower())
+        (-not $ext) -or ($dangerousExts -notcontains $ext.ToLowerInvariant())
     })
 
     if ($nonDangerous.Count -gt 0) {

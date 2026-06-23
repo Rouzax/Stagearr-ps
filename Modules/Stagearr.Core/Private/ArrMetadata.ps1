@@ -418,7 +418,7 @@ function Get-SASimplifiedRejectionReason {
     }
     
     # Normalize: lowercase for matching
-    $lower = $Reason.ToLower()
+    $lower = $Reason.ToLowerInvariant()
     
     # TBA / missing title rejections
     if ($lower -match 'tba title|does not have a title') {

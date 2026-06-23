@@ -266,7 +266,7 @@ function ConvertTo-SALanguageCode {
             return $null
         }
         
-        $normalized = $Code.ToLower().Trim()
+        $normalized = $Code.ToLowerInvariant().Trim()
         
         if (-not $script:SALanguageData.ContainsKey($normalized)) {
             # Unknown code - return null
@@ -299,7 +299,7 @@ function Test-SALanguageCode {
         return $false
     }
     
-    return $script:SALanguageData.ContainsKey($Code.ToLower().Trim())
+    return $script:SALanguageData.ContainsKey($Code.ToLowerInvariant().Trim())
 }
 
 function Get-SALanguageInfo {
@@ -322,7 +322,7 @@ function Get-SALanguageInfo {
         return $null
     }
     
-    $normalized = $Code.ToLower().Trim()
+    $normalized = $Code.ToLowerInvariant().Trim()
     
     if ($script:SALanguageData.ContainsKey($normalized)) {
         return $script:SALanguageData[$normalized].Clone()

@@ -188,7 +188,7 @@ function Copy-SAExternalSubtitles {
     
     # Find subtitle files
     $subFiles = Get-ChildItem -LiteralPath $searchPath -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Extension.ToLower() -in $subtitleExtensions }
+        Where-Object { $_.Extension.ToLowerInvariant() -in $subtitleExtensions }
     
     if ($subFiles.Count -eq 0) {
         return @()

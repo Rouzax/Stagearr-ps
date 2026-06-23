@@ -119,7 +119,7 @@ function Get-SAMediaInfo {
         $title = $baseName
         foreach ($marker in $qualityMarkers) {
             if ($title -match "(?i)[.\s_-]$marker") {
-                $matchIndex = $title.ToLower().IndexOf($Matches[0].ToLower())
+                $matchIndex = $title.ToLowerInvariant().IndexOf($Matches[0].ToLowerInvariant())
                 if ($matchIndex -gt 0) {
                     $title = $title.Substring(0, $matchIndex)
                     break
@@ -221,7 +221,7 @@ function Get-SAMediaInfo {
     foreach ($tag in $otherPatterns) {
         if ($baseName -match "(?i)\b$tag\b") {
             # Normalize to uppercase
-            $matched = $Matches[0].ToUpper()
+            $matched = $Matches[0].ToUpperInvariant()
             # Special handling for HDR10+ to preserve the plus
             if ($baseName -match '(?i)\bHDR10\+') {
                 $matched = 'HDR10+'

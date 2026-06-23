@@ -228,7 +228,7 @@ function Get-SAToolErrorInfo {
     $action = $null
     
     # Normalize tool name (handle full paths)
-    $toolBaseName = [System.IO.Path]::GetFileNameWithoutExtension($ToolName).ToLower()
+    $toolBaseName = [System.IO.Path]::GetFileNameWithoutExtension($ToolName).ToLowerInvariant()
     
     # Map common tool variants
     $toolKey = switch -Regex ($toolBaseName) {

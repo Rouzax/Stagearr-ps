@@ -71,7 +71,7 @@ function Get-SASubjectPresetTemplate {
         'none'     = '{result}{label}: {name}'
     }
     
-    $normalizedStyle = $Style.ToLower()
+    $normalizedStyle = $Style.ToLowerInvariant()
     
     if ($presets.ContainsKey($normalizedStyle)) {
         return $presets[$normalizedStyle]
@@ -202,7 +202,7 @@ function Format-SAEmailSubject {
     
     # Check if Template is a preset name
     $presetNames = @('detailed', 'quality', 'source', 'group', 'hash', 'none', 'custom')
-    $templateToUse = if ($Template.ToLower() -in $presetNames -and $Template.ToLower() -ne 'custom') {
+    $templateToUse = if ($Template.ToLowerInvariant() -in $presetNames -and $Template.ToLowerInvariant() -ne 'custom') {
         Get-SASubjectPresetTemplate -Style $Template
     } else {
         $Template
@@ -412,7 +412,7 @@ function Get-SAEmailSubject {
                                                  -TorrentHash $torrentHash
     
     # Determine which template to use
-    $template = if ($SubjectStyle.ToLower() -eq 'custom' -and -not [string]::IsNullOrWhiteSpace($SubjectTemplate)) {
+    $template = if ($SubjectStyle.ToLowerInvariant() -eq 'custom' -and -not [string]::IsNullOrWhiteSpace($SubjectTemplate)) {
         $SubjectTemplate
     } else {
         $SubjectStyle  # Will be expanded by Format-SAEmailSubject

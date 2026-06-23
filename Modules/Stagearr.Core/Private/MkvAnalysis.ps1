@@ -469,8 +469,8 @@ function Get-SAVideoFiles {
     if (Test-Path -LiteralPath $Path -PathType Leaf) {
         # Single file
         $file = Get-Item -LiteralPath $Path
-        $ext = $file.Extension.ToLower()
-        
+        $ext = $file.Extension.ToLowerInvariant()
+
         if ($ext -in $videoExtensions) {
             if (-not $ExcludeSamples -or -not (Test-SASamplePath -Path $file.FullName)) {
                 $results.Add($file)
@@ -488,7 +488,7 @@ function Get-SAVideoFiles {
         }
         
         $files = Get-ChildItem @searchParams | Where-Object {
-            $_.Extension.ToLower() -in $videoExtensions
+            $_.Extension.ToLowerInvariant() -in $videoExtensions
         }
         
         foreach ($file in $files) {
@@ -513,7 +513,7 @@ function Test-SAIsMP4 {
         [string]$Path
     )
     
-    $ext = [System.IO.Path]::GetExtension($Path).ToLower()
+    $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
     return ($ext -in @('.mp4', '.m4v'))
 }
 
@@ -529,7 +529,7 @@ function Test-SAIsMKV {
         [string]$Path
     )
     
-    $ext = [System.IO.Path]::GetExtension($Path).ToLower()
+    $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
     return ($ext -eq '.mkv')
 }
 

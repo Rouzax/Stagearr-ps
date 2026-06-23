@@ -1188,7 +1188,7 @@ function Test-SAUploadableSubtitle {
 
     # Guard 1: Blocklist - known generic filenames
     $blocklist = $script:SAConstants.OpenSubtitlesUploadBlockedNames
-    if ($blocklist -contains $name.ToLower()) {
+    if ($blocklist -contains $name.ToLowerInvariant()) {
         return [PSCustomObject]@{ Allowed = $false; Reason = "generic filename '$name'" }
     }
 

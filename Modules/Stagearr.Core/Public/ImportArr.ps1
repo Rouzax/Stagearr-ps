@@ -769,7 +769,7 @@ function Get-SAErrorTypeFromRejection {
     }
     
     # Map simplified reasons to error types
-    switch -Regex ($PrimaryReason.ToLower()) {
+    switch -Regex ($PrimaryReason.ToLowerInvariant()) {
         'quality exists'    { return 'quality' }
         'sample'            { return 'sample' }
         'cannot parse'      { return 'parse-error' }
