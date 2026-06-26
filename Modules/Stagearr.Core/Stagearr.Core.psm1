@@ -5,14 +5,14 @@
 .DESCRIPTION
     Loads all private and public functions for the Stagearr core module.
     Private functions are internal helpers; Public functions are exported.
-    
+
     Private/ structure:
     - Output/ subfolder contains all output/rendering related files
     - Other files remain in Private/ root
 #>
 
-# Get module root path
-$ModuleRoot = $PSScriptRoot
+# Absolute path to the module root (used to locate bundled Data/ assets).
+$script:SAModuleRoot = $PSScriptRoot
 
 # Define load order for private functions (dependencies first)
 $PrivateLoadOrder = @(
@@ -34,6 +34,7 @@ $PrivateLoadOrder = @(
     'Output/OutputEvent.ps1'      # Event system (depends on renderers)
     'Language.ps1'                # Language code normalization
     'Process.ps1'                 # External process runner
+    'SubtitleEngine.ps1'          # Subtitle cleanup engine resolution + arg builders (pure)
     'ErrorHandling.ps1'           # User-friendly error translation (depends on Process)
     'Http.ps1'                    # HTTP client with retry
     'Update.ps1'                  # Auto-update check and apply (depends on Http)
@@ -70,7 +71,7 @@ $PublicLoadOrder = @(
 
 # Load private functions in order
 foreach ($file in $PrivateLoadOrder) {
-    $filePath = Join-Path -Path $ModuleRoot -ChildPath "Private\$file"
+    $filePath = Join-Path -Path $script:SAModuleRoot -ChildPath "Private\$file"
     if (Test-Path -LiteralPath $filePath) {
         try {
             . $filePath
@@ -85,7 +86,7 @@ foreach ($file in $PrivateLoadOrder) {
 
 # Load public functions in order
 foreach ($file in $PublicLoadOrder) {
-    $filePath = Join-Path -Path $ModuleRoot -ChildPath "Public\$file"
+    $filePath = Join-Path -Path $script:SAModuleRoot -ChildPath "Public\$file"
     if (Test-Path -LiteralPath $filePath) {
         try {
             . $filePath
@@ -97,6 +98,3 @@ foreach ($file in $PublicLoadOrder) {
         Write-Warning "Public function file not found: $filePath"
     }
 }
-
-# Module-level initialization
-$script:SAModuleRoot = $ModuleRoot
