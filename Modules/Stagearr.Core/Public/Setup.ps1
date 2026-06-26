@@ -82,7 +82,8 @@ function Invoke-SASetup {
             "$env:ProgramFiles\MKVToolNix\mkvextract.exe"
             "${env:ProgramFiles(x86)}\MKVToolNix\mkvextract.exe"
         )}
-        subtitleEdit = @{ Exe = 'SubtitleEdit.exe'; Prompt = 'Path to SubtitleEdit.exe (leave empty to skip)'; SearchPaths = @(
+        subtitleEdit = @{ Exe = 'seconv'; Prompt = 'Subtitle Edit / seconv install folder or binary (leave empty to skip)'; SearchPaths = @(
+            "$env:ProgramFiles\Subtitle Edit\seconv.exe"
             "$env:ProgramFiles\Subtitle Edit\SubtitleEdit.exe"
             "${env:ProgramFiles(x86)}\Subtitle Edit\SubtitleEdit.exe"
         )}
@@ -110,6 +111,15 @@ function Invoke-SASetup {
         }
         $allowEmpty = $tool -eq 'subtitleEdit'
         $config.tools[$tool] = Read-SASetupValue -Prompt $toolDefaults[$tool].Prompt -Current $current -AllowEmpty:$allowEmpty
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($config.tools.subtitleEdit)) {
+        $detected = Resolve-SASubtitleTool -Path $config.tools.subtitleEdit
+        if ($detected.Engine) {
+            Write-Host "  Subtitle cleanup engine: $($detected.Engine)" -ForegroundColor Green
+        } else {
+            Write-Host "  Warning: no seconv/SubtitleEdit.exe found at that path" -ForegroundColor Yellow
+        }
     }
 
     # --- Section 3: Labels ---
