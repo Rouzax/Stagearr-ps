@@ -196,3 +196,44 @@ Describe 'context engine wiring' {
         }
     }
 }
+
+Describe 'Start-SASubtitleCleanup dispatch' {
+    BeforeEach {
+        $script:work = Join-Path ([System.IO.Path]::GetTempPath()) ("clean_" + [guid]::NewGuid())
+        New-Item -ItemType Directory -Path $script:work | Out-Null
+        Set-Content -LiteralPath (Join-Path $script:work 'movie.en.srt') -Value "1`n00:00:01,000 --> 00:00:02,000`nHi"
+    }
+    AfterEach { Remove-Item -LiteralPath $script:work -Recurse -Force -ErrorAction SilentlyContinue }
+
+    It 'seconv engine -> seconv args with bundled settings' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Work = $script:work } {
+            param($Work)
+            $seconv = Join-Path $Work 'seconv'; Set-Content -LiteralPath $seconv -Value 'x'
+            $captured = $null
+            Mock Invoke-SAProcessWithRetry { $script:captured = $ArgumentList; [pscustomobject]@{ Success = $true; ExitCode = 0; StdErr = '' } }
+            $ctx = @{
+                Tools  = @{ SubtitleEdit = $seconv; SubtitleEngine = 'Seconv' }
+                Config = @{ subtitles = @{ cleanup = @{ enabled=$true; fixCommonErrorsRules='all,-FixShortGaps,-FixShortLinesPixelWidth'; seconvSettings='' } } }
+            }
+            Start-SASubtitleCleanup -Context $ctx -FolderPath $Work | Out-Null
+            $script:captured | Should -Contain '--remove-text-for-hi'
+            ($script:captured | Where-Object { $_ -like '--settings:*' }).Count | Should -Be 1
+            $script:captured | Should -Contain '--fix-common-errors-rules:all,-FixShortGaps,-FixShortLinesPixelWidth'
+        }
+    }
+
+    It 'GUI engine -> /convert args' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Work = $script:work } {
+            param($Work)
+            $gui = Join-Path $Work 'SubtitleEdit.exe'; Set-Content -LiteralPath $gui -Value 'x'
+            Mock Invoke-SAProcessWithRetry { $script:captured = $ArgumentList; [pscustomobject]@{ Success = $true; ExitCode = 0; StdErr = '' } }
+            $ctx = @{
+                Tools  = @{ SubtitleEdit = $gui; SubtitleEngine = 'SubtitleEditGui' }
+                Config = @{ subtitles = @{ cleanup = @{ enabled=$true } } }
+            }
+            Start-SASubtitleCleanup -Context $ctx -FolderPath $Work | Out-Null
+            $script:captured | Should -Contain '/RemoveTextForHI'
+            $script:captured | Should -Contain '/convert'
+        }
+    }
+}

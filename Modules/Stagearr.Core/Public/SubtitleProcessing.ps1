@@ -82,30 +82,31 @@ function Start-SASubtitleCleanup {
         return 0
     }
     
-    # Use SubtitleEdit batch processing with *.srt pattern
-    # This processes all files in a single invocation instead of per-file calls
-    # Parameters match original script - /FixCommonErrors twice to catch issues that arise after first fix
-    $seArgs = @(
-        '/convert',
-        '*.srt',
-        'subrip',
-        "/inputfolder:$FolderPath",
-        '/overwrite',
-        '/MergeSameTexts',
-        '/RemoveTextForHI',
-        '/FixCommonErrors',
-        '/FixCommonErrors',
-        "/outputfolder:$FolderPath"
-    )
-    
-    Write-SAVerbose -Text "Batch cleaning $($srtFiles.Count) subtitle files"
-    
+    $engine = $Context.Tools.SubtitleEngine
+    if (-not $engine) {
+        Write-SAVerbose -Text "Subtitle cleanup tool not resolved - skipping"
+        return 0
+    }
+
+    $cleanupCfg = $Context.Config.subtitles.cleanup
+    $ops = Get-SACleanupOperations -CleanupConfig $cleanupCfg
+
+    if ($engine -eq 'Seconv') {
+        $settingsPath = Resolve-SASeconvSettingsPath -OverridePath $cleanupCfg.seconvSettings
+        $rules = if ($null -ne $cleanupCfg.fixCommonErrorsRules) { [string]$cleanupCfg.fixCommonErrorsRules } else { '' }
+        $cleanupArgs = Get-SASeconvCleanupArgs -FolderPath $FolderPath -Operations $ops -FixCommonErrorsRules $rules -SettingsPath $settingsPath
+    } else {
+        $cleanupArgs = Get-SAGuiCleanupArgs -FolderPath $FolderPath -Operations $ops
+    }
+
+    Write-SAVerbose -Text "Cleanup engine: $engine ($($srtFiles.Count) files)"
+
     # Use retry for transient failures with timeout
     # Increase timeout for batch processing (10 seconds per file, minimum 60 seconds)
     $timeoutSeconds = [Math]::Max(60, $srtFiles.Count * 10)
-    
+
     $result = Invoke-SAProcessWithRetry -FilePath $subtitleEdit `
-        -ArgumentList $seArgs `
+        -ArgumentList $cleanupArgs `
         -TimeoutSeconds $timeoutSeconds `
         -MaxRetries 1 `
         -RetryExitCodes @(-2)  # Only retry on timeout
