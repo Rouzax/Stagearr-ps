@@ -267,7 +267,6 @@ function Invoke-SADownloadFile {
         Downloads a file from a URL to a local path.
     .DESCRIPTION
         Uses Invoke-WebRequest with -OutFile for binary-safe downloads.
-        Ensures TLS 1.2 on PowerShell 5.1.
     .PARAMETER Uri
         The download URL.
     .PARAMETER OutFile
@@ -287,10 +286,6 @@ function Invoke-SADownloadFile {
         [Parameter()]
         [int]$TimeoutSeconds = 60
     )
-
-    if ($PSVersionTable.PSEdition -ne 'Core') {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    }
 
     try {
         Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -TimeoutSec $TimeoutSeconds -Headers @{

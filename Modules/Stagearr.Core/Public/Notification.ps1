@@ -366,11 +366,6 @@ function Send-SAEmailBuiltin {
         $job = Start-Job -ScriptBlock {
             param($p)
 
-            # Ensure TLS 1.2 for PowerShell 5.1 (SMTP servers reject older TLS)
-            if ($PSVersionTable.PSEdition -ne 'Core') {
-                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-            }
-
             $mailParams = @{
                 From       = $p.From
                 To         = $p.To

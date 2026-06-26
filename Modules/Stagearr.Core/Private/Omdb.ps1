@@ -172,11 +172,6 @@ function Invoke-SAOmdbRequest {
         [int]$TimeoutSeconds = 5
     )
     
-    # Ensure TLS 1.2 for PowerShell 5.1
-    if ($PSVersionTable.PSEdition -ne 'Core') {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    }
-    
     try {
         $requestParams = @{
             Uri             = $Uri
@@ -185,10 +180,10 @@ function Invoke-SAOmdbRequest {
             UseBasicParsing = $true
             ErrorAction     = 'Stop'
         }
-        
+
         # Make request (suppress built-in verbose)
         $response = Invoke-WebRequest @requestParams -Verbose:$false
-        
+
         if ($response.StatusCode -ne 200) {
             Write-SAVerbose -Label 'OMDb' -Text "HTTP $($response.StatusCode)"
             return $null
@@ -262,11 +257,6 @@ function Get-SAOmdbPosterData {
         return $null
     }
     
-    # Ensure TLS 1.2 for PowerShell 5.1
-    if ($PSVersionTable.PSEdition -ne 'Core') {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    }
-    
     try {
         $requestParams = @{
             Uri             = $PosterUrl
@@ -275,10 +265,10 @@ function Get-SAOmdbPosterData {
             UseBasicParsing = $true
             ErrorAction     = 'Stop'
         }
-        
+
         # Make request (suppress built-in verbose)
         $response = Invoke-WebRequest @requestParams -Verbose:$false
-        
+
         if ($response.StatusCode -ne 200) {
             Write-SAVerbose -Label 'OMDb' -Text "Poster download failed: HTTP $($response.StatusCode)"
             return $null

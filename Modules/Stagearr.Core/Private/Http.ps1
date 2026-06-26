@@ -4,8 +4,6 @@
     HTTP client helpers for Stagearr
 .DESCRIPTION
     Provides HTTP request functionality with retry logic and rate-limit handling (429).
-    Compatible with both PowerShell 5.1 and 7.x.
-    
     SOLID Refactor (Phase 6): Extracted pure helper functions for testability.
 #>
 
@@ -221,11 +219,6 @@ function Invoke-SAWebRequest {
         [Parameter()]
         [bool]$AsJson = $true
     )
-    
-    # Ensure TLS 1.2 for PowerShell 5.1 (modern APIs reject older TLS versions)
-    if ($PSVersionTable.PSEdition -ne 'Core') {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    }
     
     # Determine content type
     if ([string]::IsNullOrWhiteSpace($ContentType)) {

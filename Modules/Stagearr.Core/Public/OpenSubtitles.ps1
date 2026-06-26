@@ -451,10 +451,6 @@ function Get-SAOpenSubtitlesDownload {
             OutFile = $OutputPath
         }
         
-        if ($PSVersionTable.PSEdition -eq 'Desktop') {
-            $downloadParams.UseBasicParsing = $true
-        }
-        
         Invoke-WebRequest @downloadParams -ErrorAction Stop -Verbose:$false
         
         if (Test-Path -LiteralPath $OutputPath) {

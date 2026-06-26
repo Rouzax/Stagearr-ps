@@ -93,12 +93,6 @@ function Get-SAIsWindows {
     [OutputType([bool])]
     param()
     
-    # PowerShell 5.1 on Windows doesn't have $IsWindows
-    if ($PSVersionTable.PSEdition -eq 'Desktop') {
-        return $true
-    }
-    
-    # PowerShell 7.x
     if ($null -ne $IsWindows) {
         return $IsWindows
     }
