@@ -63,16 +63,16 @@ Paths to external executables. Only configure the tools required by the features
 | `winrar` | Path to `RAR.exe` (WinRAR). | Always (RAR extraction is core functionality). |
 | `mkvmerge` | Path to `mkvmerge.exe` (MKVToolNix). | `video.mp4Remux.enabled = true` or `subtitles.stripping.enabled = true`. |
 | `mkvextract` | Path to `mkvextract.exe` (MKVToolNix). | `subtitles.extraction.enabled = true`. |
-| `subtitleEdit` | Path to `SubtitleEdit.exe`. | `subtitles.cleanup.enabled = true`. |
+| `subtitleEdit` | Path to the Subtitle Edit install folder (recommended) or a specific binary (`SubtitleEdit.exe` or `seconv`). When given a folder, seconv is used automatically if present; otherwise SubtitleEdit.exe is used. | `subtitles.cleanup.enabled = true`. |
 
-Example:
+Example (install-folder form, recommended):
 
 ```toml
 [tools]
 winrar       = "C:/Program Files/WinRAR/RAR.exe"
 mkvmerge     = "C:/Program Files/MKVToolNix/mkvmerge.exe"
 mkvextract   = "C:/Program Files/MKVToolNix/mkvextract.exe"
-subtitleEdit = "C:/Program Files/Subtitle Edit/SubtitleEdit.exe"
+subtitleEdit = "C:/Program Files/Subtitle Edit"
 ```
 
 ---
@@ -117,11 +117,19 @@ Removes unwanted subtitle tracks from the MKV file itself.
 
 ### [subtitles.cleanup]
 
-Runs external SubtitleEdit processing on extracted or downloaded SRT files to remove hearing-impaired annotations and fix common formatting errors.
+Cleans extracted and downloaded SRT files using the subtitle cleanup engine selected by `tools.subtitleEdit`. Both the seconv and SubtitleEdit.exe engines support all four operation toggles. The seconv-only keys apply only when seconv is the active engine.
 
-| Key | Description | Default |
-|-----|-------------|---------|
-| `enabled` | Clean subtitles with SubtitleEdit. Requires `tools.subtitleEdit`. | `true` |
+| Key | Type | Description | Default |
+|-----|------|-------------|---------|
+| `enabled` | bool | Clean subtitles with the subtitle cleanup engine. Requires `tools.subtitleEdit`. | `true` |
+| `removeHearingImpaired` | bool | Remove hearing-impaired annotations: `[brackets]` and `(parentheses)` tags such as `[door closes]`. | `true` |
+| `mergeSameTexts` | bool | Merge consecutive identical subtitle lines into a single cue. | `true` |
+| `fixCommonErrors` | bool | Fix OCR errors, encoding artifacts, and common formatting mistakes. | `true` |
+| `splitLongLines` | bool | Split lines that exceed the display width across two lines. | `false` |
+| `fixCommonErrorsRules` | string | **seconv only.** Comma-separated list of FixCommonErrors rules to apply. Prefix a rule name with `-` to exclude it. Default excludes `FixShortGaps` (shifts timecodes) and `FixShortLinesPixelWidth` (re-flows line breaks). | `"all,-FixShortGaps,-FixShortLinesPixelWidth"` |
+| `seconvSettings` | string | **seconv only.** Path to a custom seconv settings JSON file that controls how operations behave (font, margins, per-rule parameters). Leave empty to use the bundled SE4 default profile. | `""` |
+
+See [Subtitle Processing](subtitles.md#subtitle-cleanup) for a full description of the two engines, the two-layer model (which operations run vs. how they behave), and known limitations.
 
 ### [subtitles.openSubtitles]
 
@@ -351,7 +359,7 @@ See [Auto-Update](updates.md) for how updates are applied and how to roll back.
 | MP4 to MKV remux | `video.mp4Remux.enabled` | `true` | `tools.mkvmerge` |
 | Subtitle extraction | `subtitles.extraction.enabled` | `true` | `tools.mkvextract` |
 | Subtitle track stripping | `subtitles.stripping.enabled` | `true` | `tools.mkvmerge` |
-| SubtitleEdit cleanup | `subtitles.cleanup.enabled` | `true` | `tools.subtitleEdit` |
+| Subtitle cleanup | `subtitles.cleanup.enabled` | `true` | `tools.subtitleEdit` |
 | OpenSubtitles download | `subtitles.openSubtitles.enabled` | `false` | (API credentials) |
 | Subtitle upload | `subtitles.openSubtitles.uploadCleaned` | `false` | (API credentials) |
 | OMDb enrichment | `omdb.enabled` | `false` | (API key) |

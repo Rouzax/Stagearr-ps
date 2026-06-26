@@ -30,7 +30,9 @@ staleHeartbeatSeconds = 120 # Another worker may take the lock after this many s
 winrar = "C:/Program Files/WinRAR/RAR.exe"
 mkvmerge = "C:/Program Files/MKVToolNix/mkvmerge.exe"
 mkvextract = "C:/Program Files/MKVToolNix/mkvextract.exe"
-subtitleEdit = "C:/Program Files/Subtitle Edit/SubtitleEdit.exe"
+# Subtitle Edit / seconv: point at the install FOLDER (recommended) or a specific binary.
+# A folder is auto-detected: seconv is preferred over SubtitleEdit.exe when both are present.
+subtitleEdit = "C:/Program Files/Subtitle Edit"
 
 [video.mp4Remux]
 # Remux MP4/M4V files to MKV container. Disable if you only have MKV files. Requires mkvmerge.
@@ -55,8 +57,21 @@ duplicateLanguageMode = "largest"
 enabled = true
 
 [subtitles.cleanup]
-# Clean subtitles with SubtitleEdit (removes HI tags, fixes common errors). Requires subtitleEdit tool.
+# Clean subtitles (remove HI tags, fix common errors). Requires the subtitleEdit tool.
 enabled = true
+
+# WHICH operations run (both engines), applied in this order. Defaults preserve current behavior.
+removeHearingImpaired = true
+mergeSameTexts        = true
+fixCommonErrors       = true
+splitLongLines        = false
+
+# seconv engine only.
+# SE4's batch runs a narrower FixCommonErrors set; excluding these two keeps seconv's output
+# matching SE4 (FixShortGaps shifts timecodes; FixShortLinesPixelWidth re-flows line breaks).
+fixCommonErrorsRules = "all,-FixShortGaps,-FixShortLinesPixelWidth"
+# Custom seconv settings JSON tuning HOW operations behave. Empty = bundled SE4 profile.
+seconvSettings = ""
 
 [subtitles.openSubtitles]
 # OpenSubtitles.com API settings (REST API v1)

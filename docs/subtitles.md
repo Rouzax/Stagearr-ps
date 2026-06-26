@@ -190,26 +190,69 @@ uploadDiagnosticMode = true
 
 ---
 
-## SubtitleEdit Cleanup
+## Subtitle Cleanup
 
-All SRT files (both extracted and downloaded) are cleaned using SubtitleEdit's command-line interface.
+All SRT files (both extracted and downloaded) are cleaned using the cleanup engine selected by your `tools.subtitleEdit` path. Cleanup runs on every SRT file present after extraction and download, regardless of its source.
 
-**Tool required:** SubtitleEdit (`tools.subtitleEdit` in config)
+**Tool required:** Subtitle Edit or seconv (`tools.subtitleEdit` in config)
 
 **Config:**
 
 ```toml
 [subtitles.cleanup]
 enabled = true
+
+removeHearingImpaired = true
+mergeSameTexts        = true
+fixCommonErrors       = true
+splitLongLines        = false
 ```
+
+### Two cleanup engines
+
+Stagearr supports two cleanup engines. The engine that runs is determined by your `tools.subtitleEdit` path.
+
+**seconv** (recommended): A standalone command-line tool shipped with Subtitle Edit v5 (available from v5.1.0-beta1 onward as the `SeConv-<os>` release asset on GitHub). Point `tools.subtitleEdit` at the **install folder** and seconv is used automatically when present. On Linux, the native libraries required by seconv are bundled in the `SeConv-linux` release asset, so no separate library installation is needed.
+
+**SubtitleEdit.exe** (GUI): The classic Windows GUI application, which also accepts command-line arguments. When `tools.subtitleEdit` points at a folder that contains only `SubtitleEdit.exe` (no seconv binary), the GUI binary is used instead.
+
+To select the engine, set `tools.subtitleEdit` to the **install folder** (recommended) rather than a specific binary. Stagearr checks the folder and prefers seconv over SubtitleEdit.exe when both are present. You can also point directly at a binary to pin the engine explicitly.
 
 ### What cleanup does
 
-- Strips hearing-impaired annotations: `[brackets]` and `(parentheses)` tags such as `[door closes]` or `(sighs)`
-- Fixes common OCR and timing errors
-- Processes all subtitle files in a single batch pass
+The four operations below are toggled by individual config keys. Both engines support all four; the keys apply to whichever engine is active.
 
-Cleanup runs on all SRT files present after extraction and download, regardless of their source.
+| Config key | Default | What it removes or changes |
+|-----------|---------|---------------------------|
+| `removeHearingImpaired` | `true` | `[brackets]` and `(parentheses)` annotations such as `[door closes]` or `(sighs)` |
+| `mergeSameTexts` | `true` | Consecutive identical lines merged into one cue |
+| `fixCommonErrors` | `true` | OCR errors, encoding artifacts, and common formatting mistakes |
+| `splitLongLines` | `false` | Lines exceeding the display width split across two lines |
+
+These keys control **which operations run**. How each operation behaves internally is controlled separately (see seconv-only settings below).
+
+### seconv-only settings
+
+Two additional keys are only meaningful when seconv is the active engine. They have no effect when SubtitleEdit.exe is used.
+
+**`fixCommonErrorsRules`** controls which FixCommonErrors rules seconv applies. The default excludes two rules that change output in ways the SubtitleEdit.exe batch mode does not:
+
+- `FixShortGaps` shifts subtitle timecodes, which can desync dialogue from audio.
+- `FixShortLinesPixelWidth` re-flows line breaks based on pixel width, which produces different line breaks than the GUI's character-count mode.
+
+The default `"all,-FixShortGaps,-FixShortLinesPixelWidth"` means: apply all rules except those two. Override this only if you understand what each excluded rule does.
+
+**`seconvSettings`** points to a custom seconv settings JSON file that controls **how** operations behave (font, margins, display settings, per-rule parameters). Leave it empty to use the bundled SE4 default profile. Provide a path only if you have exported a custom profile from the Subtitle Edit GUI and want seconv to use the same settings.
+
+```toml
+[subtitles.cleanup]
+fixCommonErrorsRules = "all,-FixShortGaps,-FixShortLinesPixelWidth"
+seconvSettings = ""
+```
+
+### Limitations
+
+**Music symbol normalization** (`MusicSymbolReplace`): The Subtitle Edit GUI reads its own `Settings.xml` to determine which music symbol characters to normalize. seconv uses the bundled profile instead. If you rely on a custom music symbol replacement configured in the GUI, that customization is not reproducible in seconv unless you provide the same settings via `seconvSettings`.
 
 ---
 
@@ -219,7 +262,7 @@ Cleanup runs on all SRT files present after extraction and download, regardless 
 |-----------|---------|---------|
 | `subtitles.extraction.enabled` | `true` | Extract MKV text tracks to SRT |
 | `subtitles.stripping.enabled` | `true` | Remove unwanted MKV tracks |
-| `subtitles.cleanup.enabled` | `true` | Clean SRT files with SubtitleEdit |
+| `subtitles.cleanup.enabled` | `true` | Clean SRT files with the subtitle cleanup engine |
 | `subtitles.openSubtitles.enabled` | `false` | Download from OpenSubtitles |
 | `subtitles.openSubtitles.uploadCleaned` | `false` | Upload cleaned subtitles |
 
