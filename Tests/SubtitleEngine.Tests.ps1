@@ -135,3 +135,35 @@ Describe 'Get-SASeconvCleanupArgs' {
         }
     }
 }
+
+Describe 'seconv settings JSON + resolver' {
+    It 'bundled JSON parses and has the SE4-profile keys' {
+        InModuleScope 'Stagearr.Core' {
+            $p = Join-Path $script:SAModuleRoot 'Data/seconv-settings.json'
+            Test-Path -LiteralPath $p | Should -BeTrue
+            $j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+            $j.general.minimumMillisecondsBetweenLines | Should -Be 24
+            $j.general.maxNumberOfLines | Should -Be 2
+            $j.removeTextForHearingImpaired.removeIfOnlyMusicSymbols | Should -BeTrue
+        }
+    }
+    It 'resolver returns bundled path when override empty' {
+        InModuleScope 'Stagearr.Core' {
+            $r = Resolve-SASeconvSettingsPath -OverridePath ''
+            $r | Should -Be (Join-Path $script:SAModuleRoot 'Data/seconv-settings.json')
+        }
+    }
+    It 'resolver returns override when it exists' {
+        InModuleScope 'Stagearr.Core' {
+            $tmp = New-TemporaryFile
+            try { (Resolve-SASeconvSettingsPath -OverridePath $tmp.FullName) | Should -Be $tmp.FullName }
+            finally { Remove-Item -LiteralPath $tmp.FullName -Force }
+        }
+    }
+    It 'resolver falls back to bundled when override path is missing' {
+        InModuleScope 'Stagearr.Core' {
+            $r = Resolve-SASeconvSettingsPath -OverridePath '/nope/missing.json'
+            $r | Should -Be (Join-Path $script:SAModuleRoot 'Data/seconv-settings.json')
+        }
+    }
+}

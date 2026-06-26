@@ -145,3 +145,23 @@ function Get-SASeconvCleanupArgs {
     if (-not [string]::IsNullOrWhiteSpace($SettingsPath)) { $argList.Add("--settings:$SettingsPath") }
     return $argList.ToArray()
 }
+
+function Resolve-SASeconvSettingsPath {
+    <#
+    .SYNOPSIS
+        Resolves which seconv settings JSON to use: the override if set and present,
+        otherwise the bundled SE4-profile default.
+    .OUTPUTS
+        [string] absolute path to the settings JSON.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)][AllowEmptyString()][string]$OverridePath
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($OverridePath) -and (Test-Path -LiteralPath $OverridePath -PathType Leaf)) {
+        return $OverridePath
+    }
+    return (Join-Path -Path $script:SAModuleRoot -ChildPath 'Data/seconv-settings.json')
+}
