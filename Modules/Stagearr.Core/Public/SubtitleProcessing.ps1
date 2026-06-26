@@ -92,6 +92,10 @@ function Start-SASubtitleCleanup {
     $ops = Get-SACleanupOperations -CleanupConfig $cleanupCfg
 
     if ($engine -eq 'Seconv') {
+        if (-not [string]::IsNullOrWhiteSpace($cleanupCfg.seconvSettings) -and
+            -not (Test-Path -LiteralPath $cleanupCfg.seconvSettings -PathType Leaf)) {
+            Write-SAVerbose -Text "seconvSettings override not found ($($cleanupCfg.seconvSettings)); using bundled profile"
+        }
         $settingsPath = Resolve-SASeconvSettingsPath -OverridePath $cleanupCfg.seconvSettings
         $rules = if ($null -ne $cleanupCfg.fixCommonErrorsRules) { [string]$cleanupCfg.fixCommonErrorsRules } else { '' }
         $cleanupArgs = Get-SASeconvCleanupArgs -FolderPath $FolderPath -Operations $ops -FixCommonErrorsRules $rules -SettingsPath $settingsPath

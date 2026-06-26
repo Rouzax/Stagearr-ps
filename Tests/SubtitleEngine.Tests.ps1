@@ -214,6 +214,7 @@ Describe 'Start-SASubtitleCleanup dispatch' {
         $script:work = Join-Path ([System.IO.Path]::GetTempPath()) ("clean_" + [guid]::NewGuid())
         New-Item -ItemType Directory -Path $script:work | Out-Null
         Set-Content -LiteralPath (Join-Path $script:work 'movie.en.srt') -Value "1`n00:00:01,000 --> 00:00:02,000`nHi"
+        $script:captured = $null
     }
     AfterEach { Remove-Item -LiteralPath $script:work -Recurse -Force -ErrorAction SilentlyContinue }
 
@@ -221,7 +222,6 @@ Describe 'Start-SASubtitleCleanup dispatch' {
         InModuleScope 'Stagearr.Core' -Parameters @{ Work = $script:work } {
             param($Work)
             $seconv = Join-Path $Work 'seconv'; Set-Content -LiteralPath $seconv -Value 'x'
-            $captured = $null
             Mock Invoke-SAProcessWithRetry { $script:captured = $ArgumentList; [pscustomobject]@{ Success = $true; ExitCode = 0; StdErr = '' } }
             $ctx = @{
                 Tools  = @{ SubtitleEdit = $seconv; SubtitleEngine = 'Seconv' }
@@ -231,6 +231,7 @@ Describe 'Start-SASubtitleCleanup dispatch' {
             $script:captured | Should -Contain '--remove-text-for-hi'
             ($script:captured | Where-Object { $_ -like '--settings:*' }).Count | Should -Be 1
             $script:captured | Should -Contain '--fix-common-errors-rules:all,-FixShortGaps,-FixShortLinesPixelWidth'
+            $script:captured | Should -Not -Contain '/convert'
         }
     }
 
@@ -246,6 +247,22 @@ Describe 'Start-SASubtitleCleanup dispatch' {
             Start-SASubtitleCleanup -Context $ctx -FolderPath $Work | Out-Null
             $script:captured | Should -Contain '/RemoveTextForHI'
             $script:captured | Should -Contain '/convert'
+            $script:captured | Should -Not -Contain '--remove-text-for-hi'
+        }
+    }
+
+    It 'seconv with missing seconvSettings override -> warns via Write-SAVerbose' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Work = $script:work } {
+            param($Work)
+            $seconv = Join-Path $Work 'seconv'; Set-Content -LiteralPath $seconv -Value 'x'
+            Mock Invoke-SAProcessWithRetry { $script:captured = $ArgumentList; [pscustomobject]@{ Success = $true; ExitCode = 0; StdErr = '' } }
+            Mock Write-SAVerbose { }
+            $ctx = @{
+                Tools  = @{ SubtitleEdit = $seconv; SubtitleEngine = 'Seconv' }
+                Config = @{ subtitles = @{ cleanup = @{ enabled=$true; fixCommonErrorsRules=''; seconvSettings='/no/such/file.json' } } }
+            }
+            Start-SASubtitleCleanup -Context $ctx -FolderPath $Work | Out-Null
+            Should -Invoke Write-SAVerbose -ParameterFilter { $Text -match 'seconvSettings override not found' }
         }
     }
 }
