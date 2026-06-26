@@ -197,6 +197,18 @@ Describe 'context engine wiring' {
     }
 }
 
+Describe 'cleanup tool validation accepts dir or binary' {
+    It 'a directory containing seconv resolves (engine non-null)' {
+        InModuleScope 'Stagearr.Core' {
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("val_" + [guid]::NewGuid())
+            New-Item -ItemType Directory -Path $tmp | Out-Null
+            Set-Content -LiteralPath (Join-Path $tmp 'seconv') -Value 'x'
+            (Resolve-SASubtitleTool -Path $tmp).Engine | Should -Not -BeNullOrEmpty
+            Remove-Item -LiteralPath $tmp -Recurse -Force
+        }
+    }
+}
+
 Describe 'Start-SASubtitleCleanup dispatch' {
     BeforeEach {
         $script:work = Join-Path ([System.IO.Path]::GetTempPath()) ("clean_" + [guid]::NewGuid())

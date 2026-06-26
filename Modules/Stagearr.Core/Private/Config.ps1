@@ -475,24 +475,22 @@ function Test-SAConfig {
         }
     }
     
-    # Conditionally required tools - only validate if feature is enabled AND path is configured
-    # SubtitleEdit: required when SubtitleCleanup is enabled
+    # SubtitleEdit/seconv: required when SubtitleCleanup is enabled. Accept an install dir or a binary.
     if (Test-SAFeatureEnabled -Config $Config -Feature 'SubtitleCleanup') {
         $path = $Config.tools.subtitleEdit
         $friendly = $toolNames['subtitleEdit']
         if ([string]::IsNullOrWhiteSpace($path)) {
-            $errors.Add("$friendly not configured - add tools.subtitleEdit to config.toml (required when subtitles.cleanup.enabled = true)")
+            $errors.Add("$friendly not configured - add tools.subtitleEdit (install folder or binary) to config.toml (required when subtitles.cleanup.enabled = true)")
         }
-        elseif (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-            $errors.Add("$friendly not found at: $path")
+        elseif (-not (Resolve-SASubtitleTool -Path $path).Engine) {
+            $errors.Add("$friendly path does not contain seconv or SubtitleEdit.exe: $path")
         }
     }
     else {
-        # Feature disabled - only validate path if configured (don't require it)
         $path = $Config.tools.subtitleEdit
         $friendly = $toolNames['subtitleEdit']
-        if (-not [string]::IsNullOrWhiteSpace($path) -and -not (Test-Path -LiteralPath $path -PathType Leaf)) {
-            $errors.Add("$friendly not found at: $path")
+        if (-not [string]::IsNullOrWhiteSpace($path) -and -not (Resolve-SASubtitleTool -Path $path).Engine) {
+            $errors.Add("$friendly path does not contain seconv or SubtitleEdit.exe: $path")
         }
     }
     
