@@ -226,7 +226,7 @@ The four operations below are toggled by individual config keys. Both engines su
 |-----------|---------|---------------------------|
 | `removeHearingImpaired` | `true` | `[brackets]` and `(parentheses)` annotations such as `[door closes]` or `(sighs)` |
 | `mergeSameTexts` | `true` | Consecutive identical lines merged into one cue |
-| `fixCommonErrors` | `true` | OCR errors, encoding artifacts, and common formatting mistakes |
+| `fixCommonErrors` | `true` | Encoding artifacts, casing, punctuation, and timing/formatting mistakes |
 | `splitLongLines` | `false` | Lines exceeding the display width split across two lines |
 
 These keys control **which operations run**. How each operation behaves internally is controlled separately (see seconv-only settings below).
@@ -253,6 +253,8 @@ seconvSettings = ""
 ### Limitations
 
 **Music symbol normalization** (`MusicSymbolReplace`): The Subtitle Edit GUI reads its own `Settings.xml` to determine which music symbol characters to normalize. seconv uses the bundled profile instead. If you rely on a custom music symbol replacement configured in the GUI, that customization is not reproducible in seconv unless you provide the same settings via `seconvSettings`.
+
+**No dictionary-based OCR or spelling repair (seconv):** The Subtitle Edit GUI's `fixCommonErrors` includes a dictionary-backed OCR-error and spell-check pass (the `FixCommonOcrErrors` rule) that corrects misrecognized characters and misspellings using its installed dictionaries. seconv omits that rule because it needs the GUI's spell-check engine, so seconv applies structural, formatting, casing, punctuation, and timing fixes only, not dictionary-based corrections. If you depend on OCR/spell repair, keep using the SubtitleEdit.exe engine.
 
 ---
 
