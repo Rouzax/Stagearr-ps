@@ -249,3 +249,49 @@ Describe 'Start-SASubtitleCleanup dispatch' {
         }
     }
 }
+
+Describe 'Test-SAConfig accepts subtitle install dir' {
+    It 'reports does-not-contain error when dir has neither seconv nor SubtitleEdit.exe' {
+        InModuleScope 'Stagearr.Core' {
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("cfgval_" + [guid]::NewGuid())
+            New-Item -ItemType Directory -Path $tmp | Out-Null
+            try {
+                $json = $script:SAConfigDefaults | ConvertTo-Json -Depth 20
+                $cfg = $json | ConvertFrom-Json -AsHashtable
+                $cfg.tools.subtitleEdit = $tmp
+                $cfg.subtitles.cleanup.enabled = $true
+
+                $thrown = $null
+                try { Test-SAConfig -Config $cfg } catch { $thrown = $_.Exception.Message }
+
+                $thrown | Should -Not -BeNullOrEmpty -Because 'an empty dir must produce a config error'
+                $thrown | Should -Match 'does not contain seconv or SubtitleEdit\.exe'
+            } finally {
+                Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    It 'does NOT report does-not-contain error when dir contains seconv' {
+        InModuleScope 'Stagearr.Core' {
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("cfgval_" + [guid]::NewGuid())
+            New-Item -ItemType Directory -Path $tmp | Out-Null
+            Set-Content -LiteralPath (Join-Path $tmp 'seconv') -Value 'x'
+            try {
+                $json = $script:SAConfigDefaults | ConvertTo-Json -Depth 20
+                $cfg = $json | ConvertFrom-Json -AsHashtable
+                $cfg.tools.subtitleEdit = $tmp
+                $cfg.subtitles.cleanup.enabled = $true
+
+                $thrown = $null
+                try { Test-SAConfig -Config $cfg } catch { $thrown = $_.Exception.Message }
+
+                if ($null -ne $thrown) {
+                    $thrown | Should -Not -Match 'does not contain seconv or SubtitleEdit\.exe'
+                }
+            } finally {
+                Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+}
