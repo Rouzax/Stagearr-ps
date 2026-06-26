@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
 <#
 .SYNOPSIS
     Stagearr vNext - qBittorrent Post-Processing Automation
@@ -95,7 +95,7 @@
 
 .NOTES
     Version: 2.0.3
-    Requires: PowerShell 5.1 or 7.x
+    Requires: PowerShell 7.x
     External Tools: WinRAR, MKVToolNix, SubtitleEdit
 #>
 

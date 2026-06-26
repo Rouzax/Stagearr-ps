@@ -17,7 +17,7 @@ qBittorrent can run an external program each time a torrent finishes downloading
 pwsh.exe -ExecutionPolicy Bypass -File "C:\Stagearr-ps\Stagearr.ps1" -DownloadPath "%F" -DownloadLabel "%L" -TorrentHash "%I"
 ```
 
-`pwsh.exe` runs PowerShell 7, the recommended runtime. If you have not installed PowerShell 7 and want to use the built-in Windows PowerShell 5.1, replace `pwsh.exe` with `powershell.exe`.
+`pwsh.exe` runs PowerShell 7, which Stagearr requires. Install it from [aka.ms/powershell](https://aka.ms/powershell) if you do not have it.
 
 5. Click **OK** to save.
 

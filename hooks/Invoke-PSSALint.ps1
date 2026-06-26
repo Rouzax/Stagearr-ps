@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
 <#
 .SYNOPSIS
     Pre-commit lint hook: runs PSScriptAnalyzer on the staged PowerShell files.

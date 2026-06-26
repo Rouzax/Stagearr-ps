@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
 Describe 'Get-SAEmailTroubleshootingSuggestions for Security phase' {
     BeforeAll {
         $modulePath = Join-Path $PSScriptRoot '..' 'Modules' 'Stagearr.Core' 'Stagearr.Core.psm1'

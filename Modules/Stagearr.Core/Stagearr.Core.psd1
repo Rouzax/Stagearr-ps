@@ -1,13 +1,13 @@
 @{
     # Module identification
     RootModule        = 'Stagearr.Core.psm1'
-    ModuleVersion     = '2.9.5'
+    ModuleVersion     = '2.10.0'
     GUID              = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
     Author            = 'Rouzax'
     Description       = 'Core module for Stagearr - qBittorrent post-processing automation'
     
     # Compatibility
-    PowerShellVersion = '5.1'
+    PowerShellVersion = '7.0'
     
     # Functions to export - explicitly list public functions only
     # Private helpers (Invoke-SAWebRequest, ConvertTo-SAHashtable, etc.) are NOT exported

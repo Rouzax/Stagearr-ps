@@ -6,7 +6,7 @@ Stagearr runs on Windows only. The pipeline depends on Windows paths and integra
 
 ### PowerShell
 
-Stagearr runs on **PowerShell 7.x** (recommended) or **Windows PowerShell 5.1** (included with Windows 10 and later). PowerShell 7 is a free, separate install from Microsoft ([get it here](https://aka.ms/powershell)) and is the preferred runtime. Windows PowerShell 5.1 works too and needs no extra installation.
+Stagearr requires **PowerShell 7.x**, a free, separate install from Microsoft ([get it here](https://aka.ms/powershell)). Windows PowerShell 5.1 is not supported.
 
 ### External tools
 

@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
 Describe 'New-SAHttpResult RawContent handling' {
     BeforeAll {
         $modulePath = Join-Path $PSScriptRoot '..' 'Modules' 'Stagearr.Core' 'Stagearr.Core.psm1'
