@@ -50,7 +50,13 @@ $script:SAConfigDefaults = @{
             enabled = $true
         }
         cleanup = @{
-            enabled = $true
+            enabled               = $true
+            removeHearingImpaired = $true
+            mergeSameTexts        = $true
+            fixCommonErrors       = $true
+            splitLongLines        = $false
+            fixCommonErrorsRules  = 'all,-FixShortGaps,-FixShortLinesPixelWidth'
+            seconvSettings        = ''
         }
         openSubtitles = @{
             enabled       = $false

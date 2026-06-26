@@ -167,3 +167,18 @@ Describe 'seconv settings JSON + resolver' {
         }
     }
 }
+
+Describe 'subtitles.cleanup defaults' {
+    It 'config defaults include the new cleanup keys' {
+        InModuleScope 'Stagearr.Core' {
+            $c = $script:SAConfigDefaults.subtitles.cleanup
+            $c.enabled              | Should -BeTrue
+            $c.removeHearingImpaired| Should -BeTrue
+            $c.mergeSameTexts       | Should -BeTrue
+            $c.fixCommonErrors      | Should -BeTrue
+            $c.splitLongLines       | Should -BeFalse
+            $c.fixCommonErrorsRules | Should -Be 'all,-FixShortGaps,-FixShortLinesPixelWidth'
+            $c.seconvSettings       | Should -Be ''
+        }
+    }
+}
