@@ -39,20 +39,24 @@ function New-SAContext {
     # Initialize console renderer with config settings
     Initialize-SAConsoleRenderer -UseColors $Config.logging.consoleColors -VerboseMode:$VerboseMode
     
+    # Resolve the configured subtitle tool (install dir or binary) to a concrete binary + engine.
+    $resolvedSubtitleTool = Resolve-SASubtitleTool -Path $Config.tools.subtitleEdit
+
     # Create context object
     $context = @{
         # Configuration
         Config = $Config
-        
+
         # Current job (set when processing starts)
         Job = $Job
-        
+
         # Resolved tool paths
         Tools = @{
-            WinRar       = $Config.tools.winrar
-            MkvMerge     = $Config.tools.mkvmerge
-            MkvExtract   = $Config.tools.mkvextract
-            SubtitleEdit = $Config.tools.subtitleEdit
+            WinRar         = $Config.tools.winrar
+            MkvMerge       = $Config.tools.mkvmerge
+            MkvExtract     = $Config.tools.mkvextract
+            SubtitleEdit   = $resolvedSubtitleTool.Path
+            SubtitleEngine = $resolvedSubtitleTool.Engine
         }
         
         # Processing state

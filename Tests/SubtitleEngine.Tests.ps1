@@ -182,3 +182,17 @@ Describe 'subtitles.cleanup defaults' {
         }
     }
 }
+
+Describe 'context engine wiring' {
+    It 'resolves SubtitleEdit binary and SubtitleEngine onto the context' {
+        InModuleScope 'Stagearr.Core' {
+            $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("ctx_" + [guid]::NewGuid())
+            New-Item -ItemType Directory -Path $tmp | Out-Null
+            Set-Content -LiteralPath (Join-Path $tmp 'seconv') -Value 'x'
+            $r = Resolve-SASubtitleTool -Path $tmp
+            $r.Engine | Should -Be 'Seconv'
+            $r.Path   | Should -Be (Join-Path $tmp 'seconv')
+            Remove-Item -LiteralPath $tmp -Recurse -Force
+        }
+    }
+}
