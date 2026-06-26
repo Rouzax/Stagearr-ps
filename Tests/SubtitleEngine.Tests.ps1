@@ -101,3 +101,37 @@ Describe 'Get-SAGuiCleanupArgs' {
         }
     }
 }
+
+Describe 'Get-SASeconvCleanupArgs' {
+    It 'builds full SE4-parity invocation in order, single FCE, rules + settings' {
+        InModuleScope 'Stagearr.Core' {
+            $ops = Get-SACleanupOperations -CleanupConfig @{}
+            $a = Get-SASeconvCleanupArgs -FolderPath '/stage' -Operations $ops `
+                    -FixCommonErrorsRules 'all,-FixShortGaps,-FixShortLinesPixelWidth' -SettingsPath '/cfg/se.json'
+            $a | Should -Be @('*.srt','subrip','--input-folder:/stage','--output-folder:/stage','--overwrite','--merge-same-texts','--remove-text-for-hi','--fix-common-errors-rules:all,-FixShortGaps,-FixShortLinesPixelWidth','--settings:/cfg/se.json')
+            ($a | Where-Object { $_ -eq '--fix-common-errors' }).Count | Should -Be 0  # rules flag implies FCE; no bare flag
+        }
+    }
+    It 'uses bare --fix-common-errors when no rules string is given' {
+        InModuleScope 'Stagearr.Core' {
+            $ops = Get-SACleanupOperations -CleanupConfig @{}
+            $a = Get-SASeconvCleanupArgs -FolderPath '/stage' -Operations $ops -FixCommonErrorsRules '' -SettingsPath ''
+            $a | Should -Contain '--fix-common-errors'
+            $a | Should -Not -Contain '--settings:'
+        }
+    }
+    It 'adds --split-long-lines only when enabled' {
+        InModuleScope 'Stagearr.Core' {
+            $ops = Get-SACleanupOperations -CleanupConfig @{ splitLongLines = $true }
+            (Get-SASeconvCleanupArgs -FolderPath '/s' -Operations $ops -FixCommonErrorsRules '' -SettingsPath '') | Should -Contain '--split-long-lines'
+        }
+    }
+    It 'omits FCE entirely when fixCommonErrors is off' {
+        InModuleScope 'Stagearr.Core' {
+            $ops = Get-SACleanupOperations -CleanupConfig @{ fixCommonErrors = $false }
+            $a = Get-SASeconvCleanupArgs -FolderPath '/s' -Operations $ops -FixCommonErrorsRules 'all,-FixShortGaps' -SettingsPath ''
+            $a | Should -Not -Contain '--fix-common-errors'
+            ($a | Where-Object { $_ -like '--fix-common-errors-rules:*' }).Count | Should -Be 0
+        }
+    }
+}

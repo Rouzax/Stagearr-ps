@@ -109,3 +109,39 @@ function Get-SAGuiCleanupArgs {
     $argList.Add("/outputfolder:$FolderPath")
     return $argList.ToArray()
 }
+
+function Get-SASeconvCleanupArgs {
+    <#
+    .SYNOPSIS
+        Builds seconv batch arguments from an ordered operation set.
+    .DESCRIPTION
+        Operations are emitted in the order given. FixCommonErrors runs once (seconv
+        converges internally). When a rules spec is provided, --fix-common-errors-rules
+        replaces the bare --fix-common-errors flag (the rules flag implies FCE).
+    .OUTPUTS
+        [string[]] argument array for seconv.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter(Mandatory)][string]$FolderPath,
+        [Parameter(Mandatory)][System.Collections.Specialized.OrderedDictionary]$Operations,
+        [Parameter(Mandatory)][AllowEmptyString()][string]$FixCommonErrorsRules,
+        [Parameter(Mandatory)][AllowEmptyString()][string]$SettingsPath
+    )
+
+    $argList = [System.Collections.Generic.List[string]]::new()
+    $argList.AddRange([string[]]@('*.srt', 'subrip', "--input-folder:$FolderPath", "--output-folder:$FolderPath", '--overwrite'))
+    if ($Operations['MergeSameTexts'])  { $argList.Add('--merge-same-texts') }
+    if ($Operations['RemoveTextForHI']) { $argList.Add('--remove-text-for-hi') }
+    if ($Operations['FixCommonErrors']) {
+        if ([string]::IsNullOrWhiteSpace($FixCommonErrorsRules)) {
+            $argList.Add('--fix-common-errors')
+        } else {
+            $argList.Add("--fix-common-errors-rules:$FixCommonErrorsRules")
+        }
+    }
+    if ($Operations['SplitLongLines']) { $argList.Add('--split-long-lines') }
+    if (-not [string]::IsNullOrWhiteSpace($SettingsPath)) { $argList.Add("--settings:$SettingsPath") }
+    return $argList.ToArray()
+}
