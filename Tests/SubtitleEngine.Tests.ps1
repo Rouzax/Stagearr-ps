@@ -85,3 +85,19 @@ Describe 'Get-SACleanupOperations' {
         }
     }
 }
+
+Describe 'Get-SAGuiCleanupArgs' {
+    It 'default ops produce the convert pipeline in order' {
+        InModuleScope 'Stagearr.Core' {
+            $ops = Get-SACleanupOperations -CleanupConfig @{}
+            $a = Get-SAGuiCleanupArgs -FolderPath 'C:\stage' -Operations $ops
+            $a | Should -Be @('/convert','*.srt','subrip','/inputfolder:C:\stage','/overwrite','/MergeSameTexts','/RemoveTextForHI','/FixCommonErrors','/outputfolder:C:\stage')
+        }
+    }
+    It 'disabling an op drops its flag' {
+        InModuleScope 'Stagearr.Core' {
+            $ops = Get-SACleanupOperations -CleanupConfig @{ removeHearingImpaired = $false }
+            (Get-SAGuiCleanupArgs -FolderPath '/stage' -Operations $ops) | Should -Not -Contain '/RemoveTextForHI'
+        }
+    }
+}

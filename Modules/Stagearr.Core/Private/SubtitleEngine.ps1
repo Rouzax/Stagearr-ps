@@ -85,3 +85,27 @@ function Get-SACleanupOperations {
     $ops['SplitLongLines']  = _bool $CleanupConfig.splitLongLines        $false
     return $ops
 }
+
+function Get-SAGuiCleanupArgs {
+    <#
+    .SYNOPSIS
+        Builds SubtitleEdit GUI /convert batch arguments from an ordered operation set.
+    .OUTPUTS
+        [string[]] argument array for SubtitleEdit.exe.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter(Mandatory)][string]$FolderPath,
+        [Parameter(Mandatory)][System.Collections.Specialized.OrderedDictionary]$Operations
+    )
+
+    $argList = [System.Collections.Generic.List[string]]::new()
+    $argList.AddRange([string[]]@('/convert', '*.srt', 'subrip', "/inputfolder:$FolderPath", '/overwrite'))
+    if ($Operations['MergeSameTexts'])  { $argList.Add('/MergeSameTexts') }
+    if ($Operations['RemoveTextForHI']) { $argList.Add('/RemoveTextForHI') }
+    if ($Operations['FixCommonErrors']) { $argList.Add('/FixCommonErrors') }
+    # GUI has no CLI line-split flag; FixCommonErrors handles wrapping. SplitLongLines is seconv-only.
+    $argList.Add("/outputfolder:$FolderPath")
+    return $argList.ToArray()
+}
