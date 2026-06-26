@@ -65,3 +65,23 @@ Describe 'Resolve-SASubtitleTool' {
         }
     }
 }
+
+Describe 'Get-SACleanupOperations' {
+    It 'returns production-ordered keys with toggle values, defaulting missing keys to true (except split)' {
+        InModuleScope 'Stagearr.Core' {
+            $ops = Get-SACleanupOperations -CleanupConfig @{ enabled = $true }
+            @($ops.Keys) | Should -Be @('MergeSameTexts','RemoveTextForHI','FixCommonErrors','SplitLongLines')
+            $ops.MergeSameTexts  | Should -BeTrue
+            $ops.RemoveTextForHI | Should -BeTrue
+            $ops.FixCommonErrors | Should -BeTrue
+            $ops.SplitLongLines  | Should -BeFalse
+        }
+    }
+    It 'honors explicit toggles' {
+        InModuleScope 'Stagearr.Core' {
+            $ops = Get-SACleanupOperations -CleanupConfig @{ removeHearingImpaired = $false; splitLongLines = $true }
+            $ops.RemoveTextForHI | Should -BeFalse
+            $ops.SplitLongLines  | Should -BeTrue
+        }
+    }
+}

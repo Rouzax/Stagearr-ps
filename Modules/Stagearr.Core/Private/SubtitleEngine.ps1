@@ -52,3 +52,36 @@ function Resolve-SASubtitleTool {
     $engine = if ($leaf -match '^(?i)seconv') { 'Seconv' } else { 'SubtitleEditGui' }
     return [pscustomobject]@{ Path = $resolved; Engine = $engine }
 }
+
+function Get-SACleanupOperations {
+    <#
+    .SYNOPSIS
+        Maps [subtitles.cleanup] toggles to an ordered operation set (production order).
+    .DESCRIPTION
+        Pure. Order is fixed: MergeSameTexts, RemoveTextForHI, FixCommonErrors, SplitLongLines
+        (matching the legacy /MergeSameTexts /RemoveTextForHI /FixCommonErrors pipeline).
+        Missing toggles default to the documented defaults (split defaults off).
+    .PARAMETER CleanupConfig
+        The subtitles.cleanup config hashtable.
+    .OUTPUTS
+        Ordered dictionary of operation name -> bool.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
+    param(
+        [Parameter(Mandatory)]
+        [hashtable]$CleanupConfig
+    )
+
+    function _bool($value, $default) {
+        if ($null -eq $value) { return $default }
+        return [bool]$value
+    }
+
+    $ops = [ordered]@{}
+    $ops['MergeSameTexts']  = _bool $CleanupConfig.mergeSameTexts        $true
+    $ops['RemoveTextForHI'] = _bool $CleanupConfig.removeHearingImpaired $true
+    $ops['FixCommonErrors'] = _bool $CleanupConfig.fixCommonErrors       $true
+    $ops['SplitLongLines']  = _bool $CleanupConfig.splitLongLines        $false
+    return $ops
+}
