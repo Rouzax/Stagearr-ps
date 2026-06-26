@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 7.0
 <#
 .SYNOPSIS
     Subtitle cleanup engine resolution and argument building (pure helpers).
