@@ -194,6 +194,14 @@ See [MDBList Collection Sync](mdblist.md) for setup instructions and expected co
 
 ---
 
+### MDBList: collected items reappear on my "not collected" list
+
+Titles you imported and marked collected come back onto a title-level "not collected" list after a day or two. This is caused by MDBList's **Trakt collection sync** re-importing your Trakt collection and overwriting MDBList's own, which prunes anything not in Trakt (and Trakt's free collection cap can prevent new titles from being added there at all).
+
+Fix: in MDBList, **Preferences → Trakt**, turn off **"Trakt Sync (Watchlist, Watched, Ratings, Library)"** and Save, then re-mark your library once. See [MDBList Collection Sync → Troubleshooting](mdblist.md#items-i-marked-keep-reappearing-on-my-not-collected-list) for the full explanation and trade-offs.
+
+---
+
 ## FAQ
 
 ### Which external tools do I actually need?

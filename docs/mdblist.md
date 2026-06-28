@@ -114,6 +114,24 @@ This warning appears in the console and email when the collection sync call did 
 
 Run with `-Verbose` to see the HTTP response from MDBList and confirm which error was returned.
 
+### Items I marked keep reappearing on my "not collected" list
+
+If shows or movies you have imported (and that were marked collected) come back onto a title-level "not collected" MDBList list a day or two later, the cause is almost always MDBList's **Trakt collection sync overwriting MDBList's own collection**.
+
+How it happens:
+
+- In MDBList, **Preferences → Trakt → "Trakt Sync (Watchlist, Watched, Ratings, Library)"** periodically imports your Trakt collection. "Library" here means your collection.
+- On each sync, MDBList makes its collection match Trakt. Anything in MDBList's collection that is **not** in your Trakt collection is pruned, including the entries Stagearr adds.
+- Trakt's free tier caps how many items you can have collected. If your Trakt collection is at that cap, newly imported titles cannot be added to Trakt, so MDBList keeps removing them on every sync and they return to "not collected."
+
+To confirm: the reappearance lines up with the "Last sync was ..." time shown under that toggle.
+
+Fix: turn **off** the "Trakt Sync (Watchlist, Watched, Ratings, Library)" toggle in MDBList (Preferences → Trakt), then Save. MDBList then keeps its own collection and Stagearr's marks persist.
+
+- There is no separate switch for only the collection ("Library"); disabling the master toggle also stops the watchlist / watched / ratings sync from Trakt into MDBList. Your Trakt account itself is not changed.
+- Lists that filter on rating (for example "rating 6 or higher") are unaffected, because those use public ratings, not your synced personal data.
+- After disabling, re-mark your existing library once so already-imported titles are collected (your media server can re-scan, or mark them in bulk).
+
 ---
 
 ## Configuration Summary
