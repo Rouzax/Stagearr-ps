@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Ko-fi support links in the README, the docs site footer, the landing page footer, and a GitHub Sponsor button via `.github/FUNDING.yml`. Documentation only: running Stagearr is unchanged, and nothing prompts at runtime.
+
 ### Changed
 - Removed dead PowerShell 5.1 compatibility code now that PowerShell 7.0 is required: TLS 1.2 forcing in HTTP/OMDb/email/update paths, and the `$IsWindows` and `Invoke-WebRequest -UseBasicParsing` polyfills. No behavior change on PowerShell 7.
 
