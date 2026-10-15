@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-10-15
+
 ### Added
 - **Radarr/Sonarr link in emails.** After a Radarr or Sonarr import, the email title section links to the movie or series page (`View in Radarr` / `View in Sonarr`). New optional `linkUrl` setting under `[importers.radarr]` and `[importers.sonarr]` sets the address used for the link; when empty it is built from `host`, `port`, `ssl`, and `urlRoot`.
 - Ko-fi support links in the README, the docs site footer, the landing page footer, and a GitHub Sponsor button via `.github/FUNDING.yml`. Documentation only: running Stagearr is unchanged, and nothing prompts at runtime.

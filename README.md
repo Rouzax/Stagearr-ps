@@ -2,7 +2,7 @@
   <img src="https://img.shields.io/badge/PowerShell-7.x-5391FE?style=for-the-badge&logo=powershell&logoColor=white" alt="PowerShell 7.x">
   <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License">
-  <img src="https://img.shields.io/badge/Version-2.10.0-blue?style=for-the-badge" alt="Version 2.10.0">
+  <img src="https://img.shields.io/badge/Version-2.11.0-blue?style=for-the-badge" alt="Version 2.11.0">
   <a href="https://rouzax.github.io/Stagearr-ps/docs/"><img src="https://img.shields.io/badge/Docs-MkDocs-526CFE?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation"></a>
   <a href="https://ko-fi.com/O0W221GBUG"><img src="https://img.shields.io/badge/Ko--fi-Support-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>
