@@ -102,6 +102,7 @@ port = 7878
 apiKey = "your_radarr_api_key"
 ssl = false
 urlRoot = "" # URL path prefix if behind reverse proxy (e.g., '/radarr')
+linkUrl = "" # Base URL for the "View in Radarr" email link (e.g., 'https://radarr.example.com'); empty = built from host/port/ssl/urlRoot
 timeoutMinutes = 10
 remotePath = "" # Path translation if importer runs on different machine
 importMode = "move" # move | copy
@@ -113,6 +114,7 @@ port = 8989
 apiKey = "your_sonarr_api_key"
 ssl = false
 urlRoot = ""
+linkUrl = "" # Base URL for the "View in Sonarr" email link; empty = built from host/port/ssl/urlRoot
 timeoutMinutes = 10
 remotePath = ""
 importMode = "move" # move | copy

@@ -48,6 +48,7 @@ $script:SAEmailSummary = @{
     ReleaseInfo    = $null     # For subject template (ScreenSize, Source, etc.)
     TorrentHash    = ''        # For {hash4} placeholder
     OmdbData       = $null     # OMDb metadata for email enrichment (poster, ratings, genre)
+    ArrLink        = $null     # @{ Url; AppName } link to the movie/series in Radarr/Sonarr
 }
 
 #endregion
@@ -91,6 +92,7 @@ function Initialize-SAEmailRenderer {
         ReleaseInfo    = $null
         TorrentHash    = ''
         OmdbData       = $null
+        ArrLink        = $null
     }
 }
 
@@ -170,6 +172,8 @@ function Set-SAEmailSummary {
         Torrent hash for {hash4} placeholder in subject template
     .PARAMETER OmdbData
         OMDb metadata hashtable for email enrichment (poster, ratings, genre, IMDb link)
+    .PARAMETER ArrLink
+        Hashtable with Url and AppName for the "View in Radarr/Sonarr" link
     #>
     [CmdletBinding()]
     param(
@@ -229,7 +233,10 @@ function Set-SAEmailSummary {
         [string]$TorrentHash,
         
         [Parameter()]
-        [hashtable]$OmdbData
+        [hashtable]$OmdbData,
+
+        [Parameter()]
+        [hashtable]$ArrLink
     )
     
     if ($PSBoundParameters.ContainsKey('Name')) {
@@ -288,6 +295,9 @@ function Set-SAEmailSummary {
     }
     if ($PSBoundParameters.ContainsKey('OmdbData')) {
         $script:SAEmailSummary.OmdbData = $OmdbData
+    }
+    if ($PSBoundParameters.ContainsKey('ArrLink')) {
+        $script:SAEmailSummary.ArrLink = $ArrLink
     }
 }
 

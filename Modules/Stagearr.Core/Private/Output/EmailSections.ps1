@@ -261,8 +261,41 @@ function Get-SAEmailCenteredTitleSection {
         [void]$html.AppendLine('                        </td>')
         [void]$html.AppendLine('                    </tr>')
     }
+
+    $arrLinkHtml = Get-SAEmailArrLinkHtml -ArrLink $Summary.ArrLink
+    if ($arrLinkHtml) {
+        [void]$html.AppendLine('                    <tr>')
+        [void]$html.AppendLine("                        <td align=`"center`" style=`"padding: 0 24px 24px 24px; font-size: 13px;`">$arrLinkHtml</td>")
+        [void]$html.AppendLine('                    </tr>')
+    }
     
     return $html.ToString()
+}
+
+function Get-SAEmailArrLinkHtml {
+    <#
+    .SYNOPSIS
+        Generates the "View in Radarr/Sonarr" anchor for the title section.
+    .PARAMETER ArrLink
+        Hashtable with Url and AppName, or $null.
+    .OUTPUTS
+        HTML anchor string, or empty string when there is no link.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter()]
+        [hashtable]$ArrLink
+    )
+
+    if ($null -eq $ArrLink -or [string]::IsNullOrWhiteSpace($ArrLink.Url)) {
+        return ''
+    }
+
+    $colors = $script:SAEmailColors
+    $safeUrl = ConvertTo-SAHtmlSafe -Text $ArrLink.Url
+    $safeApp = ConvertTo-SAHtmlSafe -Text $ArrLink.AppName
+    return "<a href=`"$safeUrl`" style=`"color: $($colors.LinkBlue); text-decoration: none;`">&#8627; View in $safeApp</a>"
 }
 
 function Get-SAEmailOmdbTitleSection {
@@ -279,6 +312,7 @@ function Get-SAEmailOmdbTitleSection {
         │  80px  │  Genre  •  Runtime
         │        │  Category • Target
         └────────┘  ↳ View on IMDb
+                    ↳ View in Radarr/Sonarr
     .PARAMETER Summary
         Email summary hashtable with OmdbData
     .OUTPUTS
@@ -364,6 +398,11 @@ function Get-SAEmailOmdbTitleSection {
         [void]$html.AppendLine("                                        <div style=`"font-size: 13px;`">")
         [void]$html.AppendLine("                                            <a href=`"$imdbUrl`" style=`"color: $($colors.LinkBlue); text-decoration: none;`">&#8627; View on IMDb</a>")
         [void]$html.AppendLine('                                        </div>')
+    }
+
+    $arrLinkHtml = Get-SAEmailArrLinkHtml -ArrLink $Summary.ArrLink
+    if ($arrLinkHtml) {
+        [void]$html.AppendLine("                                        <div style=`"font-size: 13px;`">$arrLinkHtml</div>")
     }
     
     # Plot (if enabled and available)

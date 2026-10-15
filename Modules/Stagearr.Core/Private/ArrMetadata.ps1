@@ -49,7 +49,8 @@ function ConvertTo-SAArrMetadata {
     .OUTPUTS
         Hashtable matching OmdbData format, or $null if no metadata available.
         Structure:
-        - Title, Year, ImdbId, ImdbRating, RottenTomatoes, Metacritic
+        - Title, Year, ImdbId, TmdbId, TvdbId, ArrId, TitleSlug
+        - ImdbRating, RottenTomatoes, Metacritic
         - Genre, Runtime, Plot, Type, TotalSeasons
         - Source = 'arr' (to identify metadata source)
     .EXAMPLE
@@ -158,6 +159,9 @@ function ConvertTo-SAArrMetadata {
     # show's download completeness (MDBList show-level marking).
     $arrId = if ($media.id) { $media.id } else { $null }
 
+    # Web UI route key: Radarr serves /movie/<titleSlug>, Sonarr /series/<titleSlug>.
+    $titleSlug = & $normalizeValue $media.titleSlug
+
     # Build normalized result (poster comes from OMDb, not *arr)
     $result = @{
         Title          = & $normalizeValue $media.title
@@ -166,6 +170,7 @@ function ConvertTo-SAArrMetadata {
         TmdbId         = $tmdbId
         TvdbId         = $tvdbId
         ArrId          = $arrId
+        TitleSlug      = $titleSlug
         ImdbRating     = $imdbRating
         RottenTomatoes = $rottenTomatoes
         Metacritic     = $metacritic

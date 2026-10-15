@@ -1104,6 +1104,16 @@ function Invoke-SAStandardJob {
         TorrentHash  = $Job.input.torrentHash  # For {hash4} placeholder
         OmdbData     = $omdbData        # OMDb enrichment data (poster, ratings, genre)
     }
+
+    # Built from the import's *arr metadata rather than $omdbData, so the link
+    # survives metadata.source = omdb/none.
+    if ($importTarget -in @('Radarr', 'Sonarr') -and $null -ne $arrMetadata) {
+        $arrUrl = Get-SAArrWebUrl -Config $Context.Config.importers[$importTarget.ToLower()] `
+            -AppType $importTarget -TitleSlug $arrMetadata.TitleSlug
+        if ($arrUrl) {
+            $emailParams.ArrLink = @{ Url = $arrUrl; AppName = $importTarget }
+        }
+    }
     
     # Add failure details for failed jobs
     if (-not $jobSuccess) {

@@ -6,6 +6,7 @@
     Shared helper functions used by import operations:
     - Hostname resolution with IPv4 preference
     - Base URL building with Host header support
+    - *arr web UI links for emails
     - Remote path translation
     - Label type detection
     
@@ -186,6 +187,55 @@ function Get-SAImporterBaseUrl {
         DisplayUrl = $displayUrl
         HostHeader = $hostHeader
     }
+}
+
+function Get-SAArrWebUrl {
+    <#
+    .SYNOPSIS
+        Builds the web UI URL of a movie (Radarr) or series (Sonarr).
+    .DESCRIPTION
+        Uses the importer's linkUrl when set, otherwise the API address with the
+        original hostname. The API host is often localhost or a LAN address that
+        does not resolve where the email is read, which is why linkUrl exists.
+    .PARAMETER Config
+        Importer configuration hashtable (linkUrl, host, port, ssl, urlRoot).
+    .PARAMETER AppType
+        'Radarr' or 'Sonarr'.
+    .PARAMETER TitleSlug
+        titleSlug from the *arr movie/series object.
+    .OUTPUTS
+        URL string, or $null when TitleSlug is empty.
+    .EXAMPLE
+        Get-SAArrWebUrl -Config $config.importers.radarr -AppType 'Radarr' -TitleSlug 'the-matrix-603'
+        # Returns: 'http://localhost:7878/movie/the-matrix-603'
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Radarr', 'Sonarr')]
+        [string]$AppType,
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string]$TitleSlug
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TitleSlug)) {
+        return $null
+    }
+
+    $baseUrl = if (-not [string]::IsNullOrWhiteSpace($Config.linkUrl)) {
+        $Config.linkUrl
+    } else {
+        (Get-SAImporterBaseUrl -Config $Config).DisplayUrl
+    }
+
+    $route = if ($AppType -eq 'Radarr') { 'movie' } else { 'series' }
+    return "$($baseUrl.TrimEnd('/'))/$route/$([System.Uri]::EscapeDataString($TitleSlug))"
 }
 
 #endregion
