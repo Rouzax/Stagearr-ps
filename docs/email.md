@@ -140,8 +140,25 @@ When metadata enrichment is enabled, emails include a poster image and ratings b
 |  POSTER  |  Comedy, Crime, Drama  -  144 min
 |   80px   |  Movie - Radarr
 |          |  -> View on IMDb
+|          |  -> View in Radarr
 +----------+
 ```
+
+### Link to Radarr or Sonarr
+
+After a Radarr or Sonarr import, the email links straight to the movie or series page in that app (`View in Radarr` / `View in Sonarr`). The link appears whether or not metadata enrichment is enabled, and is not shown for Medusa or passthrough jobs.
+
+By default the link uses the same address Stagearr uses for the API (`host`, `port`, `ssl`, `urlRoot`). If that is `localhost` or a LAN address, the link only works on that network. Set `linkUrl` to the address you open in a browser:
+
+```toml
+[importers.radarr]
+linkUrl = "https://radarr.example.com"
+
+[importers.sonarr]
+linkUrl = "https://sonarr.example.com"
+```
+
+See [Settings Reference](settings-reference.md#importersradarr) for details.
 
 ### Metadata sources
 

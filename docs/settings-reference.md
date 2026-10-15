@@ -172,6 +172,7 @@ Connects Stagearr to a Radarr instance for movie imports.
 | `apiKey` | Radarr API key. Required when enabled. | `""` |
 | `ssl` | Use HTTPS instead of HTTP. | `false` |
 | `urlRoot` | URL base path when Radarr is behind a reverse proxy (e.g. `"/radarr"`). | `""` |
+| `linkUrl` | Base URL for the "View in Radarr" link in emails, as you open Radarr in a browser (e.g. `"https://radarr.example.com"`). Set this when `host` is `localhost` or an address that does not work where you read email. Empty builds the link from `host`, `port`, `ssl`, and `urlRoot`. Only affects the email link, never API calls. | `""` |
 | `timeoutMinutes` | Maximum time to wait for Radarr to complete the import. | `15` |
 | `remotePath` | Path prefix Radarr uses to reach the staging folder when it mounts the filesystem differently than Stagearr. See below. | `""` |
 | `importMode` | How Radarr handles the source file after import. `move` removes the staged file; `copy` leaves it. | `"move"` |
@@ -190,6 +191,7 @@ Connects Stagearr to a Sonarr instance for TV imports. Set `processing.tvImporte
 | `apiKey` | Sonarr API key. Required when enabled. | `""` |
 | `ssl` | Use HTTPS instead of HTTP. | `false` |
 | `urlRoot` | URL base path when Sonarr is behind a reverse proxy (e.g. `"/sonarr"`). | `""` |
+| `linkUrl` | Base URL for the "View in Sonarr" link in emails, as you open Sonarr in a browser (e.g. `"https://sonarr.example.com"`). Set this when `host` is `localhost` or an address that does not work where you read email. Empty builds the link from `host`, `port`, `ssl`, and `urlRoot`. Only affects the email link, never API calls. | `""` |
 | `timeoutMinutes` | Maximum time to wait for Sonarr to complete the import. | `15` |
 | `remotePath` | Path prefix Sonarr uses to reach the staging folder. See below. | `""` |
 | `importMode` | How Sonarr handles the source file after import. `move` or `copy`. | `"move"` |

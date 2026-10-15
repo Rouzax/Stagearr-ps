@@ -702,6 +702,7 @@ These aren't exported but are heavily used internally:
 | Function | Purpose | File |
 |----------|---------|------|
 | `Get-SAImporterBaseUrl` | Build importer URL with hostname resolution | ImportUtility.ps1 |
+| `Get-SAArrWebUrl` | Build Radarr/Sonarr web UI URL for a movie/series (email link) | ImportUtility.ps1 |
 | `Convert-SAToRemotePath` | Translate local to remote paths | ImportUtility.ps1 |
 | `Reset-SAHostnameCache` | Clear DNS resolution cache | ImportUtility.ps1 |
 | `ConvertFrom-SAArrErrors` | Parse *arr error responses | ImportResultParser.ps1 |
@@ -745,6 +746,7 @@ These aren't exported but are heavily used internally:
 | `Get-SAEmailTitleSection` | Generate title/subtitle HTML (dispatches to centered or OMDb layout) | Output/EmailSections.ps1 |
 | `Get-SAEmailCenteredTitleSection` | Generate centered title/subtitle (no OMDb) | Output/EmailSections.ps1 |
 | `Get-SAEmailOmdbTitleSection` | Generate title with poster/ratings layout | Output/EmailSections.ps1 |
+| `Get-SAEmailArrLinkHtml` | Generate "View in Radarr/Sonarr" anchor | Output/EmailSections.ps1 |
 | `Get-SAEmailRatingsHtml` | Generate ratings HTML (⭐ IMDb • 🍅 RT • Ⓜ MC) | Output/EmailSections.ps1 |
 | `Get-SAEmailSubtitle` | Category • Target string | Output/EmailSections.ps1 |
 | `Get-SAEmailDetailsSection` | Generate details card HTML (includes Quality row) | Output/EmailSections.ps1 |
