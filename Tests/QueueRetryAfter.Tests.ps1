@@ -60,10 +60,14 @@ Describe 'Add-SAJob retry parameters' {
             $job | Should -Not -BeNullOrEmpty
 
             $jobFile = Join-Path $script:testQueue "pending/$($job.id).json"
-            $persisted = Get-Content -LiteralPath $jobFile -Raw | ConvertFrom-Json
+            # Read the raw JSON text: ConvertFrom-Json turns ISO 8601 strings into
+            # [datetime], which would hide the on-disk format and, when re-parsed,
+            # round-trip through InvariantCulture vs CurrentCulture.
+            $raw = Get-Content -LiteralPath $jobFile -Raw
+            $rawValue = ([regex]'"retryAfter"\s*:\s*"([^"]+)"').Match($raw).Groups[1].Value
 
-            $persisted.input.retryAfter | Should -Not -BeNullOrEmpty
-            $parsed = [datetime]::Parse($persisted.input.retryAfter)
+            $rawValue | Should -Match '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}'
+            $parsed = [datetime]::Parse($rawValue, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind)
             $parsed.ToUniversalTime() | Should -Be $retryTime.ToUniversalTime()
         }
     }

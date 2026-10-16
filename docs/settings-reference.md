@@ -128,6 +128,7 @@ Cleans extracted and downloaded SRT files using the subtitle cleanup engine sele
 | `splitLongLines` | bool | Split lines that exceed the display width across two lines. | `false` |
 | `fixCommonErrorsRules` | string | **seconv only.** Comma-separated list of FixCommonErrors rules to apply. Prefix a rule name with `-` to exclude it. Default excludes `FixShortGaps` (shifts timecodes) and `FixShortLinesPixelWidth` (re-flows line breaks). | `"all,-FixShortGaps,-FixShortLinesPixelWidth"` |
 | `seconvSettings` | string | **seconv only.** Path to a custom seconv settings JSON file that controls how operations behave (font, margins, per-rule parameters). Leave empty to use the bundled SE4 default profile. | `""` |
+| `removeMixedCaseSpeakerLabels` | bool | **seconv only.** `true` removes speaker labels in any case (`Janine:` as well as `MAN:`), matching the usual SubtitleEdit.exe setup, but also clips text before a colon in lines like `the Mission: Impossible team`. `false` removes only ALL-CAPS labels. Overrides the value in a custom `seconvSettings` file. See [Speaker labels](subtitles.md#speaker-labels-seconv). | `true` |
 
 See [Subtitle Processing](subtitles.md#subtitle-cleanup) for a full description of the two engines, the two-layer model (which operations run vs. how they behave), and known limitations.
 

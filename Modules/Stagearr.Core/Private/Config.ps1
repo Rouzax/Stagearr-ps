@@ -57,6 +57,7 @@ $script:SAConfigDefaults = @{
             splitLongLines        = $false
             fixCommonErrorsRules  = 'all,-FixShortGaps,-FixShortLinesPixelWidth'
             seconvSettings        = ''
+            removeMixedCaseSpeakerLabels = $true
         }
         openSubtitles = @{
             enabled       = $false
