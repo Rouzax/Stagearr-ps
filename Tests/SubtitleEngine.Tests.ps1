@@ -147,6 +147,15 @@ Describe 'seconv settings JSON + resolver' {
             $j.removeTextForHearingImpaired.removeIfOnlyMusicSymbols | Should -BeTrue
         }
     }
+    It 'bundled JSON pins the SE4 speaker-label keys instead of inheriting seconv defaults' {
+        InModuleScope 'Stagearr.Core' {
+            $hi = (Get-Content -LiteralPath (Join-Path $script:SAModuleRoot 'Data/seconv-settings.json') -Raw | ConvertFrom-Json).removeTextForHearingImpaired
+            $hi.removeTextBeforeColonOnlyIfUppercase    | Should -Be $false
+            $hi.removeTextBeforeColonOnlyOnSeparateLine | Should -Be $false
+            $hi.removeTextBetweenOnlySeparateLines      | Should -Be $false
+            $hi.removeInterjectionsOnlyOnSeparateLine   | Should -Be $false
+        }
+    }
     It 'resolver returns bundled path when override empty' {
         InModuleScope 'Stagearr.Core' {
             $r = Resolve-SASeconvSettingsPath -OverridePath ''
@@ -168,6 +177,40 @@ Describe 'seconv settings JSON + resolver' {
     }
 }
 
+Describe 'ConvertTo-SASeconvEffectiveSettings' {
+    It 'removeMixedCaseSpeakerLabels true -> removeTextBeforeColonOnlyIfUppercase false' {
+        InModuleScope 'Stagearr.Core' {
+            $json = '{"removeTextForHearingImpaired":{"removeTextBeforeColonOnlyIfUppercase":true,"removeTextBeforeColon":true}}'
+            $out = ConvertTo-SASeconvEffectiveSettings -Json $json -RemoveMixedCaseSpeakerLabels $true | ConvertFrom-Json
+            $out.removeTextForHearingImpaired.removeTextBeforeColonOnlyIfUppercase | Should -BeFalse
+            $out.removeTextForHearingImpaired.removeTextBeforeColon | Should -BeTrue
+        }
+    }
+    It 'removeMixedCaseSpeakerLabels false -> removeTextBeforeColonOnlyIfUppercase true' {
+        InModuleScope 'Stagearr.Core' {
+            $json = '{"removeTextForHearingImpaired":{"removeTextBeforeColonOnlyIfUppercase":false}}'
+            $out = ConvertTo-SASeconvEffectiveSettings -Json $json -RemoveMixedCaseSpeakerLabels $false | ConvertFrom-Json
+            $out.removeTextForHearingImpaired.removeTextBeforeColonOnlyIfUppercase | Should -BeTrue
+        }
+    }
+    It 'adds the key and section when a custom profile lacks them, keeping other settings' {
+        InModuleScope 'Stagearr.Core' {
+            $json = '{"general":{"maxNumberOfLines":3}}'
+            $out = ConvertTo-SASeconvEffectiveSettings -Json $json -RemoveMixedCaseSpeakerLabels $true | ConvertFrom-Json
+            $out.general.maxNumberOfLines | Should -Be 3
+            $out.removeTextForHearingImpaired.removeTextBeforeColonOnlyIfUppercase | Should -BeFalse
+        }
+    }
+    It 'preserves non-ASCII values from the bundled profile' {
+        InModuleScope 'Stagearr.Core' {
+            $json = Get-Content -LiteralPath (Join-Path $script:SAModuleRoot 'Data/seconv-settings.json') -Raw
+            $out = ConvertTo-SASeconvEffectiveSettings -Json $json -RemoveMixedCaseSpeakerLabels $true | ConvertFrom-Json
+            $out.removeTextForHearingImpaired.removeIfContainsText | Should -Be ([string][char]0x266A)
+            $out.general.minimumMillisecondsBetweenLines | Should -Be 24
+        }
+    }
+}
+
 Describe 'subtitles.cleanup defaults' {
     It 'config defaults include the new cleanup keys' {
         InModuleScope 'Stagearr.Core' {
@@ -179,6 +222,7 @@ Describe 'subtitles.cleanup defaults' {
             $c.splitLongLines       | Should -BeFalse
             $c.fixCommonErrorsRules | Should -Be 'all,-FixShortGaps,-FixShortLinesPixelWidth'
             $c.seconvSettings       | Should -Be ''
+            $c.removeMixedCaseSpeakerLabels | Should -BeTrue
         }
     }
 }
@@ -232,6 +276,65 @@ Describe 'Start-SASubtitleCleanup dispatch' {
             ($script:captured | Where-Object { $_ -like '--settings:*' }).Count | Should -Be 1
             $script:captured | Should -Contain '--fix-common-errors-rules:all,-FixShortGaps,-FixShortLinesPixelWidth'
             $script:captured | Should -Not -Contain '/convert'
+        }
+    }
+
+    It 'seconv engine -> passes a temp settings copy with the speaker-label setting, then removes it' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Work = $script:work } {
+            param($Work)
+            $seconv = Join-Path $Work 'seconv'; Set-Content -LiteralPath $seconv -Value 'x'
+            $script:seenSettings = $null
+            $script:seenPath = $null
+            Mock Invoke-SAProcessWithRetry {
+                $script:seenPath = (($ArgumentList | Where-Object { $_ -like '--settings:*' }) -replace '^--settings:', '')
+                $script:seenSettings = Get-Content -LiteralPath $script:seenPath -Raw | ConvertFrom-Json
+                [pscustomobject]@{ Success = $true; ExitCode = 0; StdErr = '' }
+            }
+            foreach ($case in @(@{ Value = $true; Expected = $false }, @{ Value = $false; Expected = $true })) {
+                $ctx = @{
+                    Tools  = @{ SubtitleEdit = $seconv; SubtitleEngine = 'Seconv' }
+                    Config = @{ subtitles = @{ cleanup = @{ enabled = $true; fixCommonErrorsRules = ''; seconvSettings = ''; removeMixedCaseSpeakerLabels = $case.Value } } }
+                }
+                Start-SASubtitleCleanup -Context $ctx -FolderPath $Work | Out-Null
+                $script:seenPath | Should -Not -Be (Join-Path $script:SAModuleRoot 'Data/seconv-settings.json')
+                $script:seenSettings.removeTextForHearingImpaired.removeTextBeforeColonOnlyIfUppercase | Should -Be $case.Expected
+                Test-Path -LiteralPath $script:seenPath | Should -BeFalse
+            }
+        }
+    }
+
+    It 'seconv engine -> missing removeMixedCaseSpeakerLabels behaves as true' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Work = $script:work } {
+            param($Work)
+            $seconv = Join-Path $Work 'seconv'; Set-Content -LiteralPath $seconv -Value 'x'
+            Mock Invoke-SAProcessWithRetry {
+                $path = (($ArgumentList | Where-Object { $_ -like '--settings:*' }) -replace '^--settings:', '')
+                $script:seenSettings = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+                [pscustomobject]@{ Success = $true; ExitCode = 0; StdErr = '' }
+            }
+            $ctx = @{
+                Tools  = @{ SubtitleEdit = $seconv; SubtitleEngine = 'Seconv' }
+                Config = @{ subtitles = @{ cleanup = @{ enabled = $true; fixCommonErrorsRules = ''; seconvSettings = '' } } }
+            }
+            Start-SASubtitleCleanup -Context $ctx -FolderPath $Work | Out-Null
+            $script:seenSettings.removeTextForHearingImpaired.removeTextBeforeColonOnlyIfUppercase | Should -Be $false
+        }
+    }
+
+    It 'seconv engine -> temp settings copy is removed even when seconv throws' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Work = $script:work } {
+            param($Work)
+            $seconv = Join-Path $Work 'seconv'; Set-Content -LiteralPath $seconv -Value 'x'
+            Mock Invoke-SAProcessWithRetry {
+                $script:seenPath = (($ArgumentList | Where-Object { $_ -like '--settings:*' }) -replace '^--settings:', '')
+                throw 'boom'
+            }
+            $ctx = @{
+                Tools  = @{ SubtitleEdit = $seconv; SubtitleEngine = 'Seconv' }
+                Config = @{ subtitles = @{ cleanup = @{ enabled = $true; fixCommonErrorsRules = ''; seconvSettings = '' } } }
+            }
+            { Start-SASubtitleCleanup -Context $ctx -FolderPath $Work } | Should -Throw
+            Test-Path -LiteralPath $script:seenPath | Should -BeFalse
         }
     }
 

@@ -224,7 +224,7 @@ The four operations below are toggled by individual config keys. Both engines su
 
 | Config key | Default | What it removes or changes |
 |-----------|---------|---------------------------|
-| `removeHearingImpaired` | `true` | `[brackets]` and `(parentheses)` annotations such as `[door closes]` or `(sighs)` |
+| `removeHearingImpaired` | `true` | `[brackets]` and `(parentheses)` annotations such as `[door closes]` or `(sighs)`, and speaker labels such as `MAN:` (see [Speaker labels](#speaker-labels-seconv)) |
 | `mergeSameTexts` | `true` | Consecutive identical lines merged into one cue |
 | `fixCommonErrors` | `true` | Encoding artifacts, casing, punctuation, and timing/formatting mistakes |
 | `splitLongLines` | `false` | Lines exceeding the display width split across two lines |
@@ -233,7 +233,7 @@ These keys control **which operations run**. How each operation behaves internal
 
 ### seconv-only settings
 
-Two additional keys are only meaningful when seconv is the active engine. They have no effect when SubtitleEdit.exe is used.
+These keys are only meaningful when seconv is the active engine. They have no effect when SubtitleEdit.exe is used.
 
 **`fixCommonErrorsRules`** controls which FixCommonErrors rules seconv applies. The default excludes two rules that change output in ways the SubtitleEdit.exe batch mode does not:
 
@@ -248,7 +248,31 @@ The default `"all,-FixShortGaps,-FixShortLinesPixelWidth"` means: apply all rule
 [subtitles.cleanup]
 fixCommonErrorsRules = "all,-FixShortGaps,-FixShortLinesPixelWidth"
 seconvSettings = ""
+removeMixedCaseSpeakerLabels = true
 ```
+
+### Speaker labels (seconv)
+
+Hearing-impaired removal also strips speaker labels: the name and colon some subtitles put before a line. **`removeMixedCaseSpeakerLabels`** controls which labels count:
+
+| Value | Removes | Keeps |
+|-------|---------|-------|
+| `true` (default) | `MAN: Hello.` and `Janine: Late night?` | |
+| `false` | `MAN: Hello.` | `Janine: Late night?` |
+
+The default matches how the SubtitleEdit.exe batch has typically been configured. Netflix SDH tracks in particular label speakers in mixed case, so with `false` those labels stay in the subtitle.
+
+The trade-off with `true`: seconv cannot tell a character name from any other text before a colon, so it removes everything up to the colon. Titles and phrases with a colon lose their first part, for example:
+
+| Original | With `true` |
+|----------|-------------|
+| `the Mission: Impossible team` | `Impossible team` |
+| `On Icons Unearthed: Batman.` | `Batman.` |
+| `What I said: / you didn't listen to me.` | `You didn't listen to me.` |
+
+Set it to `false` if you watch a lot of documentaries or shows that quote titles with colons, and accept that mixed-case speaker labels remain.
+
+This setting is applied on top of whichever profile is in use, including a custom `seconvSettings` file, and overrides that file's `removeTextBeforeColonOnlyIfUppercase` value. It has no effect on the SubtitleEdit.exe engine, which uses its own saved setting: the "Only if text is UPPERCASE" option under "Remove text before a colon (':')" in Subtitle Edit's "Remove text for hearing impaired" dialog.
 
 ### Limitations
 

@@ -165,3 +165,38 @@ function Resolve-SASeconvSettingsPath {
     }
     return (Join-Path -Path $script:SAModuleRoot -ChildPath 'Data/seconv-settings.json')
 }
+
+function ConvertTo-SASeconvEffectiveSettings {
+    <#
+    .SYNOPSIS
+        Applies Stagearr's speaker-label setting on top of a seconv settings JSON.
+    .DESCRIPTION
+        seconv takes a single --settings file, so the config toggle has to be written
+        into a copy of whichever profile is in use (bundled or override). The toggle
+        wins over the profile's own value.
+
+        seconv defaults removeTextBeforeColonOnlyIfUppercase to true (only "MAN:" is
+        stripped); SE4 users typically ran with false (any "Name:" is stripped, which
+        also clips lines such as "Mission: Impossible" to "Impossible").
+    .PARAMETER Json
+        Settings JSON text.
+    .PARAMETER RemoveMixedCaseSpeakerLabels
+        $true strips mixed-case speaker labels too; $false strips only ALL-CAPS ones.
+    .OUTPUTS
+        [string] settings JSON text.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)][string]$Json,
+        [Parameter(Mandatory)][bool]$RemoveMixedCaseSpeakerLabels
+    )
+
+    $settings = $Json | ConvertFrom-Json
+    if ($null -eq $settings.removeTextForHearingImpaired) {
+        $settings | Add-Member -NotePropertyName 'removeTextForHearingImpaired' -NotePropertyValue ([pscustomobject]@{}) -Force
+    }
+    $settings.removeTextForHearingImpaired |
+        Add-Member -NotePropertyName 'removeTextBeforeColonOnlyIfUppercase' -NotePropertyValue (-not $RemoveMixedCaseSpeakerLabels) -Force
+    return ($settings | ConvertTo-Json -Depth 20)
+}

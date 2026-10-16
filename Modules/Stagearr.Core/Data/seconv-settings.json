@@ -21,10 +21,14 @@
     "removeTextBetweenCustomBefore": "♪",
     "removeTextBetweenCustomAfter": "♪",
     "removeTextBeforeColon": true,
+    "removeTextBeforeColonOnlyIfUppercase": false,
+    "removeTextBeforeColonOnlyOnSeparateLine": false,
+    "removeTextBetweenOnlySeparateLines": false,
     "removeIfAllUppercase": true,
     "removeIfContains": true,
     "removeIfContainsText": "♪",
     "removeIfOnlyMusicSymbols": true,
-    "removeInterjections": false
+    "removeInterjections": false,
+    "removeInterjectionsOnlyOnSeparateLine": false
   }
 }

@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **`subtitles.cleanup.removeMixedCaseSpeakerLabels`** (seconv only, default `true`) controls whether hearing-impaired removal strips mixed-case speaker labels such as `Janine:` in addition to ALL-CAPS ones such as `MAN:`. `true` matches the usual SubtitleEdit.exe setup, at the cost of clipping text before a colon in lines like `the Mission: Impossible team`. It overrides the value in a custom `seconvSettings` file.
+
+### Changed
+- **seconv now removes mixed-case speaker labels by default.** The bundled profile left seconv's own default in place, which only removed ALL-CAPS labels, so labels such as `Janine:` survived where SubtitleEdit.exe removed them. Set `removeMixedCaseSpeakerLabels = false` to keep the 2.10/2.11 behavior. The bundled profile now also pins `removeTextBeforeColonOnlyOnSeparateLine`, `removeTextBetweenOnlySeparateLines` and `removeInterjectionsOnlyOnSeparateLine` to `false` (their current value), so a future seconv default change cannot alter them. (#5)
+
+### Fixes
+- `QueueRetryAfter` test no longer fails on non-US system cultures. Test-only change. (#6)
+
 ## [2.11.0] - 2026-10-15
 
 ### Added

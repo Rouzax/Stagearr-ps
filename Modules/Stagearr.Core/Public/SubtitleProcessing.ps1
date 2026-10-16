@@ -90,15 +90,24 @@ function Start-SASubtitleCleanup {
 
     $cleanupCfg = $Context.Config.subtitles.cleanup
     $ops = Get-SACleanupOperations -CleanupConfig $cleanupCfg
+    $tempSettingsPath = $null
 
     if ($engine -eq 'Seconv') {
         if (-not [string]::IsNullOrWhiteSpace($cleanupCfg.seconvSettings) -and
             -not (Test-Path -LiteralPath $cleanupCfg.seconvSettings -PathType Leaf)) {
             Write-SAVerbose -Text "seconvSettings override not found ($($cleanupCfg.seconvSettings)); using bundled profile"
         }
-        $settingsPath = Resolve-SASeconvSettingsPath -OverridePath $cleanupCfg.seconvSettings
+        $profilePath = Resolve-SASeconvSettingsPath -OverridePath $cleanupCfg.seconvSettings
+        # A missing key (configs predating the setting) means the default: strip mixed case too.
+        $removeMixedCase = $cleanupCfg.removeMixedCaseSpeakerLabels -ne $false
+        $effectiveJson = ConvertTo-SASeconvEffectiveSettings -Json (Get-Content -LiteralPath $profilePath -Raw) `
+            -RemoveMixedCaseSpeakerLabels $removeMixedCase
+        # Outside $FolderPath so the copy never mixes with the subtitles being cleaned.
+        $tempSettingsPath = Join-Path ([System.IO.Path]::GetTempPath()) "stagearr-seconv-$([guid]::NewGuid().ToString('N')).json"
+        Set-Content -LiteralPath $tempSettingsPath -Value $effectiveJson -Encoding utf8NoBOM
+        Write-SAVerbose -Text "seconv profile: $profilePath (removeMixedCaseSpeakerLabels=$removeMixedCase)"
         $rules = if ($null -ne $cleanupCfg.fixCommonErrorsRules) { [string]$cleanupCfg.fixCommonErrorsRules } else { '' }
-        $cleanupArgs = Get-SASeconvCleanupArgs -FolderPath $FolderPath -Operations $ops -FixCommonErrorsRules $rules -SettingsPath $settingsPath
+        $cleanupArgs = Get-SASeconvCleanupArgs -FolderPath $FolderPath -Operations $ops -FixCommonErrorsRules $rules -SettingsPath $tempSettingsPath
     } else {
         $cleanupArgs = Get-SAGuiCleanupArgs -FolderPath $FolderPath -Operations $ops
     }
@@ -109,11 +118,17 @@ function Start-SASubtitleCleanup {
     # Increase timeout for batch processing (10 seconds per file, minimum 60 seconds)
     $timeoutSeconds = [Math]::Max(60, $srtFiles.Count * 10)
 
-    $result = Invoke-SAProcessWithRetry -FilePath $subtitleEdit `
-        -ArgumentList $cleanupArgs `
-        -TimeoutSeconds $timeoutSeconds `
-        -MaxRetries 1 `
-        -RetryExitCodes @(-2)  # Only retry on timeout
+    try {
+        $result = Invoke-SAProcessWithRetry -FilePath $subtitleEdit `
+            -ArgumentList $cleanupArgs `
+            -TimeoutSeconds $timeoutSeconds `
+            -MaxRetries 1 `
+            -RetryExitCodes @(-2)  # Only retry on timeout
+    } finally {
+        if ($tempSettingsPath) {
+            Remove-Item -LiteralPath $tempSettingsPath -Force -ErrorAction SilentlyContinue
+        }
+    }
     
     if ($result.Success -or $result.ExitCode -eq 0) {
         $fileWord = Get-SAPluralForm -Count $srtFiles.Count -Singular 'file'

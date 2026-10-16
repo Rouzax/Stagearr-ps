@@ -72,6 +72,10 @@ splitLongLines        = false
 fixCommonErrorsRules = "all,-FixShortGaps,-FixShortLinesPixelWidth"
 # Custom seconv settings JSON tuning HOW operations behave. Empty = bundled SE4 profile.
 seconvSettings = ""
+# Speaker labels removed by removeHearingImpaired. true = any case ("Janine:" and "MAN:"),
+# as SE4 is usually set up; also clips lines like "the Mission: Impossible team" to
+# "Impossible team". false = ALL-CAPS labels only. Overrides the value in seconvSettings.
+removeMixedCaseSpeakerLabels = true
 
 [subtitles.openSubtitles]
 # OpenSubtitles.com API settings (REST API v1)
