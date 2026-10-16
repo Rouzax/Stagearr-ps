@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-10-16
+
 ### Added
 - **`subtitles.cleanup.removeMixedCaseSpeakerLabels`** (seconv only, default `true`) controls whether hearing-impaired removal strips mixed-case speaker labels such as `Janine:` in addition to ALL-CAPS ones such as `MAN:`. `true` matches the usual SubtitleEdit.exe setup, at the cost of clipping text before a colon in lines like `the Mission: Impossible team`. It overrides the value in a custom `seconvSettings` file.
 
