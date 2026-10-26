@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-10-26
+
 ### Added
 - **Free-space check before staging.** Stagearr now checks that the staging folder's volume has room for the job before it copies, remuxes or extracts anything. If it does not, the job fails at once with `Not enough disk space`, showing how much is needed and how much is free, instead of failing partway through the copy. For RAR sources the estimate is the size of the archive set being extracted; proof and sample archives are not counted. The check follows symbolic links and junctions, so a staging folder that links to a network share is measured on the share. When free space cannot be determined, staging goes ahead as before.
 
