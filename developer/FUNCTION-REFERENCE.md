@@ -172,6 +172,7 @@ Modules/Stagearr.Core/
 | Validate path security | `Assert-SAPathUnderRoot` | PathSecurity.ps1 |
 | Detect sample files | `Test-SASamplePath` | PathSecurity.ps1 |
 | Create directory | `New-SADirectory` | FileIO.ps1 |
+| Free space on a path's volume | `Get-SAAvailableFreeSpace` | FileIO.ps1 |
 | Write UTF-8 file | `Write-SAFileUtf8NoBom` | FileIO.ps1 |
 | Atomic file write | `Write-SAFileAtomicUtf8NoBom` | FileIO.ps1 |
 | Write lines to file | `Write-SAFileLinesUtf8NoBom` | FileIO.ps1 |
@@ -503,7 +504,8 @@ Multiple labels can be configured to route downloads to the correct importer.
 
 | Function | Purpose | File |
 |----------|---------|------|
-| `Invoke-SAVideoProcessing` | **Main entry** - video pipeline | Video.ps1 |
+| `Invoke-SAVideoProcessing` | **Main entry** - video pipeline (fails early when the staging volume lacks space) | Video.ps1 |
+| `Get-SAStagingRequiredBytes` | Estimate bytes staging will write (whole RAR set for archives) | Video.ps1 |
 | `Start-SAMkvRemux` | Remux MKV selectively | Video.ps1 |
 | `Start-SARemuxMP4` | Convert MP4 to MKV | Video.ps1 |
 | `Start-SAExtractSubtitles` | Extract subtitle tracks from MKV | Video.ps1 |
@@ -589,6 +591,7 @@ The import result includes rich metadata for email enrichment:
 |----------|---------|------|
 | `Initialize-SAStagingFolder` | Create staging folder | Staging.ps1 |
 | `Remove-SAStagingFolder` | Remove after processing | Staging.ps1 |
+| `Get-SARobocopyErrorText` | Extract the error code and message robocopy writes to stdout | Staging.ps1 |
 
 ### Notifications
 
@@ -622,7 +625,7 @@ These aren't exported but are heavily used internally:
 | `Invoke-SAProcessWithRetry` | Run external tool with automatic retry | ErrorHandling.ps1 |
 | `Test-SAProcessResult` | Validate process result and log errors | ErrorHandling.ps1 |
 | `Get-SAToolErrorInfo` | Translate tool exit codes to user-friendly errors | ErrorHandling.ps1 |
-| `Write-SAToolError` | Write user-friendly error with guidance | ErrorHandling.ps1 |
+| `Write-SAToolError` | Write user-friendly error with guidance (no pipeline output) | ErrorHandling.ps1 |
 
 ### Formatting & Display
 
@@ -649,6 +652,7 @@ These aren't exported but are heavily used internally:
 | Function | Purpose | File |
 |----------|---------|------|
 | `New-SADirectory` | Create if not exists | FileIO.ps1 |
+| `Get-SAAvailableFreeSpace` | Free bytes on the volume holding a path (follows symlinks, UNC aware) | FileIO.ps1 |
 | `Write-SAFileUtf8NoBom` | Write UTF-8 without BOM | FileIO.ps1 |
 | `Write-SAFileAtomicUtf8NoBom` | Atomic file write | FileIO.ps1 |
 | `Write-SAFileLinesUtf8NoBom` | Write lines to file | FileIO.ps1 |
@@ -780,7 +784,7 @@ These have no I/O — input → output only:
 
 **PathSecurity.ps1:** `Get-SASafeName`, `Assert-SAPathUnderRoot`, `Test-SASamplePath`
 
-**FileIO.ps1:** `New-SADirectory`, `Write-SAFileUtf8NoBom`, `Write-SAFileAtomicUtf8NoBom`, `Write-SAFileLinesUtf8NoBom`
+**FileIO.ps1:** `New-SADirectory`, `Get-SAAvailableFreeSpace`, `Write-SAFileUtf8NoBom`, `Write-SAFileAtomicUtf8NoBom`, `Write-SAFileLinesUtf8NoBom`
 
 **EpisodeFormatting.ps1:** `Group-SAConsecutiveEpisodes`, `Format-SAEpisodeRange`, `Format-SAEpisodeList`, `Format-SAEpisodeOutcome`
 

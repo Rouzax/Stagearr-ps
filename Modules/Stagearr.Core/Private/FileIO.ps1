@@ -183,3 +183,54 @@ function Write-SAFileLinesUtf8NoBom {
         [System.IO.File]::WriteAllLines($Path, $Lines, $utf8NoBom)
     }
 }
+
+function Get-SAAvailableFreeSpace {
+    <#
+    .SYNOPSIS
+        Returns the free bytes available to the current user on the volume holding a path.
+    .DESCRIPTION
+        On Windows this asks GetDiskFreeSpaceEx about the path itself, not its drive
+        letter. DriveInfo only looks at the drive letter, so for C:\TEMP symlinked to an
+        SMB share it reports the local C: drive instead of the share. GetDiskFreeSpaceEx
+        follows symbolic links and junctions to their target, accepts UNC paths, and
+        honours per-user disk quotas.
+        
+        Best-effort: returns $null when the size cannot be determined. Callers treat
+        $null as "unknown" and carry on rather than failing.
+    .PARAMETER Path
+        An existing directory on the volume to check.
+    .OUTPUTS
+        [long] free bytes, or $null.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+    
+    try {
+        if (-not (Get-SAIsWindows)) {
+            return [long]([System.IO.DriveInfo]::new([System.IO.Path]::GetFullPath($Path)).AvailableFreeSpace)
+        }
+        
+        if (-not ('Stagearr.NativeDisk' -as [type])) {
+            Add-Type -Namespace 'Stagearr' -Name 'NativeDisk' -MemberDefinition @'
+[DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+[return: MarshalAs(UnmanagedType.Bool)]
+public static extern bool GetDiskFreeSpaceEx(string lpDirectoryName, out ulong lpFreeBytesAvailable, out ulong lpTotalNumberOfBytes, out ulong lpTotalNumberOfFreeBytes);
+'@
+        }
+        
+        # UNC roots must end in a backslash; harmless for every other directory path
+        $directory = $Path.TrimEnd('\') + '\'
+        $available = [uint64]0
+        $total = [uint64]0
+        $totalFree = [uint64]0
+        if ([Stagearr.NativeDisk]::GetDiskFreeSpaceEx($directory, [ref]$available, [ref]$total, [ref]$totalFree)) {
+            return [long]$available
+        }
+        return $null
+    } catch {
+        return $null
+    }
+}
