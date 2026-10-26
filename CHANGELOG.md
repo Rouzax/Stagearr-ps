@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Free-space check before staging.** Stagearr now checks that the staging folder's volume has room for the job before it copies, remuxes or extracts anything. If it does not, the job fails at once with `Not enough disk space`, showing how much is needed and how much is free, instead of failing partway through the copy. For RAR sources the size of the whole archive set is used as the estimate. The check follows symbolic links and junctions, so a staging folder that links to a network share is measured on the share. When free space cannot be determined, staging goes ahead as before.
+
+### Fixes
+- **A failed copy to staging no longer reports success.** When robocopy failed, staging still logged `Staging: 1 file ready` and the job went on to an import of an empty folder, which Radarr/Sonarr answered with `No files found`. The job now fails at staging, and the failure email names the file. The same defect let a failed RAR extraction count as successful.
+- **Robocopy errors show the real cause.** Robocopy writes its errors to stdout, which was not captured, so every copy failure showed the generic `Files may be in use or you may lack permission`. The Windows error is now read from robocopy's output, so a full disk shows as `Disk is full`, and the raw message (for example `ERROR 112 (0x00000070): There is not enough space on the disk.`) is in the log.
+
 ## [2.12.0] - 2026-10-16
 
 ### Added

@@ -33,6 +33,42 @@ function Test-SARobocopySuccess {
     return $ExitCode -le 7
 }
 
+function Get-SARobocopyErrorText {
+    <#
+    .SYNOPSIS
+        Extracts the failure reason from robocopy output.
+    .DESCRIPTION
+        Robocopy writes errors to stdout, not stderr, as a line holding the Windows
+        error code followed by a line with the system message:
+            2026/10/26 12:03:01 ERROR 112 (0x00000070) Copying File C:\...\file.mkv
+            There is not enough space on the disk.
+        With /R retries the pair repeats; the last one is returned.
+    .PARAMETER StdOut
+        Captured robocopy stdout.
+    .OUTPUTS
+        "ERROR <code> (<hex>): <message>", or an empty string when no error is present.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter()]
+        [AllowEmptyString()]
+        [string]$StdOut = ''
+    )
+    
+    $lines = $StdOut -split '\r?\n'
+    for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+        if ($lines[$i] -match '(ERROR \d+ \(0x[0-9A-Fa-f]+\))') {
+            $code = $Matches[1]
+            $message = if ($i + 1 -lt $lines.Count) { $lines[$i + 1].Trim() } else { '' }
+            if ($message) { return "${code}: $message" }
+            return $code
+        }
+    }
+    
+    return ''
+}
+
 function Initialize-SAStagingFolder {
     <#
     .SYNOPSIS
@@ -112,10 +148,12 @@ function Copy-SASingleFile {
                 Write-SAOutcome -Level Success -Label "Copied" -Text $fileName -Indent 2 -ConsoleOnly
                 return $true
             } else {
+                $errorText = Get-SARobocopyErrorText -StdOut $result.StdOut
+                if (-not $errorText) { $errorText = $result.StdErr }
                 Write-SAToolError -Label "Copy" `
                     -ToolName 'robocopy' `
                     -ExitCode $result.ExitCode `
-                    -ErrorMessage $result.StdErr `
+                    -ErrorMessage $errorText `
                     -FilePath $SourcePath
                 return $false
             }
@@ -538,6 +576,8 @@ function Invoke-SAProcessMkv {
             Success       = $success
             OutputPath    = $outputPath
             Type          = 'Copy'
+            Error         = if (-not $success) { 'Copy to staging failed' } else { $null }
+            FailedFile    = if (-not $success) { $fileName } else { $null }
             ExtractedSrts = $extractedSrts
             OpenSubsHash  = $mkvInfo.OpenSubsHash
         }

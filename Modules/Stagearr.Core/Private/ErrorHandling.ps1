@@ -111,16 +111,20 @@ $script:SAToolErrors = @{
     }
     
     # Robocopy (special handling - 0-7 are success)
+    # 8 and 16 are catch-alls covering disk full, access denied, missing paths and more,
+    # so Generic lets a matching SAExceptionPatterns entry describe the actual cause.
     'robocopy' = @{
         8 = @{
             Problem = 'Some files could not be copied'
             Reason  = 'Files may be in use or you may lack permission'
             Action  = 'Check if files are open in another program'
+            Generic = $true
         }
         16 = @{
             Problem = 'Serious error - no files were copied'
             Reason  = 'Source or destination may be inaccessible'
             Action  = 'Verify the source path exists and destination is writable'
+            Generic = $true
         }
     }
     
@@ -242,6 +246,7 @@ function Get-SAToolErrorInfo {
     }
     
     # Try to find a specific exit code mapping
+    $isGenericMapping = $false
     if ($script:SAToolErrors.ContainsKey($toolKey)) {
         $toolErrors = $script:SAToolErrors[$toolKey]
         if ($toolErrors.ContainsKey($ExitCode)) {
@@ -249,11 +254,12 @@ function Get-SAToolErrorInfo {
             $problem = $errorDef.Problem
             $reason = $errorDef.Reason
             $action = $errorDef.Action
+            $isGenericMapping = [bool]$errorDef.Generic
         }
     }
     
-    # If no specific mapping, try to match exception patterns
-    if (-not $problem -and -not [string]::IsNullOrWhiteSpace($ErrorMessage)) {
+    # No mapping, or only a catch-all one: try to match exception patterns
+    if ((-not $problem -or $isGenericMapping) -and -not [string]::IsNullOrWhiteSpace($ErrorMessage)) {
         foreach ($pattern in $script:SAExceptionPatterns) {
             if ($ErrorMessage -match $pattern.Pattern) {
                 $problem = $pattern.Problem
@@ -381,8 +387,6 @@ function Write-SAToolError {
     if (-not [string]::IsNullOrWhiteSpace($errorInfo.RawError)) {
         Write-SAVerbose -Label "Error" -Text "Raw: $($errorInfo.RawError)"
     }
-    
-    return $errorInfo
 }
 
 function Invoke-SAProcessWithRetry {
@@ -526,7 +530,7 @@ function Test-SAProcessResult {
     $isSuccess = $Result.Success -or ($Result.ExitCode -in $SuccessCodes)
     
     if (-not $isSuccess -and $LogError) {
-        $null = Write-SAToolError -Label $Label `
+        Write-SAToolError -Label $Label `
             -ToolName $ToolName `
             -ExitCode $Result.ExitCode `
             -ErrorMessage $Result.StdErr `

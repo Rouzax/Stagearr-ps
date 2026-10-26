@@ -294,6 +294,41 @@ function Start-SAExtractSubtitles {
     }
 }
 
+function Get-SAStagingRequiredBytes {
+    <#
+    .SYNOPSIS
+        Estimates the bytes that staging will write for a job.
+    .DESCRIPTION
+        For RAR sources the extracted size is unknown before extraction, so the size of
+        the whole archive set is used; scene releases are stored uncompressed, making it
+        a close estimate. The RAR entry from Get-SASourceMediaFiles only carries the
+        first volume, which would undercount a multi-part set.
+    .PARAMETER Context
+        Processing context.
+    .PARAMETER MediaFiles
+        Media file objects from Get-SASourceMediaFiles.
+    .OUTPUTS
+        [long] estimated bytes.
+    #>
+    [CmdletBinding()]
+    [OutputType([long])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Context,
+        
+        [Parameter(Mandatory = $true)]
+        [PSCustomObject[]]$MediaFiles
+    )
+    
+    if ($Context.State.IsRarArchive -and -not $Context.State.IsSingleFile) {
+        $volumes = Get-ChildItem -LiteralPath $Context.State.SourcePath -File -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '\.(rar|r\d{2,3})$' }
+        return [long](($volumes | Measure-Object -Property Length -Sum).Sum)
+    }
+    
+    return [long](($MediaFiles | Measure-Object -Property Size -Sum).Sum)
+}
+
 function Invoke-SAVideoProcessing {
     <#
     .SYNOPSIS
@@ -317,7 +352,7 @@ function Invoke-SAVideoProcessing {
     $stagingPath = $Context.State.StagingPath
     
     # Initialize staging
-    Initialize-SAStagingFolder -Context $Context
+    $null = Initialize-SAStagingFolder -Context $Context
     
     # Get media files info (wrap in @() for PS5.1 compatibility)
     $mediaFiles = @(Get-SASourceMediaFiles -Context $Context)
@@ -329,6 +364,26 @@ function Invoke-SAVideoProcessing {
             Reason         = 'NoMediaFiles'
             ProcessedFiles = @()
             TotalSize      = 0
+        }
+    }
+    
+    # Fail up front rather than partway through a multi-GB copy or extraction
+    $requiredBytes = Get-SAStagingRequiredBytes -Context $Context -MediaFiles $mediaFiles
+    $freeBytes = Get-SAAvailableFreeSpace -Path $stagingPath
+    if ($null -ne $freeBytes -and $freeBytes -lt $requiredBytes) {
+        $needText = Format-SASize $requiredBytes
+        $freeText = Format-SASize $freeBytes
+        Write-SAPhaseHeader -Title "Staging"
+        Write-SAOutcome -Level Error -Label "Staging" -Text "Not enough disk space" -Indent 1
+        Write-SAProgress -Label "Reason" -Text "Needs $needText, $freeText free on the staging drive" -Indent 2
+        Write-SAProgress -Label "Action" -Text "Free up disk space and try again" -Indent 2
+        return [PSCustomObject]@{
+            Success        = $false
+            Reason         = 'InsufficientSpace'
+            ProcessedFiles = @()
+            TotalSize      = 0
+            Error          = "Not enough disk space for staging (needs $needText, $freeText free)"
+            FailedFile     = $null
         }
     }
     
@@ -724,7 +779,7 @@ function Invoke-SAPassthroughProcessing {
     $stagingPath = $Context.State.StagingPath
     
     # Initialize staging
-    Initialize-SAStagingFolder -Context $Context
+    $null = Initialize-SAStagingFolder -Context $Context
     
     # Check for RAR files
     $rarFiles = @()
