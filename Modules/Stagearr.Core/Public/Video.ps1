@@ -300,9 +300,14 @@ function Get-SAStagingRequiredBytes {
         Estimates the bytes that staging will write for a job.
     .DESCRIPTION
         For RAR sources the extracted size is unknown before extraction, so the size of
-        the whole archive set is used; scene releases are stored uncompressed, making it
-        a close estimate. The RAR entry from Get-SASourceMediaFiles only carries the
-        first volume, which would undercount a multi-part set.
+        the selected archive set is used; scene releases are stored uncompressed, making
+        it a close estimate. The RAR entry from Get-SASourceMediaFiles only carries the
+        first volume, so the other volumes of that set (name.partNN.rar, or name.rar with
+        name.rNN) are added from the same folder. Other archives in the folder, such as
+        proof or sample RARs, are not extracted and are not counted.
+        
+        Extracted videos that are then remuxed briefly need about twice this space; that
+        is not included, because whether a remux happens is only known after extraction.
     .PARAMETER Context
         Processing context.
     .PARAMETER MediaFiles
@@ -320,13 +325,34 @@ function Get-SAStagingRequiredBytes {
         [PSCustomObject[]]$MediaFiles
     )
     
-    if ($Context.State.IsRarArchive -and -not $Context.State.IsSingleFile) {
-        $volumes = Get-ChildItem -LiteralPath $Context.State.SourcePath -File -Recurse -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -match '\.(rar|r\d{2,3})$' }
-        return [long](($volumes | Measure-Object -Property Length -Sum).Sum)
+    [long]$total = 0
+    foreach ($mediaFile in $MediaFiles) {
+        if (-not ($Context.State.IsRarArchive -and $mediaFile.NeedsUnrar)) {
+            $total += $mediaFile.Size
+            continue
+        }
+        
+        $name = Split-Path -Path $mediaFile.SourcePath -Leaf
+        $volumePattern = if ($name -match '^(.*)\.part\d+\.rar$') {
+            '^' + [regex]::Escape($Matches[1]) + '\.part\d+\.rar$'
+        } elseif ($name -match '^(.*)\.rar$') {
+            '^' + [regex]::Escape($Matches[1]) + '\.(rar|r\d{2,3})$'
+        } else {
+            $null
+        }
+        
+        if (-not $volumePattern) {
+            $total += $mediaFile.Size
+            continue
+        }
+        
+        $folder = Split-Path -Path $mediaFile.SourcePath -Parent
+        $volumes = Get-ChildItem -LiteralPath $folder -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match $volumePattern }
+        $total += [long](($volumes | Measure-Object -Property Length -Sum).Sum)
     }
     
-    return [long](($MediaFiles | Measure-Object -Property Size -Sum).Sum)
+    return $total
 }
 
 function Invoke-SAVideoProcessing {

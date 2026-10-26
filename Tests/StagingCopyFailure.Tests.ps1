@@ -183,12 +183,27 @@ Describe 'Invoke-SAVideoProcessing staging space preflight' {
 
 Describe 'Get-SAStagingRequiredBytes' {
     BeforeAll {
-        $script:rarDir = Join-Path $TestDrive 'Release'
-        New-Item -ItemType Directory -Path $script:rarDir | Out-Null
-        foreach ($name in 'release.rar', 'release.r00', 'release.r01') {
-            [System.IO.File]::WriteAllBytes((Join-Path $script:rarDir $name), [byte[]]::new(1000))
+        function New-TestFile([string]$Path, [int]$Size) {
+            New-Item -ItemType Directory -Path (Split-Path $Path -Parent) -Force | Out-Null
+            [System.IO.File]::WriteAllBytes($Path, [byte[]]::new($Size))
         }
-        [System.IO.File]::WriteAllBytes((Join-Path $script:rarDir 'release.nfo'), [byte[]]::new(50))
+
+        # Old-style set next to unrelated archives that are not extracted
+        $script:rarDir = Join-Path $TestDrive 'Release'
+        foreach ($name in 'release.rar', 'release.r00', 'release.r01') {
+            New-TestFile (Join-Path $script:rarDir $name) 1000
+        }
+        New-TestFile (Join-Path $script:rarDir 'release.nfo') 50
+        New-TestFile (Join-Path $script:rarDir 'Proof/release-proof.rar') 400
+        New-TestFile (Join-Path $script:rarDir 'other.rar') 700
+        New-TestFile (Join-Path $script:rarDir 'other.r00') 700
+
+        # New-style .partNN set
+        $script:partDir = Join-Path $TestDrive 'PartRelease'
+        foreach ($name in 'movie.part01.rar', 'movie.part02.rar', 'movie.part03.rar') {
+            New-TestFile (Join-Path $script:partDir $name) 500
+        }
+        New-TestFile (Join-Path $script:partDir 'movie-sample.part01.rar') 90
     }
 
     It 'sums the media file sizes for non-RAR sources' {
@@ -200,12 +215,31 @@ Describe 'Get-SAStagingRequiredBytes' {
         }
     }
 
-    It 'sums every volume of a multi-part RAR set, not just the first' {
+    It 'sums only the volumes of the selected .rar/.rNN set' {
         InModuleScope 'Stagearr.Core' -Parameters @{ Dir = $script:rarDir } {
             $ctx = @{ State = @{ IsRarArchive = $true; IsSingleFile = $false; SourcePath = $Dir } }
-            $files = @([PSCustomObject]@{ Size = 1000; NeedsUnrar = $true })
+            $files = @([PSCustomObject]@{ SourcePath = (Join-Path $Dir 'release.rar'); Size = 1000; NeedsUnrar = $true })
 
             Get-SAStagingRequiredBytes -Context $ctx -MediaFiles $files | Should -Be 3000
+        }
+    }
+
+    It 'sums only the volumes of the selected .partNN set' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Dir = $script:partDir } {
+            $ctx = @{ State = @{ IsRarArchive = $true; IsSingleFile = $false; SourcePath = $Dir } }
+            $files = @([PSCustomObject]@{ SourcePath = (Join-Path $Dir 'movie.part01.rar'); Size = 500; NeedsUnrar = $true })
+
+            Get-SAStagingRequiredBytes -Context $ctx -MediaFiles $files | Should -Be 1500
+        }
+    }
+
+    It 'counts the whole set when a single RAR volume is the job input' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Dir = $script:partDir } {
+            $first = Join-Path $Dir 'movie.part01.rar'
+            $ctx = @{ State = @{ IsRarArchive = $true; IsSingleFile = $true; SourcePath = $first } }
+            $files = @([PSCustomObject]@{ SourcePath = $first; Size = 500; NeedsUnrar = $true })
+
+            Get-SAStagingRequiredBytes -Context $ctx -MediaFiles $files | Should -Be 1500
         }
     }
 }
