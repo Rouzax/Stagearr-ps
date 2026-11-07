@@ -414,3 +414,99 @@ Describe 'Invoke-SAArrImport TBA retry pre-import refresh' {
         }
     }
 }
+
+Describe 'Test-SATbaRetrySuperseded' {
+
+    It 'is true when every file was rejected as Quality exists' {
+        InModuleScope 'Stagearr.Core' {
+            $summary = [PSCustomObject]@{ IsAllRejected = $true; RejectedCount = 6; Reasons = @{ 'Quality exists' = 6 } }
+            Test-SATbaRetrySuperseded -RejectionSummary $summary | Should -BeTrue
+        }
+    }
+
+    It 'is false when another reason is mixed in' {
+        InModuleScope 'Stagearr.Core' {
+            $summary = [PSCustomObject]@{ IsAllRejected = $true; RejectedCount = 6; Reasons = @{ 'Quality exists' = 5; 'Episode title TBA' = 1 } }
+            Test-SATbaRetrySuperseded -RejectionSummary $summary | Should -BeFalse
+        }
+    }
+
+    It 'is false when some files are importable' {
+        InModuleScope 'Stagearr.Core' {
+            $summary = [PSCustomObject]@{ IsAllRejected = $false; RejectedCount = 2; Reasons = @{ 'Quality exists' = 2 } }
+            Test-SATbaRetrySuperseded -RejectionSummary $summary | Should -BeFalse
+        }
+    }
+
+    It 'is false when nothing was scanned' {
+        InModuleScope 'Stagearr.Core' {
+            $summary = [PSCustomObject]@{ IsAllRejected = $true; RejectedCount = 0; Reasons = @{} }
+            Test-SATbaRetrySuperseded -RejectionSummary $summary | Should -BeFalse
+        }
+    }
+}
+
+Describe 'Invoke-SAArrImport quality rejection on a TBA retry' {
+
+    BeforeEach {
+        InModuleScope 'Stagearr.Core' {
+            Mock Write-SAVerbose {}
+            Mock Write-SAProgress {}
+            Mock Write-SAOutcome {}
+            Mock Write-SAPhaseHeader {}
+            Mock Add-SAEmailException {}
+            Mock Get-SAImportHint { return 'hint' }
+            Mock Get-SAImporterBaseUrl {
+                return @{ Url = 'http://localhost:8989'; DisplayUrl = 'http://localhost:8989'; HostHeader = $null }
+            }
+            Mock Test-SAArrConnection { return $true }
+            Mock Invoke-SAArrQueueEnrichment { return $ScanResults }
+            Mock ConvertTo-SAArrMetadata { return @{ Title = 'Test Show'; Year = 2026 } }
+            Mock Invoke-SAArrSeriesRefresh { return [PSCustomObject]@{ Success = $true; Message = 'Completed' } }
+            Mock Invoke-SAArrManualImportExecute {}
+            Mock Invoke-SAArrManualImportScan {
+                return [PSCustomObject]@{
+                    Success      = $true
+                    ScanResults  = @(
+                        @{
+                            path       = 'C:\Test\S01E01.mkv'
+                            series     = @{ id = 100; title = 'Test Show'; year = 2026 }
+                            episodes   = @( @{ id = 200 } )
+                            rejections = @( @{ type = 'permanent'; reason = 'Not an upgrade for existing episode file(s). Existing quality: WEBDL-2160p. New Quality WEBDL-1080p.' } )
+                        }
+                    )
+                    ErrorMessage = $null
+                }
+            }
+        }
+    }
+
+    It 'ends quietly as superseded on a retry' {
+        InModuleScope 'Stagearr.Core' {
+            $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = ''; timeoutMinutes = 1 }
+            $result = Invoke-SAArrImport -AppType 'Sonarr' -Config $config -StagingPath 'C:\Test' -IsTbaRetry
+
+            $result.Success | Should -BeTrue
+            $result.Skipped | Should -BeTrue
+            $result.QualityRejected | Should -BeTrue
+            $result.Superseded | Should -BeTrue
+            Should -Invoke Write-SAOutcome -Times 0 -ParameterFilter { $Level -eq 'Warning' }
+            Should -Invoke Write-SAOutcome -Times 1 -ParameterFilter { $Level -eq 'Skip' -and $Text -like '*equal or better quality*' }
+            Should -Invoke Add-SAEmailException -Times 0
+            Should -Invoke Get-SAImportHint -Times 0
+            Should -Invoke Invoke-SAArrManualImportExecute -Times 0
+        }
+    }
+
+    It 'still warns on a normal import' {
+        InModuleScope 'Stagearr.Core' {
+            $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = ''; timeoutMinutes = 1 }
+            $result = Invoke-SAArrImport -AppType 'Sonarr' -Config $config -StagingPath 'C:\Test'
+
+            $result.QualityRejected | Should -BeTrue
+            $result.Superseded | Should -Not -BeTrue
+            Should -Invoke Write-SAOutcome -Times 1 -ParameterFilter { $Level -eq 'Warning' }
+            Should -Invoke Add-SAEmailException -Times 1 -ParameterFilter { $Type -eq 'Warning' }
+        }
+    }
+}

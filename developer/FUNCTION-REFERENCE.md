@@ -545,6 +545,7 @@ Multiple labels can be configured to route downloads to the correct importer.
 | `Invoke-SAArrManualImportScan` | Scan folder with ManualImport API, returns metadata | ImportArr.ps1 |
 | `Invoke-SAArrManualImportExecute` | Execute import for specific files from scan | ImportArr.ps1 |
 | `Get-SAErrorTypeFromRejection` | Map rejection reasons to error types for hints | ImportArr.ps1 |
+| `Test-SATbaRetrySuperseded` | True when every staged file was rejected only as not an upgrade | ImportArr.ps1 |
 | `Invoke-SARadarrImport` | Radarr import (wrapper) | ImportArr.ps1 |
 | `Invoke-SASonarrImport` | Sonarr import (wrapper) | ImportArr.ps1 |
 | `Invoke-SARadarrManualImportScan` | Radarr ManualImport scan (wrapper) | ImportArr.ps1 |
@@ -830,7 +831,7 @@ These have no I/O — input → output only:
 
 **ArrMetadata.ps1:** `ConvertTo-SAArrMetadata`, `Get-SAImportableFiles`, `Get-SARejectionSummary`, `Get-SASimplifiedRejectionReason` (*arr metadata extraction and rejection filtering)
 
-**ImportArr.ps1:** `Get-SAErrorTypeFromRejection` (maps rejection reasons to error types for hint compatibility)
+**ImportArr.ps1:** `Get-SAErrorTypeFromRejection` (maps rejection reasons to error types for hint compatibility), `Test-SATbaRetrySuperseded` (detects a TBA retry overtaken by a better release)
 
 **ImportMedusa.ps1:** `Get-SAMedusaSeasonFromFiles`
 

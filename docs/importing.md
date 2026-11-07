@@ -115,7 +115,7 @@ For Sonarr imports, if an episode title is still TBA in the database, Sonarr rej
 2. Re-scans after the refresh
 3. If still TBA, schedules an automatic retry approximately 49 hours later (staged files are kept until the retry runs)
 
-The email for the original job shows "Pending retry". The retry email shows the final import result.
+The email for the original job shows "Pending retry". The retry email shows the final import result. If a better release of the same episodes was imported while the retry waited, the retry ends with "Already in library at equal or better quality" and removes the staged files, without a warning.
 
 ---
 
