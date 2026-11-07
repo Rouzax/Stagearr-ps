@@ -208,7 +208,8 @@ The email note gives the reason. In every case the import itself is fine. If the
 
 | Note says | Likely cause | Fix |
 |-----------|--------------|-----|
-| Kodi is unreachable | Kodi is off, asleep, or the web server is disabled. | Check `host` and `port`, and that Allow remote control via HTTP is on. Stagearr retries. |
+| Kodi is unreachable | Kodi is off, asleep, or the web server is disabled. Rarely, a slow device took longer than `timeoutSeconds` to answer. | Check `host` and `port`, and that Allow remote control via HTTP is on. If the device was on, raise `timeoutSeconds`. Stagearr retries. |
+| kodi.host entry "..." is not a host name or host:port | An entry in `host` has a scheme, a path, a space, or a port that is not a number from 1 to 65535. | Write just the name or address, optionally followed by `:port`, such as `"bedroom:8080"`. While any entry is wrong, no device is scanned. |
 | Kodi rejected the request: authentication failed | Wrong login. | Check `username` and `password`. |
 | no Kodi source matches its folder | This Kodi device lacks the source, or folder names differ between Radarr or Sonarr and Kodi. | Add the source in Kodi. If it exists under different folder names, set [`pathMap`](kodi.md#when-you-need-pathmap). |
 | more than one Kodi source holds its folder | Two sources match equally well and both hold the title. | Set `pathMap` for that root. |

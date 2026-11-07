@@ -726,6 +726,15 @@ Describe 'Invoke-SAKodiUpdate' {
         $global:FakeKodi.Calls.Count | Should -Be $first
     }
 
+    It 'keeps calling another Kodi host after one was unreachable' {
+        $global:FakeKodi.Unreachable = $true
+        $null = InModuleScope 'Stagearr.Core' -Parameters @{ C = $script:config; T = $script:movie } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
+        $global:FakeKodi.Unreachable = $false
+        $other = @{ kodi = @{ enabled = $true; host = 'h2'; port = 80; pathMap = $script:config.kodi.pathMap } }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $other; T = $script:movie } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
+        $r.Status | Should -Be 'Updated'
+    }
+
     It 'scans each title in a pack' {
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $script:config; A = $script:movie; B = $script:show } { param($C, $A, $B) Invoke-SAKodiUpdate -Config $C -Targets @($A, $B) }
         $r.Status | Should -Be 'Updated'
@@ -1188,7 +1197,7 @@ Describe 'Invoke-SAKodiUpdate retries' {
 
 Describe 'Invoke-SAKodiStep' {
     BeforeEach {
-        $script:context = @{ Config = @{ kodi = @{ enabled = $true } }; Paths = @{ QueueRoot = 'q' } }
+        $script:context = @{ Config = @{ kodi = @{ enabled = $true; host = 'h'; port = 80; pathMap = @() } }; Paths = @{ QueueRoot = 'q' } }
         $script:import = [pscustomobject]@{ Success = $true; ImportedCount = 1; KodiTargets = @([pscustomobject]@{ RootPath = 'D:\M\A' }) }
         Mock -ModuleName 'Stagearr.Core' Update-SAJobProgress {}
         Mock -ModuleName 'Stagearr.Core' Write-SAProgress {}
@@ -1200,8 +1209,8 @@ Describe 'Invoke-SAKodiStep' {
 
     It 'clears the pending list on a job with nothing of its own' {
         $root = Join-Path $TestDrive 'step1'
-        $null = New-Item -ItemType Directory -Path $root
-        Set-Content -Path (Join-Path $root 'kodi-pending.json') -Value '[{"RootPath":"D:\\M\\A","Title":"A","MediaType":"movie","Verified":true,"Episodes":[],"AddedAt":"2026-11-07T00:00:00.0000000Z"}]'
+        $null = New-Item -ItemType Directory -Path (Join-Path $root 'kodi' 'h_80')
+        Set-Content -Path (Join-Path $root 'kodi' 'h_80' 'kodi-pending.json') -Value '[{"RootPath":"D:\\M\\A","Title":"A","MediaType":"movie","Verified":true,"Episodes":[],"AddedAt":"2026-11-07T00:00:00.0000000Z"}]'
         $script:context.Paths.QueueRoot = $root
         $none = [pscustomobject]@{ Success = $true; Skipped = $true }
         InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $none } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
@@ -1308,6 +1317,267 @@ Describe 'Read-SASetupArray with pathMap entries' {
             Mock Read-Host { '' }
             $r = Read-SASetupArray -Prompt 'x' -Current @('a|b', 'c|d')
             @($r) | Should -HaveCount 2
+        }
+    }
+}
+
+Describe 'Get-SAKodiHosts' {
+    It 'reads a single host with the shared port' {
+        InModuleScope 'Stagearr.Core' {
+            $r = @(Get-SAKodiHosts -Config @{ kodi = @{ host = ' htpc '; port = 8080 } })
+            $r | Should -HaveCount 1
+            $r[0].Name | Should -Be 'htpc'
+            $r[0].Port | Should -Be 8080
+            $r[0].Label | Should -Be 'htpc'
+            $r[0].Key | Should -Be 'htpc_8080'
+        }
+    }
+
+    It 'reads a list and lets an entry carry its own port' {
+        InModuleScope 'Stagearr.Core' {
+            $r = @(Get-SAKodiHosts -Config @{ kodi = @{ host = @('box1', 'Box2:8080'); port = 80 } })
+            $r | Should -HaveCount 2
+            $r[1].Name | Should -Be 'Box2'
+            $r[1].Port | Should -Be 8080
+            $r[1].Label | Should -Be 'Box2:8080'
+            $r[1].Key | Should -Be 'box2_8080'
+        }
+    }
+
+    It 'lists the same host and port once' {
+        InModuleScope 'Stagearr.Core' {
+            @(Get-SAKodiHosts -Config @{ kodi = @{ host = @('box', 'BOX:80', ''); port = 80 } }) | Should -HaveCount 1
+        }
+    }
+
+    It 'brackets an IPv6 address so it can go in a URL' {
+        InModuleScope 'Stagearr.Core' {
+            $r = @(Get-SAKodiHosts -Config @{ kodi = @{ host = @('fd00::5', '[fd00::6]:8080'); port = 80 } })
+            $r[0].Name | Should -Be '[fd00::5]'
+            $r[0].Port | Should -Be 80
+            $r[1].Name | Should -Be '[fd00::6]'
+            $r[1].Port | Should -Be 8080
+            $r[1].Key | Should -Match '^[a-z0-9._-]+$'
+        }
+    }
+
+    It 'skips entries it cannot use' {
+        InModuleScope 'Stagearr.Core' {
+            @(Get-SAKodiHosts -Config @{ kodi = @{ host = @('http://box', 'box:port', 'box:70000', 'two words'); port = 80 } }) | Should -HaveCount 0
+        }
+    }
+}
+
+Describe 'Test-SAKodiConfig with several hosts' {
+    It 'accepts a list of hosts' {
+        InModuleScope 'Stagearr.Core' {
+            @(Test-SAKodiConfig -Config @{ kodi = @{ host = @('box1', 'box2:8080'); port = 80; pathMap = @() } }) | Should -HaveCount 0
+        }
+    }
+
+    It 'reports an entry it cannot use, by name' {
+        InModuleScope 'Stagearr.Core' {
+            $r = @(Test-SAKodiConfig -Config @{ kodi = @{ host = @('box1', 'http://box2'); port = 80; pathMap = @() } })
+            $r | Should -HaveCount 1
+            $r[0] | Should -Match 'http://box2'
+        }
+    }
+
+    It 'reports an empty list' {
+        InModuleScope 'Stagearr.Core' {
+            @(Test-SAKodiConfig -Config @{ kodi = @{ host = @(); port = 80; pathMap = @() } }) | Should -HaveCount 1
+        }
+    }
+}
+
+Describe 'Save-SAKodiPending folder' {
+    It 'creates the folder of a new host' {
+        $root = Join-Path $TestDrive 'kodi' 'new_80'
+        InModuleScope 'Stagearr.Core' -Parameters @{ Root = $root } {
+            param($Root)
+            $e = [pscustomobject]@{ RootPath = 'D:\M\A'; Title = 'A'; MediaType = 'movie'; Verified = $true; Episodes = @(); AddedAt = '2026-11-07T00:00:00.0000000Z' }
+            Save-SAKodiPending -QueueRoot $Root -Entries @($e) | Should -BeTrue
+            @(Read-SAKodiPending -QueueRoot $Root) | Should -HaveCount 1
+        }
+    }
+}
+
+Describe 'Join-SAKodiResults' {
+    BeforeAll {
+        function script:New-KodiResult($Status, $Summary, $Notes, $Missing = @(), $Duration = 1) {
+            [pscustomobject]@{
+                Status = $Status; Summary = $Summary; Notes = $Notes; Missing = @($Missing); Duration = $Duration
+                Text = (@($Summary, $Notes) | Where-Object { $_ }) -join '; '
+            }
+        }
+    }
+
+    It 'returns a single host result unchanged' {
+        $one = New-KodiResult 'Updated' 'Scanned and confirmed' $null
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ O = $one } { param($O) Join-SAKodiResults -Results @([pscustomobject]@{ Label = 'box'; Result = $O }) }
+        $r.Text | Should -Be 'Scanned and confirmed'
+        $r.Status | Should -Be 'Updated'
+    }
+
+    It 'names each host and adds up the time' {
+        $a = New-KodiResult 'Updated' 'Scanned and confirmed' $null @() 30
+        $b = New-KodiResult 'Skipped' $null 'Film: Kodi is unreachable' @() 10
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ A = $a; B = $b } {
+            param($A, $B)
+            Join-SAKodiResults -Results @([pscustomobject]@{ Label = 'box1'; Result = $A }, [pscustomobject]@{ Label = 'box2'; Result = $B })
+        }
+        $r.Status | Should -Be 'Updated'
+        $r.Summary | Should -Be 'box1: Scanned and confirmed'
+        $r.Notes | Should -Be 'box2: Film: Kodi is unreachable'
+        $r.Text | Should -Be 'box1: Scanned and confirmed; box2: Film: Kodi is unreachable'
+        $r.Duration | Should -Be 40
+    }
+
+    It 'warns when any host refused a title' {
+        $a = New-KodiResult 'Updated' 'Scanned and confirmed' $null
+        $b = New-KodiResult 'Partial' $null 'Show: not found' @('Show S01E02')
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ A = $a; B = $b } {
+            param($A, $B)
+            Join-SAKodiResults -Results @([pscustomobject]@{ Label = 'box1'; Result = $A }, [pscustomobject]@{ Label = 'box2'; Result = $B })
+        }
+        $r.Status | Should -Be 'Partial'
+        @($r.Missing) | Should -Be @('Show S01E02')
+    }
+
+    It 'leaves out hosts with nothing to report' {
+        $a = New-KodiResult 'Idle' $null $null @() 0
+        $b = New-KodiResult 'Skipped' $null 'Film: Kodi is unreachable'
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ A = $a; B = $b } {
+            param($A, $B)
+            Join-SAKodiResults -Results @([pscustomobject]@{ Label = 'box1'; Result = $A }, [pscustomobject]@{ Label = 'box2'; Result = $B })
+        }
+        $r.Status | Should -Be 'Skipped'
+        $r.Text | Should -Be 'box2: Film: Kodi is unreachable'
+    }
+
+    It 'is idle when every host is' {
+        $a = New-KodiResult 'Idle' $null $null @() 0
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ A = $a } {
+            param($A)
+            Join-SAKodiResults -Results @([pscustomobject]@{ Label = 'box1'; Result = $A }, [pscustomobject]@{ Label = 'box2'; Result = $A })
+        }
+        $r.Status | Should -Be 'Idle'
+    }
+}
+
+Describe 'Invoke-SAKodiStep with several hosts' {
+    BeforeEach {
+        $script:root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+        $null = New-Item -ItemType Directory -Path $script:root
+        $script:context = @{ Config = @{ kodi = @{ enabled = $true; host = @('box1', 'box2:8080'); port = 80; pathMap = @() } }; Paths = @{ QueueRoot = $script:root } }
+        $script:import = [pscustomobject]@{ Success = $true; ImportedCount = 1; KodiTargets = @([pscustomobject]@{ RootPath = 'D:\M\A' }) }
+        Mock -ModuleName 'Stagearr.Core' Update-SAJobProgress {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAProgress {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAOutcome {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAVerbose {}
+        Mock -ModuleName 'Stagearr.Core' Add-SAEmailException {}
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate { [pscustomobject]@{ Status = 'Updated'; Text = 'ok'; Summary = 'ok'; Notes = $null; Missing = @(); Duration = 1 } }
+    }
+
+    It 'updates every host, each with its own retry folder' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $script:import } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate -Times 2
+        $q1 = Join-Path $script:root 'kodi' 'box1_80'
+        $q2 = Join-Path $script:root 'kodi' 'box2_8080'
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate -Times 1 -ParameterFilter { $Config.kodi.host -eq 'box1' -and $Config.kodi.port -eq 80 -and $QueueRoot -eq $q1 }
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate -Times 1 -ParameterFilter { $Config.kodi.host -eq 'box2' -and $Config.kodi.port -eq 8080 -and $QueueRoot -eq $q2 }
+        Should -Invoke -ModuleName 'Stagearr.Core' Write-SAOutcome -Times 1 -ParameterFilter { $Level -eq 'Success' -and $Text -eq 'box1: ok; box2:8080: ok' }
+    }
+
+    It 'leaves the shared config untouched' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $script:import } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        $script:context.Config.kodi.host | Should -Be @('box1', 'box2:8080')
+        $script:context.Config.kodi.port | Should -Be 80
+    }
+
+    It 'runs for a host that has titles waiting, with nothing of its own' {
+        $q2 = Join-Path $script:root 'kodi' 'box2_8080'
+        $null = New-Item -ItemType Directory -Path $q2
+        Set-Content -Path (Join-Path $q2 'kodi-pending.json') -Value '[{"RootPath":"D:\\M\\A","Title":"A","MediaType":"movie","Verified":true,"Episodes":[],"AddedAt":"2026-11-07T00:00:00.0000000Z"}]'
+        $none = [pscustomobject]@{ Success = $true; Skipped = $true }
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $none } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate -Times 1 -ParameterFilter { $QueueRoot -eq $q2 }
+    }
+
+    It 'reports a host list problem once, without touching any retry list' {
+        $script:context.Config.kodi.host = @('box1', 'http://box2')
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $script:import } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate -Times 1 -ParameterFilter { [string]::IsNullOrEmpty($QueueRoot) }
+    }
+}
+
+Describe 'Kodi host list config sync' {
+    It 'round-trips a host list through the TOML writer' {
+        $sample = Join-Path $PSScriptRoot '..' 'config-sample.toml'
+        InModuleScope 'Stagearr.Core' -Parameters @{ Sample = $sample } {
+            param($Sample)
+            $first = ConvertFrom-SAToml -Content "[kodi]`nhost = [`"box1`", `"box2:8080`"]`n"
+            $second = ConvertFrom-SAToml -Content (ConvertTo-SAToml -Config $first -SamplePath $Sample)
+            @(Get-SAKodiHosts -Config @{ kodi = @{ host = $second.kodi.host; port = 80 } }).Label | Should -Be @('box1', 'box2:8080')
+        }
+    }
+}
+
+Describe 'Kodi request timeouts' {
+    BeforeAll {
+        $script:ok = [pscustomobject]@{ Success = $true; StatusCode = 200; Data = [pscustomobject]@{ result = 'OK' }; ErrorMessage = $null }
+    }
+
+    It 'gives an ordinary call 3 seconds by default' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Ok = $script:ok } {
+            param($Ok)
+            Mock Invoke-SAWebRequest { $Ok }
+            $null = Invoke-SAKodiRpc -Config @{ kodi = @{ host = 'h'; port = 80 } } -Method 'JSONRPC.Ping'
+            Should -Invoke Invoke-SAWebRequest -Times 1 -ParameterFilter { $TimeoutSeconds -eq 3 }
+        }
+    }
+
+    It 'uses kodi.timeoutSeconds when set' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Ok = $script:ok } {
+            param($Ok)
+            Mock Invoke-SAWebRequest { $Ok }
+            $null = Invoke-SAKodiRpc -Config @{ kodi = @{ host = 'h'; port = 80; timeoutSeconds = 7 } } -Method 'JSONRPC.Ping'
+            Should -Invoke Invoke-SAWebRequest -Times 1 -ParameterFilter { $TimeoutSeconds -eq 7 }
+        }
+    }
+
+    It 'lets a caller ask for longer' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Ok = $script:ok } {
+            param($Ok)
+            Mock Invoke-SAWebRequest { $Ok }
+            $null = Invoke-SAKodiRpc -Config @{ kodi = @{ host = 'h'; port = 80; timeoutSeconds = 2 } } -Method 'X' -TimeoutSeconds 30
+            Should -Invoke Invoke-SAWebRequest -Times 1 -ParameterFilter { $TimeoutSeconds -eq 30 }
+        }
+    }
+
+    It 'gives a folder listing the longer limit, since it waits on the share' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Invoke-SAKodiRpc { [pscustomobject]@{ Success = $true; Result = [pscustomobject]@{ files = @() }; Unreachable = $false; Rejected = $false; ErrorMessage = $null } }
+            $null = Resolve-SAKodiDirectory -Config @{ kodi = @{ host = 'h'; port = 80; timeoutSeconds = 2 } } -Parent 'smb://S/Movies/' -Leaf 'Film (2020)'
+            Should -Invoke Invoke-SAKodiRpc -Times 1 -ParameterFilter { $Method -eq 'Files.GetDirectory' -and $TimeoutSeconds -eq 30 }
+        }
+    }
+
+    It 'reports a timeout that is not a whole number of at least 1' -ForEach @(
+        @{ Value = 0 }, @{ Value = -1 }, @{ Value = 'abc' }, @{ Value = 2.5 }
+    ) {
+        InModuleScope 'Stagearr.Core' -Parameters @{ V = $Value } {
+            param($V)
+            $r = @(Test-SAKodiConfig -Config @{ kodi = @{ host = 'h'; port = 80; pathMap = @(); timeoutSeconds = $V } })
+            $r | Should -HaveCount 1
+            $r[0] | Should -Match 'timeoutSeconds'
+        }
+    }
+
+    It 'accepts a missing or valid timeout' {
+        InModuleScope 'Stagearr.Core' {
+            @(Test-SAKodiConfig -Config @{ kodi = @{ host = 'h'; port = 80; pathMap = @() } }) | Should -HaveCount 0
+            @(Test-SAKodiConfig -Config @{ kodi = @{ host = 'h'; port = 80; pathMap = @(); timeoutSeconds = 5 } }) | Should -HaveCount 0
         }
     }
 }

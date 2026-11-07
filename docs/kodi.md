@@ -16,7 +16,7 @@ With this feature on, Stagearr scans only the imported folder. It also tells you
 
 - **Kodi's web server is on:** Settings > Services > Control > Allow remote control via HTTP. Note the port, and the username and password if you set them.
 - **Your library is in a source Kodi already knows.** Stagearr scans inside your existing Movies and TV sources. It does not add sources.
-- **The Kodi device you point at has all your sources.** It needs one for each Radarr and Sonarr root folder.
+- **Each Kodi device you point at has all your sources.** It needs one for each Radarr and Sonarr root folder.
 - **`cleanonupdate` is on,** in Kodi's `advancedsettings.xml`. Stagearr never removes library entries itself. Without this setting, an upgrade leaves the old entry next to the new one.
 
     ```xml
@@ -32,7 +32,7 @@ With this feature on, Stagearr scans only the imported folder. It also tells you
 
 **Not supported:** Kodi sources with a login inside the path, such as `smb://user:pass@SERVER/Media/`. Kodi hides the login when it lists folders, so the scan path would not match the library. Save the login in Kodi's password manager instead.
 
-If several Kodi devices share one MySQL or MariaDB library, point Stagearr at just one of them. Choose one that stays on, has `cleanonupdate` set, and lists all your sources.
+If you have more than one Kodi device, see [Several Kodi Devices](#several-kodi-devices).
 
 ---
 
@@ -76,6 +76,29 @@ Stagearr scans even if something is playing, because a job cannot wait for a fil
 
 ---
 
+## Several Kodi Devices
+
+How many devices to list depends on whether they share a library:
+
+- **Shared library** (one MySQL or MariaDB database for all devices): list just one device. A scan on one updates all of them. Choose one that stays on, has `cleanonupdate` set, and lists all your sources.
+- **Separate libraries** (each device keeps its own): list every device, and Stagearr scans the title on each in turn.
+
+```toml
+host = ["livingroom.example.lan", "bedroom.example.lan:8080"]
+port = 80
+```
+
+An entry without a port uses `port`. Add `:port` to an entry whose web server uses a different one; write an IPv6 address with a port as `[address]:port`. The username, password and `ssl` setting apply to every device, so give them the same web server login.
+
+Each device is handled on its own:
+
+- **Paths** are matched to that device's own sources, so devices that reach the share differently (for example one over SMB and one over NFS) need no `pathMap`. A `pathMap` entry applies to every device.
+- **Time:** each device gets its own time limit, so with several devices the step takes that much longer. A device that is off costs a few seconds (`timeoutSeconds`, default 3), once per worker run.
+- **Missed scans** are kept per device. A title missed on a device that was off is retried on that device only.
+- **Results** in the log and email start with the device name as you wrote it in `host`, for example `bedroom.example.lan:8080: Scanned and confirmed`.
+
+---
+
 ## When you need pathMap
 
 Leave `pathMap` empty unless the job's email tells you to set it. You need it when:
@@ -96,13 +119,13 @@ pathMap = ["D:\\Films\\|smb://NAS/Movies/"]
 
 ## Missed Scans
 
-If Stagearr cannot finish a scan for a passing reason, it remembers the title in `kodi-pending.json`, in your queue folder. This happens when Kodi is unreachable, stays busy past the time limit, cannot list a folder (for example while a share is down), or a scan cannot be confirmed.
+If Stagearr cannot finish a scan for a passing reason, it remembers the title in `kodi-pending.json`, in a folder per device inside your queue folder: `kodi\<host>_<port>\`. This happens when Kodi is unreachable, stays busy past the time limit, cannot list a folder (for example while a share is down), or a scan cannot be confirmed.
 
 The next job to reach the import step retries those titles after its own, whether or not it imported anything. Passthrough jobs do not count. Retries only use the time left in that job, so a backlog cannot hold up the queue. The job's email says what it caught up on.
 
 There is no timer, so a title waits until such a job runs. A title is dropped if Kodi can list the source and its folder is gone. After 7 days a title gets one last try and is then dropped. The email names anything dropped. A title on the list that is imported again is handled as part of that job.
 
-If the list cannot be read, Stagearr renames it to `kodi-pending.bad.json` and starts a new one, so nothing is overwritten. The email says so.
+If the list cannot be read, Stagearr renames it to `kodi-pending.bad.json`, in the same folder, and starts a new one, so nothing is overwritten. The email says so.
 
 Stagearr does not retry a title Kodi refused or a path it could not match, because those would fail the same way. Fix the cause, then run a scan in Kodi: open Videos, then choose **Update library** from the side menu.
 
@@ -126,7 +149,9 @@ Once Update Library is off in Radarr and Sonarr, only imports that go through St
 | `Kodi: Not scanned` | The title did not reach Kodi. The email has a note with the reason, and says if Stagearr will retry. The email stays green. | If it will retry, nothing. Otherwise fix the cause, then run a scan in Kodi. |
 | `Kodi: Not everything reached Kodi` | The scan ran and Kodi did not add something. The email turns amber and the warning names it. | See [Troubleshooting](troubleshooting.md#kodi-not-everything-reached-kodi). |
 
-Kodi problems never fail a job. If Kodi is unreachable, Stagearr stops trying until the worker's next run, so a queue of jobs does not wait on each one. Those titles go on the retry list.
+Kodi problems never fail a job. If a Kodi device is unreachable, Stagearr stops trying that device until the worker's next run, so a queue of jobs does not wait on each one. Those titles go on that device's retry list. Other devices are still updated.
+
+With several devices, each line starts with the device name, and the result shows the worst of them: amber if any device did not add a title.
 
 ---
 
@@ -139,6 +164,6 @@ Kodi problems never fail a job. If Kodi is unreachable, Stagearr stops trying un
 
 ## Undo
 
-Set `enabled = false` under `[kodi]`, then tick Update Library again in Radarr and Sonarr. Any `kodi-pending.json` left in your queue folder is then ignored, and you can delete it.
+Set `enabled = false` under `[kodi]`, then tick Update Library again in Radarr and Sonarr. The `kodi` folder left in your queue folder is then ignored, and you can delete it.
 
 See the [`[kodi]` settings](settings-reference.md#kodi) for every key.

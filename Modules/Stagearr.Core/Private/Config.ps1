@@ -157,6 +157,7 @@ $script:SAConfigDefaults = @{
         password = ''
         ssl      = $false
         pathMap  = @()
+        timeoutSeconds = 3
     }
     logging = @{
         dateFormat    = 'yyyy.MM.dd_HH.mm.ss'

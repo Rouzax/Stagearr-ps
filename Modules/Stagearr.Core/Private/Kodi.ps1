@@ -372,6 +372,125 @@ function Split-SAKodiPending {
     return [PSCustomObject]@{ Keep = $keep; Expired = $expired }
 }
 
+function ConvertTo-SAKodiHost {
+    <#
+    .SYNOPSIS
+        Parses one kodi.host entry. Pure function.
+    .PARAMETER Entry
+        A host name or address, optionally followed by :port. IPv6 with a port is written
+        in brackets, as in a URL.
+    .PARAMETER DefaultPort
+        Port for an entry that names none.
+    .OUTPUTS
+        PSCustomObject with Name (ready for a URL), Port, Label (the entry as written) and
+        Key (safe as a folder name), or $null when the entry cannot be used.
+    #>
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string]$Entry,
+
+        [Parameter(Mandatory = $true)]
+        [int]$DefaultPort
+    )
+
+    $label = "$Entry".Trim()
+    if ($label -eq '' -or $label -match '[\s/\\@?#]') {
+        return $null
+    }
+
+    $name = $label
+    $port = "$DefaultPort"
+    if ($label -match '^\[([0-9A-Fa-f:.%]+)\](?::(\d*))?$') {
+        $name = "[$($Matches[1])]"
+        if ($null -ne $Matches[2]) { $port = $Matches[2] }
+    } elseif ($label -match '^[^:\[\]]+:(\d*)$') {
+        $name = $label.Substring(0, $label.LastIndexOf(':'))
+        $port = $Matches[1]
+    } elseif ($label -match '^[0-9A-Fa-f:.%]+$' -and $label.Contains(':')) {
+        $name = "[$label]"
+    } elseif ($label -match '[:\[\]]') {
+        return $null
+    }
+
+    $number = 0
+    if (-not [int]::TryParse($port, [ref]$number) -or $number -lt 1 -or $number -gt 65535) {
+        return $null
+    }
+
+    return [PSCustomObject]@{
+        Name  = $name
+        Port  = $number
+        Label = $label
+        Key   = ("$($name.Trim('[', ']'))_$number".ToLowerInvariant() -replace '[^a-z0-9._-]', '-')
+    }
+}
+
+function Get-SAKodiHosts {
+    <#
+    .SYNOPSIS
+        Lists the Kodi hosts to update, once each. Pure function.
+    .DESCRIPTION
+        kodi.host is one host or a list. A list is for devices that each keep their own
+        library; devices sharing one database need only one of them. Unusable entries are
+        left out here and reported by Test-SAKodiConfig.
+    .PARAMETER Config
+        Full configuration hashtable.
+    .OUTPUTS
+        PSCustomObject[] from ConvertTo-SAKodiHost.
+    #>
+    [CmdletBinding()]
+    [OutputType([PSCustomObject[]])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config
+    )
+
+    # Kodi's own default, for a config that sets no port at all
+    $defaultPort = 8080
+    if ($null -ne $Config.kodi.port -and "$($Config.kodi.port)" -match '^\d+$') {
+        $defaultPort = [int]$Config.kodi.port
+    }
+
+    $seen = @{}
+    foreach ($entry in @($Config.kodi.host)) {
+        $parsed = ConvertTo-SAKodiHost -Entry $entry -DefaultPort $defaultPort
+        if ($null -eq $parsed -or $seen.ContainsKey($parsed.Key)) {
+            continue
+        }
+        $seen[$parsed.Key] = $true
+        $parsed
+    }
+}
+
+function Get-SAKodiTimeoutSeconds {
+    <#
+    .SYNOPSIS
+        Reads kodi.timeoutSeconds. Pure function.
+    .OUTPUTS
+        [int], the default when the setting is absent, or $null when it is not a whole
+        number of at least 1.
+    #>
+    [CmdletBinding()]
+    [OutputType([int])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config
+    )
+
+    $value = $Config.kodi.timeoutSeconds
+    if ($null -eq $value) {
+        return [int]$script:SAConstants.KodiRequestTimeoutSeconds
+    }
+    if (($value -is [int] -or $value -is [long]) -and $value -ge 1 -and $value -le [int]::MaxValue) {
+        return [int]$value
+    }
+    return $null
+}
+
 function Test-SAKodiConfig {
     <#
     .SYNOPSIS
@@ -392,8 +511,17 @@ function Test-SAKodiConfig {
     )
 
     $problems = @()
-    if ([string]::IsNullOrWhiteSpace($Config.kodi.host)) {
+    $entries = @(@($Config.kodi.host) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($entries.Count -eq 0) {
         $problems += 'kodi.host is empty'
+    }
+    foreach ($entry in $entries) {
+        if ($null -eq (ConvertTo-SAKodiHost -Entry $entry -DefaultPort 80)) {
+            $problems += "kodi.host entry `"$($entry.Trim())`" is not a host name or host:port"
+        }
+    }
+    if ($null -ne $Config.kodi.timeoutSeconds -and $null -eq (Get-SAKodiTimeoutSeconds -Config $Config)) {
+        $problems += 'kodi.timeoutSeconds must be a whole number of seconds, at least 1'
     }
     $entered = @(@($Config.kodi.pathMap) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     if (@(Get-SAKodiPathMap -PathMap $Config.kodi.pathMap).Count -ne $entered.Count) {
@@ -553,6 +681,8 @@ function Invoke-SAKodiRpc {
         JSON-RPC method name.
     .PARAMETER Params
         Method parameters.
+    .PARAMETER TimeoutSeconds
+        Overrides kodi.timeoutSeconds, for a call that waits on something slower than Kodi.
     .OUTPUTS
         PSCustomObject with Success, Result, Unreachable, Rejected, ErrorMessage.
     #>
@@ -566,8 +696,20 @@ function Invoke-SAKodiRpc {
         [string]$Method,
 
         [Parameter()]
-        [hashtable]$Params = @{}
+        [hashtable]$Params = @{},
+
+        [Parameter()]
+        [int]$TimeoutSeconds = 0
     )
+
+    # Kodi answers ordinary calls in well under a second, so a short limit finds a device
+    # that is off quickly. An invalid setting is reported by Test-SAKodiConfig.
+    if ($TimeoutSeconds -le 0) {
+        $TimeoutSeconds = Get-SAKodiTimeoutSeconds -Config $Config
+        if ($TimeoutSeconds -le 0) {
+            $TimeoutSeconds = $script:SAConstants.KodiRequestTimeoutSeconds
+        }
+    }
 
     $kodi = $Config.kodi
     $scheme = if ($kodi.ssl -eq $true) { 'https' } else { 'http' }
@@ -589,7 +731,7 @@ function Invoke-SAKodiRpc {
     try {
         $response = Invoke-SAWebRequest -Uri $uri -Method POST -Headers $headers -Body $body `
             -ContentType 'application/json; charset=utf-8' -MaxRetries 1 `
-            -TimeoutSeconds $script:SAConstants.KodiRequestTimeoutSeconds
+            -TimeoutSeconds $TimeoutSeconds
     } catch {
         return [PSCustomObject]@{
             Success      = $false
@@ -640,10 +782,11 @@ function Invoke-SAKodiRpc {
 
 #region Library Update
 
-# Set when Kodi cannot be reached, so a queue of jobs behind a sleeping host does not pay
-# the timeout once each. Lives for the worker run: Reset-SAJobState leaves it alone on
-# purpose, and a new worker tries again.
-$script:SAKodiUnreachable = $false
+# Hosts that could not be reached, so a queue of jobs behind a sleeping device does not pay
+# the timeout once each. Kept per host, because one device being off says nothing about the
+# others. Lives for the worker run: Reset-SAJobState leaves it alone on purpose, and a new
+# worker tries again.
+$script:SAKodiUnreachable = @{}
 
 function Reset-SAKodiBreaker {
     <#
@@ -653,7 +796,7 @@ function Reset-SAKodiBreaker {
     [CmdletBinding()]
     param()
 
-    $script:SAKodiUnreachable = $false
+    $script:SAKodiUnreachable = @{}
 }
 
 function Get-SAKodiPendingPath {
@@ -723,6 +866,10 @@ function Save-SAKodiPending {
                 Remove-Item -LiteralPath $path -Force -ErrorAction Stop
             }
         } else {
+            $folder = Split-Path -Path $path -Parent
+            if (-not (Test-Path -LiteralPath $folder)) {
+                $null = New-Item -ItemType Directory -Path $folder -Force -ErrorAction Stop
+            }
             Write-SAFileAtomicUtf8NoBom -Path $path -Content (ConvertTo-Json -InputObject $items -Depth 6)
         }
         return $true
@@ -856,7 +1003,10 @@ function Resolve-SAKodiDirectory {
         [string]$Leaf
     )
 
-    $response = Invoke-SAKodiRpc -Config $Config -Method 'Files.GetDirectory' -Params @{ directory = $Parent; media = 'files' }
+    # A listing waits on the file share, which can take seconds to wake, so it gets far
+    # longer than an ordinary call
+    $response = Invoke-SAKodiRpc -Config $Config -Method 'Files.GetDirectory' -Params @{ directory = $Parent; media = 'files' } `
+        -TimeoutSeconds $script:SAConstants.KodiListTimeoutSeconds
     if ($response.Unreachable) {
         return [PSCustomObject]@{ Status = 'NoAnswer'; Path = $null; ErrorMessage = $response.ErrorMessage }
     }
@@ -1196,18 +1346,52 @@ function Invoke-SAKodiStep {
             return
         }
 
-        # A job with nothing of its own still clears the pending list, so a quiet stretch of
-        # skipped imports does not leave titles waiting.
+        $config = $Context.Config
         $queueRoot = $Context.Paths.QueueRoot
         $needed = Test-SAKodiStepNeeded -ImportResult $ImportResult
-        if (-not $needed -and -not (Test-Path -LiteralPath (Get-SAKodiPendingPath -QueueRoot $queueRoot))) {
-            return
-        }
         $targets = if ($needed) { @($ImportResult.KodiTargets) } else { @() }
 
-        Update-SAJobProgress -QueueRoot $queueRoot -JobId $JobId -Phase 'Import' -Activity 'Updating Kodi...'
-        Write-SAProgress -Label 'Kodi' -Text 'Scanning...' -Indent 1 -ConsoleOnly
-        $kodiResult = Invoke-SAKodiUpdate -Config $Context.Config -Targets $targets -QueueRoot $queueRoot
+        # A config problem is reported once, and no retry list is touched while the host
+        # list cannot be trusted
+        if (@(Test-SAKodiConfig -Config $config).Count -gt 0) {
+            if (-not $needed) {
+                return
+            }
+            $kodiResult = Invoke-SAKodiUpdate -Config $config -Targets $targets
+        } else {
+            # Each host keeps its own retry list, in a folder of its own
+            $runs = @(foreach ($kodiHost in @(Get-SAKodiHosts -Config $config)) {
+                    $hostConfig = $config.Clone()
+                    $hostConfig.kodi = $config.kodi.Clone()
+                    $hostConfig.kodi.host = $kodiHost.Name
+                    $hostConfig.kodi.port = $kodiHost.Port
+                    [PSCustomObject]@{
+                        Label     = $kodiHost.Label
+                        Config    = $hostConfig
+                        QueueRoot = Join-Path -Path (Join-Path -Path $queueRoot -ChildPath 'kodi') -ChildPath $kodiHost.Key
+                    }
+                })
+
+            # A job with nothing of its own still clears waiting titles, so a quiet stretch of
+            # skipped imports does not leave them waiting
+            if (-not $needed) {
+                $runs = @($runs | Where-Object { Test-Path -LiteralPath (Get-SAKodiPendingPath -QueueRoot $_.QueueRoot) })
+            }
+            if ($runs.Count -eq 0) {
+                return
+            }
+
+            Update-SAJobProgress -QueueRoot $queueRoot -JobId $JobId -Phase 'Import' -Activity 'Updating Kodi...'
+            $results = @(foreach ($run in $runs) {
+                    $text = if ($runs.Count -gt 1) { "Scanning $($run.Label)..." } else { 'Scanning...' }
+                    Write-SAProgress -Label 'Kodi' -Text $text -Indent 1 -ConsoleOnly
+                    [PSCustomObject]@{
+                        Label  = $run.Label
+                        Result = Invoke-SAKodiUpdate -Config $run.Config -Targets $targets -QueueRoot $run.QueueRoot
+                    }
+                })
+            $kodiResult = Join-SAKodiResults -Results $results
+        }
 
         switch ($kodiResult.Status) {
             'Updated' {
@@ -1233,6 +1417,56 @@ function Invoke-SAKodiStep {
         Write-SAVerbose -Text "Kodi step failed: $($_.Exception.Message)"
         Write-SAOutcome -Level Skip -Label 'Kodi' -Text 'Not scanned' -Indent 1
         Add-SAEmailException -Message 'Kodi: update failed, so the title stays out of Kodi until a scan runs' -Type Info
+    }
+}
+
+function Join-SAKodiResults {
+    <#
+    .SYNOPSIS
+        Combines the results of several Kodi hosts into one. Pure function.
+    .DESCRIPTION
+        One host passes through unchanged. With several, every line names its host, hosts
+        with nothing to report are left out, and the worst outcome sets the status.
+    .PARAMETER Results
+        PSCustomObject[] with Label and Result (from Invoke-SAKodiUpdate).
+    .OUTPUTS
+        PSCustomObject shaped like Invoke-SAKodiUpdate's result.
+    #>
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$Results
+    )
+
+    if ($Results.Count -eq 1) {
+        return $Results[0].Result
+    }
+
+    $active = @($Results | Where-Object { $_.Result.Status -ne 'Idle' })
+    $summary = @($active | Where-Object { $_.Result.Summary } | ForEach-Object { "$($_.Label): $($_.Result.Summary)" }) -join '; '
+    $notes = @($active | Where-Object { $_.Result.Notes } | ForEach-Object { "$($_.Label): $($_.Result.Notes)" }) -join '; '
+    $statuses = @($active | ForEach-Object { $_.Result.Status })
+    $status = 'Idle'
+    foreach ($candidate in @('Partial', 'Updated', 'Skipped')) {
+        if ($statuses -contains $candidate) {
+            $status = $candidate
+            break
+        }
+    }
+
+    $duration = 0
+    foreach ($item in $Results) {
+        $duration += [int]$item.Result.Duration
+    }
+
+    return [PSCustomObject]@{
+        Status   = $status
+        Text     = (@($summary, $notes) | Where-Object { $_ }) -join '; '
+        Summary  = if ($summary) { $summary } else { $null }
+        Notes    = if ($notes) { $notes } else { $null }
+        Missing  = @($Results | ForEach-Object { @($_.Result.Missing) } | Where-Object { $null -ne $_ })
+        Duration = $duration
     }
 }
 
@@ -1270,6 +1504,7 @@ function Invoke-SAKodiUpdate {
     )
 
     $timer = [System.Diagnostics.Stopwatch]::StartNew()
+    $hostKey = "$($Config.kodi.host):$($Config.kodi.port)".ToLowerInvariant()
     $finish = {
         param($Status, $Summary, $Notes, $Missing = @())
         [PSCustomObject]@{
@@ -1367,13 +1602,13 @@ function Invoke-SAKodiUpdate {
         $sources = @()
         $ownReason = $null
         $ownRetry = $true
-        if ($script:SAKodiUnreachable) {
+        if ($script:SAKodiUnreachable[$hostKey]) {
             $ownReason = 'Kodi was unreachable earlier in this run'
         } else {
             $sourceResult = Get-SAKodiSources -Config $Config
             $sources = @($sourceResult.Sources)
             if ($sourceResult.Status -eq 'Unreachable') {
-                $script:SAKodiUnreachable = $true
+                $script:SAKodiUnreachable[$hostKey] = $true
                 $ownReason = 'Kodi is unreachable'
             } elseif ($sourceResult.Status -eq 'Rejected') {
                 $ownReason = $sourceResult.ErrorMessage
@@ -1417,7 +1652,7 @@ function Invoke-SAKodiUpdate {
             }
             $handled[$key] = $true
 
-            if ($script:SAKodiUnreachable) {
+            if ($script:SAKodiUnreachable[$hostKey]) {
                 $issues += & $note $target.Title 'not attempted because Kodi dropped out' $true
                 $queued += $target
                 continue
@@ -1429,7 +1664,7 @@ function Invoke-SAKodiUpdate {
                 continue
             }
             if ($outcome.Status -eq 'Unreachable') {
-                $script:SAKodiUnreachable = $true
+                $script:SAKodiUnreachable[$hostKey] = $true
             }
             if ($outcome.Status -eq 'Missing' -and -not $outcome.Retry) {
                 $missing += $outcome.Missing
@@ -1442,7 +1677,7 @@ function Invoke-SAKodiUpdate {
 
         foreach ($entry in $waiting) {
             $handled[$entry.RootPath.ToLowerInvariant()] = $true
-            if ($script:SAKodiUnreachable -or (Get-SAKodiElapsedSeconds -Timer $timer) -ge $budget) {
+            if ($script:SAKodiUnreachable[$hostKey] -or (Get-SAKodiElapsedSeconds -Timer $timer) -ge $budget) {
                 $held = & $hold $entry
                 if ($held.Entry) { $untried += $held.Entry } else { $issues += $held.Issue }
                 continue
@@ -1454,7 +1689,7 @@ function Invoke-SAKodiUpdate {
                 continue
             }
             if ($outcome.Status -eq 'Unreachable') {
-                $script:SAKodiUnreachable = $true
+                $script:SAKodiUnreachable[$hostKey] = $true
             }
             if ($outcome.Retry) {
                 # Behind the untried ones, so one stuck title cannot use every job's budget
