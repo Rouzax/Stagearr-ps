@@ -220,7 +220,7 @@ The email note gives the reason. In every case the import itself is fine. If the
 | Kodi was unreachable earlier in this run, or not attempted because Kodi dropped out | Kodi stopped answering during this worker run. | Stagearr retries. |
 | the update failed | An unexpected error. The verbose log has the detail. | Stagearr retries. If it keeps happening, check the log. |
 | still not scanned after 7 days | Retries kept failing for a week, so Stagearr gave up. | Fix what was stopping the scans, then run a scan in Kodi. |
-| Kodi was still busy when the time limit ran out | Another scan outlasted Stagearr's time limit. | Stagearr retries. If it keeps happening, check Update Library is off in Radarr and Sonarr, and that no other tool triggers full scans. |
+| Kodi was still busy when the time limit ran out | Another scan outlasted Stagearr's time limit. | Stagearr retries. If it keeps happening, check that On File Import is off in the Kodi connection of Radarr and Sonarr (and On Import Complete and On Series Add in Sonarr), and that no other tool triggers full scans. |
 | Kodi did not list its folder in time | The share was slow to respond, for example a disk spinning up. | Stagearr retries. If it keeps happening, check the share. |
 | Kodi would not report its scan state | Kodi answered with an error. | Stagearr retries. If it keeps happening, check Kodi's log. |
 
