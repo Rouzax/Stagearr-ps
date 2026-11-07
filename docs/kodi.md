@@ -70,7 +70,7 @@ To find the right values, compare a movie's path in Radarr with the same movie's
 
 Your files are never changed. Kodi adds the new entry, and its own clean removes the old one after an upgrade.
 
-Expect a scan to take from a few seconds to about half a minute. With `cleanonupdate` on, Kodi checks your whole library for missing files after every scan, so large libraries take longer. That clean can also remove entries for files that went missing elsewhere, as it does after a full scan.
+Expect this step to take up to about a minute. With `cleanonupdate` on, Kodi checks your whole library for missing files after every scan, and that clean is usually most of the wait. The title appears before the clean starts. That clean can also remove entries for files that went missing elsewhere, as it does after a full scan.
 
 Stagearr scans even if something is playing, because a job cannot wait for a film to finish.
 
