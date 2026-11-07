@@ -113,6 +113,9 @@ $script:SAConstants = @{
     # How long a missing item is re-checked after Kodi goes idle (seconds)
     KodiVerifyGraceSeconds = 10
 
+    # Days a title stays on the Kodi pending list before Stagearr gives up on it
+    KodiPendingMaxAgeDays = 7
+
     #endregion
 
     #region SubtitleEdit Defaults

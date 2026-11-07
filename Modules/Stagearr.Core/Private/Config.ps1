@@ -643,7 +643,7 @@ function Test-SAFeatureEnabled {
             return $false
         }
         'Kodi' {
-            # Opt-in: scanning needs a path map, so it can never be on implicitly
+            # Opt-in: scanning touches a live library, so it is never on implicitly
             if ($null -ne $Config.kodi) {
                 return ($Config.kodi.enabled -eq $true)
             }

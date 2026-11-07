@@ -345,7 +345,7 @@ Optional targeted Kodi library scans after a Radarr or Sonarr import. Disabled b
 | `username` | Web server username. Leave empty if Kodi has no login. | `""` |
 | `password` | Web server password. | `""` |
 | `ssl` | Connect over HTTPS. | `false` |
-| `pathMap` | Radarr/Sonarr paths mapped to Kodi paths, as `"arrPath\|kodiPath"` strings with each backslash doubled. Required when enabled. | `[]` |
+| `pathMap` | Optional. Radarr/Sonarr paths mapped to Kodi paths, as `"arrPath\|kodiPath"` strings with each backslash doubled. Leave empty to match Kodi's sources automatically. | `[]` |
 
 See [Kodi Library Updates](kodi.md) for setup and behavior.
 

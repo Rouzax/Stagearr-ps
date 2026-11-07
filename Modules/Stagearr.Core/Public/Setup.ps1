@@ -210,7 +210,7 @@ function Invoke-SASetup {
         $config.kodi.port = [int](Read-SASetupValue -Prompt "  Kodi web server port" -Current $config.kodi.port)
         $config.kodi.username = Read-SASetupValue -Prompt "  Kodi web server username (empty if none)" -Current $config.kodi.username
         $config.kodi.password = Read-SASetupValue -Prompt "  Kodi web server password (empty if none)" -Current $config.kodi.password
-        $config.kodi.pathMap = Read-SASetupArray -Prompt "  Path maps, comma-separated, as arrPath|kodiPath (e.g. D:\Data\|smb://SERVER/Data/)" -Current @($config.kodi.pathMap)
+        $config.kodi.pathMap = Read-SASetupArray -Prompt "  Path maps (usually leave empty; only if folder names differ, as arrPath|kodiPath)" -Current @($config.kodi.pathMap)
     }
 
     # --- Review & Save ---

@@ -635,7 +635,9 @@ These aren't exported but are heavily used internally:
 | `Invoke-SAKodiUpdate` | Scan and confirm every title in a job; never throws | Kodi.ps1 |
 | `Invoke-SAKodiTargetUpdate` | Scan and confirm one title | Kodi.ps1 |
 | `Invoke-SAKodiRpc` | One JSON-RPC call, single attempt | Kodi.ps1 |
+| `Resolve-SAKodiLocation` | Find a title in Kodi, from pathMap or its sources | Kodi.ps1 |
 | `Resolve-SAKodiDirectory` | Exact scan path from Kodi's own listing | Kodi.ps1 |
+| `Read-SAKodiPending` / `Save-SAKodiPending` | Titles waiting for a retry | Kodi.ps1 |
 | `Get-SAKodiMissingItems` | Which items are absent from the library | Kodi.ps1 |
 | `Wait-SAKodiIdle` | Wait out a running scan, within budget | Kodi.ps1 |
 
@@ -790,7 +792,7 @@ These have no I/O — input → output only:
 
 **Http.ps1:** `New-SAHttpResult`, `Get-SAHttpRetryDelay`, `Test-SAHttpStatusRetryable`, `Test-SAHttpStatusAuthError`
 
-**Kodi.ps1:** `Get-SAKodiPathMap`, `ConvertTo-SAKodiPath`, `Test-SAKodiConfig`, `Get-SAKodiTargets`, `Test-SAKodiStepNeeded`, `Get-SAKodiBudgetSeconds`
+**Kodi.ps1:** `Get-SAKodiPathMap`, `ConvertTo-SAKodiPath`, `Get-SAKodiPathCandidates`, `Set-SAKodiSourceSpelling`, `Merge-SAKodiPending`, `Split-SAKodiPending`, `Test-SAKodiConfig`, `Get-SAKodiTargets`, `Test-SAKodiStepNeeded`, `Get-SAKodiBudgetSeconds`
 
 **Omdb.ps1:** `ConvertTo-SAOmdbDisplayData` (API response normalization, rating extraction)
 

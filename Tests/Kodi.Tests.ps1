@@ -118,9 +118,21 @@ Describe 'ConvertTo-SAKodiPath' {
 }
 
 Describe 'Test-SAKodiConfig' {
-    It 'reports a blank host and a missing map' {
+    It 'reports a blank host' {
         InModuleScope 'Stagearr.Core' {
-            @(Test-SAKodiConfig -Config @{ kodi = @{ host = ''; pathMap = @() } }) | Should -HaveCount 2
+            @(Test-SAKodiConfig -Config @{ kodi = @{ host = ''; pathMap = @() } }) | Should -HaveCount 1
+        }
+    }
+
+    It 'does not require a path map' {
+        InModuleScope 'Stagearr.Core' {
+            @(Test-SAKodiConfig -Config @{ kodi = @{ host = 'htpc'; pathMap = @() } }) | Should -HaveCount 0
+        }
+    }
+
+    It 'reports a path map entry it cannot read' {
+        InModuleScope 'Stagearr.Core' {
+            @(Test-SAKodiConfig -Config @{ kodi = @{ host = 'htpc'; pathMap = @('nopipe') } }) | Should -HaveCount 1
         }
     }
 
@@ -387,7 +399,10 @@ Describe 'Invoke-SAKodiUpdate' {
                 OnScan      = $null
                 ListingFail = $null
                 ListingType = 'directory'
+                ListingFailFor = $null
                 ScanFail    = $null
+                Sources     = @('/media/', 'smb://S/Data/Movies/', 'smb://S/Data/TV/')
+                SourcesFail = $null
             }
         }
 
@@ -401,6 +416,12 @@ Describe 'Invoke-SAKodiUpdate' {
             if ($Method -eq 'Files.GetDirectory' -and $k.ListingFail) {
                 return $k.ListingFail
             }
+            if ($Method -eq 'Files.GetDirectory' -and $Params.directory -eq $k.ListingFailFor) {
+                return [pscustomobject]@{ Success = $false; Result = $null; Unreachable = $false; Rejected = $false; ErrorMessage = 'Kodi returned an error: Invalid params.' }
+            }
+            if ($Method -eq 'Files.GetSources' -and $k.SourcesFail) {
+                return $k.SourcesFail
+            }
             if ($Method -eq 'VideoLibrary.Scan' -and $k.ScanFail) {
                 return $k.ScanFail
             }
@@ -408,6 +429,9 @@ Describe 'Invoke-SAKodiUpdate' {
                 'XBMC.GetInfoBooleans' {
                     $busy = if ($k.BusyQueue.Count -gt 0) { $k.BusyQueue.Dequeue() } else { $false }
                     [pscustomobject]@{ 'Library.IsScanningVideo' = $busy }
+                }
+                'Files.GetSources' {
+                    [pscustomobject]@{ sources = @($k.Sources | ForEach-Object { [pscustomobject]@{ file = $_; label = 'x' } }) }
                 }
                 'Files.GetDirectory' {
                     [pscustomobject]@{ files = @($k.Listing[$Params.directory] | ForEach-Object { [pscustomobject]@{ file = $_; filetype = $k.ListingType } }) }
@@ -477,14 +501,15 @@ Describe 'Invoke-SAKodiUpdate' {
         Mock -ModuleName 'Stagearr.Core' Get-SAKodiBudgetSeconds { 6 }
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $script:config; A = $script:movie; B = $script:show } { param($C, $A, $B) Invoke-SAKodiUpdate -Config $C -Targets @($A, $B) }
         @($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan') | Should -HaveCount 1
-        $r.Status | Should -Be 'Partial'
+        $r.Status | Should -Be 'Updated'
+        $r.Summary | Should -Be 'Scanned and confirmed'
         $r.Text | Should -Match 'Show: .*time limit'
     }
 
     It 'does not call a scan confirmed when the request got no answer' {
         $global:FakeKodi.ScanFail = [pscustomobject]@{ Success = $false; Result = $null; Unreachable = $true; Rejected = $false; ErrorMessage = 'timeout' }
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $script:config; T = $script:movie } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
-        $r.Status | Should -Be 'Partial'
+        $r.Status | Should -Be 'Skipped'
         $r.Text | Should -Match 'did not answer the scan request'
         @($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.GetMovies') | Should -HaveCount 0
         $global:FakeKodi.ScanFail = $null
@@ -520,7 +545,7 @@ Describe 'Invoke-SAKodiUpdate' {
     It 'does not judge the library while Kodi is still busy after the scan' {
         $global:FakeKodi.OnScan = { 1..1000 | ForEach-Object { $global:FakeKodi.BusyQueue.Enqueue($true) } }
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $script:config; T = $script:movie } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
-        $r.Status | Should -Be 'Partial'
+        $r.Status | Should -Be 'Skipped'
         $r.Text | Should -Match 'still busy'
         @($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.GetMovies') | Should -HaveCount 0
     }
@@ -588,16 +613,94 @@ Describe 'Invoke-SAKodiUpdate' {
         @($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan') | Should -HaveCount 0
     }
 
-    It 'skips with no calls for an unmapped path' {
+    It 'skips and points at pathMap when no source matches' {
         $t = [pscustomobject]@{ RootPath = 'Z:\Else\X'; Title = 'X'; MediaType = 'movie'; Episodes = @(); Verified = $true }
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $script:config; T = $t } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
         $r.Status | Should -Be 'Skipped'
         $r.Text | Should -Match 'pathMap'
-        $global:FakeKodi.Calls | Should -HaveCount 0
+        @($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan') | Should -HaveCount 0
+    }
+
+    It 'maps by itself and scans with the spelling of the Kodi source' {
+        $config = @{ kodi = @{ enabled = $true; host = 'h'; port = 80; pathMap = @() } }
+        $t = [pscustomobject]@{ RootPath = '\\server\data\movies\film (2020)'; Title = 'Film'; MediaType = 'movie'; Episodes = @(); Verified = $true }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $config; T = $t } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
+        $r.Status | Should -Be 'Updated'
+        (@($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan'))[0].Params.directory | Should -Be 'smb://S/Data/Movies/Film (2020)/'
+    }
+
+    It 'corrects the source spelling behind a broad pathMap entry' {
+        $config = @{ kodi = @{ enabled = $true; host = 'h'; port = 80; pathMap = 'D:\Data\|smb://S/data/' } }
+        $t = [pscustomobject]@{ RootPath = 'D:\Data\movies\Film (2020)'; Title = 'Film'; MediaType = 'movie'; Episodes = @(); Verified = $true }
+        $null = InModuleScope 'Stagearr.Core' -Parameters @{ C = $config; T = $t } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
+        (@($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan'))[0].Params.directory | Should -Be 'smb://S/Data/Movies/Film (2020)/'
+    }
+
+    It 'lets pathMap override a source that would match by itself' {
+        $global:FakeKodi.Listing['smb://S/Other/'] = @('smb://S/Other/Film (2020)/')
+        $config = @{ kodi = @{ enabled = $true; host = 'h'; port = 80; pathMap = 'D:\Data\Movies\|smb://S/Other/' } }
+        $t = [pscustomobject]@{ RootPath = 'D:\Data\Movies\Film (2020)'; Title = 'Film'; MediaType = 'movie'; Episodes = @(); Verified = $true }
+        $null = InModuleScope 'Stagearr.Core' -Parameters @{ C = $config; T = $t } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
+        (@($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan'))[0].Params.directory | Should -Be 'smb://S/Other/Film (2020)/'
+    }
+
+    It 'uses the tied source that holds the title' {
+        $global:FakeKodi.Sources = @('smb://A/Movies/', 'smb://B/Movies/')
+        $global:FakeKodi.Listing['smb://A/Movies/'] = @('smb://A/Movies/Other (2020)/')
+        $global:FakeKodi.Listing['smb://B/Movies/'] = @('smb://B/Movies/Film (2020)/')
+        $config = @{ kodi = @{ enabled = $true; host = 'h'; port = 80; pathMap = @() } }
+        $t = [pscustomobject]@{ RootPath = 'D:\Movies\Film (2020)'; Title = 'Film'; MediaType = 'movie'; Episodes = @(); Verified = $true }
+        $null = InModuleScope 'Stagearr.Core' -Parameters @{ C = $config; T = $t } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
+        (@($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan'))[0].Params.directory | Should -Be 'smb://B/Movies/Film (2020)/'
+    }
+
+    It 'refuses to guess when tied sources both hold the title' {
+        $global:FakeKodi.Sources = @('smb://A/Movies/', 'smb://B/Movies/')
+        $global:FakeKodi.Listing['smb://A/Movies/'] = @('smb://A/Movies/Film (2020)/')
+        $global:FakeKodi.Listing['smb://B/Movies/'] = @('smb://B/Movies/Film (2020)/')
+        $config = @{ kodi = @{ enabled = $true; host = 'h'; port = 80; pathMap = @() } }
+        $t = [pscustomobject]@{ RootPath = 'D:\Movies\Film (2020)'; Title = 'Film'; MediaType = 'movie'; Episodes = @(); Verified = $true }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $config; T = $t } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
+        $r.Status | Should -Be 'Skipped'
+        $r.Text | Should -Match 'pathMap'
+        @($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan') | Should -HaveCount 0
+    }
+
+    It 'does not fall back to a weaker source that lacks proof' {
+        $global:FakeKodi.Sources = @('smb://N/4K/Movies/', 'smb://N/HD/Movies/')
+        $global:FakeKodi.Listing['smb://N/4K/Movies/'] = @()
+        $global:FakeKodi.Listing['smb://N/HD/Movies/'] = @('smb://N/HD/Movies/Film/')
+        $config = @{ kodi = @{ enabled = $true; host = 'h'; port = 80; pathMap = @() } }
+        $t = [pscustomobject]@{ RootPath = 'D:\4K\Movies\Film'; Title = 'Film'; MediaType = 'movie'; Episodes = @(); Verified = $true }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $config; T = $t } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
+        $r.Status | Should -Be 'Skipped'
+        @($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan') | Should -HaveCount 0
+    }
+
+    It 'does not trust a tie when one listing failed' {
+        $global:FakeKodi.Sources = @('smb://A/Movies/', 'smb://B/Movies/')
+        $global:FakeKodi.Listing['smb://B/Movies/'] = @('smb://B/Movies/Film (2020)/')
+        $global:FakeKodi.ListingFailFor = 'smb://A/Movies/'
+        $config = @{ kodi = @{ enabled = $true; host = 'h'; port = 80; pathMap = @() } }
+        $t = [pscustomobject]@{ RootPath = 'D:\Movies\Film (2020)'; Title = 'Film'; MediaType = 'movie'; Episodes = @(); Verified = $true }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $config; T = $t } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
+        $r.Status | Should -Be 'Skipped'
+        @($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan') | Should -HaveCount 0
+    }
+
+    It 'reads the sources once for a pack' {
+        $null = InModuleScope 'Stagearr.Core' -Parameters @{ C = $script:config; A = $script:movie; B = $script:show } { param($C, $A, $B) Invoke-SAKodiUpdate -Config $C -Targets @($A, $B) }
+        @($global:FakeKodi.Calls | Where-Object Method -EQ 'Files.GetSources') | Should -HaveCount 1
+    }
+
+    It 'still uses pathMap when the sources cannot be read' {
+        $global:FakeKodi.SourcesFail = [pscustomobject]@{ Success = $false; Result = $null; Unreachable = $false; Rejected = $false; ErrorMessage = 'nope' }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $script:config; T = $script:movie } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
+        $r.Status | Should -Be 'Updated'
     }
 
     It 'skips with no calls on a config problem' {
-        $bad = @{ kodi = @{ enabled = $true; host = 'h'; pathMap = @() } }
+        $bad = @{ kodi = @{ enabled = $true; host = ''; pathMap = @() } }
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $bad; T = $script:movie } { param($C, $T) Invoke-SAKodiUpdate -Config $C -Targets @($T) }
         $r.Status | Should -Be 'Skipped'
         $global:FakeKodi.Calls | Should -HaveCount 0
@@ -629,16 +732,17 @@ Describe 'Invoke-SAKodiUpdate' {
         (@($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan').Params.directory) -join ',' | Should -Be 'smb://S/Data/Movies/Film (2020)/,smb://S/Data/TV/Show (2020)/'
     }
 
-    It 'reports one title skipped and one updated as partial' {
+    It 'keeps the success when another title is skipped' {
         $t = [pscustomobject]@{ RootPath = 'Z:\Else\X'; Title = 'X'; MediaType = 'movie'; Episodes = @(); Verified = $true }
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $script:config; A = $script:movie; B = $t } { param($C, $A, $B) Invoke-SAKodiUpdate -Config $C -Targets @($A, $B) }
-        $r.Status | Should -Be 'Partial'
+        $r.Status | Should -Be 'Updated'
+        $r.Summary | Should -Be 'Scanned and confirmed'
         $r.Text | Should -Match 'until a scan runs'
     }
 
     It 'does nothing for no targets' {
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ C = $script:config } { param($C) Invoke-SAKodiUpdate -Config $C -Targets @() }
-        $r.Status | Should -Be 'Skipped'
+        $r.Status | Should -Be 'Idle'
         $global:FakeKodi.Calls | Should -HaveCount 0
     }
 }
@@ -686,6 +790,402 @@ Describe 'Test-SAKodiStepNeeded' {
     }
 }
 
+Describe 'Get-SAKodiPathCandidates' {
+    BeforeAll {
+        $script:sources = @('/media/', 'smb://SERVER/Data/Kids/TV/', 'smb://SERVER/Data/Festivals/Video/', 'smb://SERVER/Data/Sport/Video/',
+            'smb://SERVER/Data/Movies/', 'smb://SERVER/Data/TVSeries/EN/', 'smb://SERVER/Data/TVSeries/NL/', 'smb://SERVER/Data/Kids/Movies/')
+    }
+
+    It 'matches <Path> to <Parent>' -ForEach @(
+        @{ Path = '\\server\data\movies\Abigail (2024)'; Parent = 'smb://SERVER/Data/Movies/' }
+        @{ Path = '\\server\data\kids\movies\Cars (2006)'; Parent = 'smb://SERVER/Data/Kids/Movies/' }
+        @{ Path = '\\server\Data\TVSeries\EN\Reacher (2022)'; Parent = 'smb://SERVER/Data/TVSeries/EN/' }
+        @{ Path = '\\server\Data\TVSeries\NL\Show (2019)'; Parent = 'smb://SERVER/Data/TVSeries/NL/' }
+        @{ Path = 'D:\Data\Movies\Film (2020)'; Parent = 'smb://SERVER/Data/Movies/' }
+        @{ Path = '/mnt/nas/data/kids/movies/Cars (2006)'; Parent = 'smb://SERVER/Data/Kids/Movies/' }
+    ) {
+        InModuleScope 'Stagearr.Core' -Parameters @{ P = $Path; E = $Parent; S = $script:sources } {
+            param($P, $E, $S)
+            $c = @(Get-SAKodiPathCandidates -ArrPath $P -Sources $S)
+            $c[0].Parent | Should -Be $E
+        }
+    }
+
+    It 'keeps the title folder as the leaf' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ S = $script:sources } {
+            param($S)
+            (@(Get-SAKodiPathCandidates -ArrPath 'D:\Movies\Film (2020)\' -Sources $S))[0].Leaf | Should -Be 'Film (2020)'
+        }
+    }
+
+    It 'follows folders below a source' {
+        InModuleScope 'Stagearr.Core' {
+            (@(Get-SAKodiPathCandidates -ArrPath 'D:\TV\EN\Show (2020)' -Sources @('smb://S/TV/')))[0].Parent | Should -Be 'smb://S/TV/EN/'
+        }
+    }
+
+    It 'gives tied sources the same score' {
+        InModuleScope 'Stagearr.Core' {
+            $c = @(Get-SAKodiPathCandidates -ArrPath 'D:\Movies\X' -Sources @('smb://A/Movies/', 'smb://B/Movies/'))
+            $c | Should -HaveCount 2
+            $c[0].Score | Should -Be $c[1].Score
+        }
+    }
+
+    It 'returns nothing when no folder name overlaps' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ S = $script:sources } {
+            param($S)
+            @(Get-SAKodiPathCandidates -ArrPath 'Z:\Else\X' -Sources $S) | Should -HaveCount 0
+        }
+    }
+
+    It 'matches a Windows-style Kodi source and keeps its separators' {
+        InModuleScope 'Stagearr.Core' {
+            (@(Get-SAKodiPathCandidates -ArrPath '\\\\nas\\media\\movies\\Film (2020)' -Sources @('D:\Media\Movies\')))[0].Parent | Should -Be 'D:\Media\Movies\'
+            (@(Get-SAKodiPathCandidates -ArrPath 'E:\TV\EN\Show' -Sources @('D:\TV\')))[0].Parent | Should -Be 'D:\TV\EN\'
+        }
+    }
+
+    It 'lists one candidate for sources that differ only in case' {
+        InModuleScope 'Stagearr.Core' {
+            @(Get-SAKodiPathCandidates -ArrPath 'D:\Movies\X' -Sources @('smb://A/Movies/', 'smb://a/movies/')) | Should -HaveCount 1
+        }
+    }
+
+    It 'ignores multipath sources' {
+        InModuleScope 'Stagearr.Core' {
+            @(Get-SAKodiPathCandidates -ArrPath 'D:\Movies\X' -Sources @('multipath://smb%3a%2f%2fS%2fMovies%2f/')) | Should -HaveCount 0
+        }
+    }
+
+    It 'needs a parent folder to compare' {
+        InModuleScope 'Stagearr.Core' {
+            @(Get-SAKodiPathCandidates -ArrPath 'Movies' -Sources @('smb://S/Movies/')) | Should -HaveCount 0
+        }
+    }
+}
+
+Describe 'Kodi pending list helpers' {
+    BeforeAll {
+        $script:now = [datetime]::new(2026, 11, 7, 12, 0, 0, [DateTimeKind]::Utc)
+    }
+
+    It 'merges episodes for one folder and keeps the oldest date' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Now = $script:now } {
+            param($Now)
+            $old = [pscustomobject]@{ RootPath = 'D:\T\S'; Title = 'S'; MediaType = 'tv'; Verified = $true; AddedAt = '2026-11-01T00:00:00.0000000Z'; Episodes = @([pscustomobject]@{ Season = 1; Episode = 1 }) }
+            $new = [pscustomobject]@{ RootPath = 'd:\t\s'; Title = 'S'; MediaType = 'tv'; Verified = $true; Episodes = @([pscustomobject]@{ Season = 1; Episode = 1 }, [pscustomobject]@{ Season = 1; Episode = 2 }) }
+            $m = @(Merge-SAKodiPending -Existing @($old) -Add @($new) -Now $Now)
+            $m | Should -HaveCount 1
+            @($m[0].Episodes) | Should -HaveCount 2
+            $m[0].AddedAt | Should -Be '2026-11-01T00:00:00.0000000Z'
+        }
+    }
+
+    It 'stamps new entries with the time' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Now = $script:now } {
+            param($Now)
+            $new = [pscustomobject]@{ RootPath = 'D:\M\A'; Title = 'A'; MediaType = 'movie'; Verified = $true; Episodes = @() }
+            (@(Merge-SAKodiPending -Existing @() -Add @($new) -Now $Now))[0].AddedAt | Should -Match '^2026-11-07T12:00'
+        }
+    }
+
+    It 'splits expired entries at 7 days' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Now = $script:now } {
+            param($Now)
+            $young = [pscustomobject]@{ RootPath = 'a'; AddedAt = '2026-11-01T00:00:00.0000000Z' }
+            $aged = [pscustomobject]@{ RootPath = 'b'; AddedAt = '2026-10-30T00:00:00.0000000Z' }
+            $r = Split-SAKodiPending -Entries @($young, $aged) -Now $Now
+            (@($r.Keep).RootPath) | Should -Be 'a'
+            (@($r.Expired).RootPath) | Should -Be 'b'
+        }
+    }
+
+    It 'round-trips through the file, with a single entry and with none' {
+        $root = (Join-Path $TestDrive 'q1')
+        $null = New-Item -ItemType Directory -Path $root
+        InModuleScope 'Stagearr.Core' -Parameters @{ Root = $root } {
+            param($Root)
+            $e = [pscustomobject]@{ RootPath = 'D:\M\Boiúna'; Title = 'B'; MediaType = 'tv'; Verified = $true; AddedAt = '2026-11-01T00:00:00.0000000Z'; Episodes = @([pscustomobject]@{ Season = 1; Episode = 2 }) }
+            Save-SAKodiPending -QueueRoot $Root -Entries @($e) | Should -BeTrue
+            $r = @(Read-SAKodiPending -QueueRoot $Root)
+            $r | Should -HaveCount 1
+            $r[0].RootPath | Should -Be 'D:\M\Boiúna'
+            $r[0].Episodes[0].Episode | Should -Be 2
+            Save-SAKodiPending -QueueRoot $Root -Entries @() | Should -BeTrue
+            Test-Path (Join-Path $Root 'kodi-pending.json') | Should -BeFalse
+        }
+    }
+
+    It 'throws on a corrupted file rather than reading it as empty' {
+        $root = (Join-Path $TestDrive 'q2')
+        $null = New-Item -ItemType Directory -Path $root
+        Set-Content -Path (Join-Path $root 'kodi-pending.json') -Value '{not json'
+        InModuleScope 'Stagearr.Core' -Parameters @{ Root = $root } {
+            param($Root)
+            { Read-SAKodiPending -QueueRoot $Root } | Should -Throw
+        }
+    }
+
+    It 'ignores entries it cannot use' {
+        $root = (Join-Path $TestDrive 'q3')
+        $null = New-Item -ItemType Directory -Path $root
+        Set-Content -Path (Join-Path $root 'kodi-pending.json') -Value '[{"RootPath":42,"Title":"x"},{"RootPath":"D:\\M\\A","Title":"A"}]'
+        InModuleScope 'Stagearr.Core' -Parameters @{ Root = $root } {
+            param($Root)
+            @(Read-SAKodiPending -QueueRoot $Root) | Should -HaveCount 1
+        }
+    }
+
+    It 'restamps an unreadable date so the entry can still expire' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Now = $script:now } {
+            param($Now)
+            $e = [pscustomobject]@{ RootPath = 'a'; Title = 'A'; AddedAt = 'not a date'; Episodes = @() }
+            (@(Merge-SAKodiPending -Existing @($e) -Add @() -Now $Now))[0].AddedAt | Should -Match '^2026-11-07T12:00'
+        }
+    }
+}
+
+Describe 'Invoke-SAKodiUpdate retries' {
+    BeforeAll {
+        $script:config = @{ kodi = @{ enabled = $true; host = 'h'; port = 80; pathMap = @() } }
+        $script:movie = [pscustomobject]@{ RootPath = 'D:\Data\Movies\Film (2020)'; Title = 'Film'; MediaType = 'movie'; Episodes = @(); Verified = $true }
+        $script:other = [pscustomobject]@{ RootPath = 'D:\Data\Movies\Next (2021)'; Title = 'Next'; MediaType = 'movie'; Episodes = @(); Verified = $true }
+        function script:Invoke-Update {
+            param($Targets, $Root)
+            InModuleScope 'Stagearr.Core' -Parameters @{ C = $script:config; T = $Targets; Q = $Root } { param($C, $T, $Q) Invoke-SAKodiUpdate -Config $C -Targets $T -QueueRoot $Q }
+        }
+        function script:Get-PendingRoots {
+            param($Root)
+            InModuleScope 'Stagearr.Core' -Parameters @{ Q = $Root } { param($Q) @(Read-SAKodiPending -QueueRoot $Q).RootPath }
+        }
+    }
+
+    BeforeEach {
+        New-FakeKodi
+        $global:FakeKodi.Listing['smb://S/Data/Movies/'] = @('smb://S/Data/Movies/Film (2020)/', 'smb://S/Data/Movies/Next (2021)/')
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiRpc { Invoke-FakeKodi -Method $Method -Params $Params }
+        Mock -ModuleName 'Stagearr.Core' Start-Sleep {}
+        $global:FakeClock = 0
+        Mock -ModuleName 'Stagearr.Core' Get-SAKodiElapsedSeconds { $global:FakeClock += 2; $global:FakeClock }
+        InModuleScope 'Stagearr.Core' { Reset-SAKodiBreaker }
+        $script:root = Join-Path $TestDrive ([guid]::NewGuid())
+        $null = New-Item -ItemType Directory -Path $script:root
+    }
+
+    AfterAll {
+        Remove-Variable -Name FakeKodi, FakeClock -Scope Global -ErrorAction SilentlyContinue
+    }
+
+    It 'queues a title when Kodi is unreachable and says it will retry' {
+        $global:FakeKodi.Unreachable = $true
+        $r = Invoke-Update -Targets @($script:movie) -Root $script:root
+        $r.Status | Should -Be 'Skipped'
+        $r.Text | Should -Match 'retry on the next import'
+        $r.Text | Should -Not -Match 'until a scan runs'
+        Get-PendingRoots -Root $script:root | Should -Be $script:movie.RootPath
+    }
+
+    It 'queues a title while the breaker is set, without calling Kodi' {
+        $global:FakeKodi.Unreachable = $true
+        $null = Invoke-Update -Targets @($script:movie) -Root $script:root
+        $calls = $global:FakeKodi.Calls.Count
+        $null = Invoke-Update -Targets @($script:other) -Root $script:root
+        $global:FakeKodi.Calls.Count | Should -Be $calls
+        @(Get-PendingRoots -Root $script:root) | Should -HaveCount 2
+    }
+
+    It 'queues a scan that could not be confirmed' {
+        $global:FakeKodi.OnScan = { 1..1000 | ForEach-Object { $global:FakeKodi.BusyQueue.Enqueue($true) } }
+        $null = Invoke-Update -Targets @($script:movie) -Root $script:root
+        Get-PendingRoots -Root $script:root | Should -Be $script:movie.RootPath
+    }
+
+    It 'catches up on the next job, its own title first, and empties the list' {
+        $global:FakeKodi.Unreachable = $true
+        $null = Invoke-Update -Targets @($script:movie) -Root $script:root
+        $global:FakeKodi.Unreachable = $false
+        InModuleScope 'Stagearr.Core' { Reset-SAKodiBreaker }
+        $global:FakeKodi.Calls.Clear()
+        $r = Invoke-Update -Targets @($script:other) -Root $script:root
+        $r.Status | Should -Be 'Updated'
+        $r.Text | Should -Match 'Caught up on Film'
+        (@($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan').Params.directory) -join ',' | Should -Be 'smb://S/Data/Movies/Next (2021)/,smb://S/Data/Movies/Film (2020)/'
+        Test-Path (Join-Path $script:root 'kodi-pending.json') | Should -BeFalse
+    }
+
+    It 'catches up on a job with no title of its own' {
+        $global:FakeKodi.Unreachable = $true
+        $null = Invoke-Update -Targets @($script:movie) -Root $script:root
+        $global:FakeKodi.Unreachable = $false
+        InModuleScope 'Stagearr.Core' { Reset-SAKodiBreaker }
+        $r = Invoke-Update -Targets @() -Root $script:root
+        $r.Status | Should -Be 'Updated'
+        $r.Text | Should -Match 'Caught up on Film'
+    }
+
+    It 'stays quiet when a job with no title of its own cannot clear the list' {
+        $global:FakeKodi.Unreachable = $true
+        $null = Invoke-Update -Targets @($script:movie) -Root $script:root
+        InModuleScope 'Stagearr.Core' { Reset-SAKodiBreaker }
+        $r = Invoke-Update -Targets @() -Root $script:root
+        $r.Status | Should -Be 'Idle'
+        Get-PendingRoots -Root $script:root | Should -Be $script:movie.RootPath
+    }
+
+    It 'leaves retries for later once the job time is spent' {
+        $global:FakeKodi.Unreachable = $true
+        $null = Invoke-Update -Targets @($script:movie) -Root $script:root
+        $global:FakeKodi.Unreachable = $false
+        InModuleScope 'Stagearr.Core' { Reset-SAKodiBreaker }
+        Mock -ModuleName 'Stagearr.Core' Get-SAKodiBudgetSeconds { 4 }
+        $global:FakeKodi.Calls.Clear()
+        $r = Invoke-Update -Targets @($script:other) -Root $script:root
+        @($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan').Params.directory | Should -Not -Contain 'smb://S/Data/Movies/Film (2020)/'
+        Get-PendingRoots -Root $script:root | Should -Be $script:movie.RootPath
+    }
+
+    It 'does not queue a title Kodi refused' {
+        $global:FakeKodi.MovieTotal = 0
+        $r = Invoke-Update -Targets @($script:movie) -Root $script:root
+        $r.Status | Should -Be 'Partial'
+        $r.Text | Should -Not -Match 'retry'
+        $r.Summary | Should -BeNullOrEmpty
+        Test-Path (Join-Path $script:root 'kodi-pending.json') | Should -BeFalse
+    }
+
+    It 'does not queue a mapping problem' {
+        $t = [pscustomobject]@{ RootPath = 'Z:\Else\X'; Title = 'X'; MediaType = 'movie'; Episodes = @(); Verified = $true }
+        $r = Invoke-Update -Targets @($t) -Root $script:root
+        $r.Text | Should -Match 'until a scan runs'
+        Test-Path (Join-Path $script:root 'kodi-pending.json') | Should -BeFalse
+    }
+
+    It 'drops a queued title whose folder is gone, and names it' {
+        $global:FakeKodi.Unreachable = $true
+        $null = Invoke-Update -Targets @($script:movie) -Root $script:root
+        $global:FakeKodi.Unreachable = $false
+        InModuleScope 'Stagearr.Core' { Reset-SAKodiBreaker }
+        $global:FakeKodi.Listing['smb://S/Data/Movies/'] = @('smb://S/Data/Movies/Next (2021)/')
+        $r = Invoke-Update -Targets @($script:other) -Root $script:root
+        $r.Text | Should -Match 'Film'
+        Test-Path (Join-Path $script:root 'kodi-pending.json') | Should -BeFalse
+    }
+
+    It 'gives an expired entry a last try, then names it' {
+        $aged = [pscustomobject]@{ RootPath = $script:movie.RootPath; Title = 'Film'; MediaType = 'movie'; Verified = $true; Episodes = @(); AddedAt = (Get-Date).ToUniversalTime().AddDays(-8).ToString('o') }
+        InModuleScope 'Stagearr.Core' -Parameters @{ Q = $script:root; E = $aged } { param($Q, $E) $null = Save-SAKodiPending -QueueRoot $Q -Entries @($E) }
+        $global:FakeKodi.ListingFailFor = 'smb://S/Data/Movies/'
+        $r = Invoke-Update -Targets @() -Root $script:root
+        $r.Text | Should -Match 'Film'
+        $r.Text | Should -Match 'until a scan runs'
+        Test-Path (Join-Path $script:root 'kodi-pending.json') | Should -BeFalse
+    }
+
+    It 'catches up on an expired entry if its last try works' {
+        $aged = [pscustomobject]@{ RootPath = $script:movie.RootPath; Title = 'Film'; MediaType = 'movie'; Verified = $true; Episodes = @(); AddedAt = (Get-Date).ToUniversalTime().AddDays(-8).ToString('o') }
+        InModuleScope 'Stagearr.Core' -Parameters @{ Q = $script:root; E = $aged } { param($Q, $E) $null = Save-SAKodiPending -QueueRoot $Q -Entries @($E) }
+        $r = Invoke-Update -Targets @() -Root $script:root
+        $r.Text | Should -Match 'Caught up on Film'
+    }
+
+    It 'keeps every entry when a folder listing fails, as in a share outage' {
+        $global:FakeKodi.Unreachable = $true
+        $null = Invoke-Update -Targets @($script:movie, $script:other) -Root $script:root
+        $global:FakeKodi.Unreachable = $false
+        InModuleScope 'Stagearr.Core' { Reset-SAKodiBreaker }
+        $global:FakeKodi.ListingFailFor = 'smb://S/Data/Movies/'
+        $r = Invoke-Update -Targets @() -Root $script:root
+        @(Get-PendingRoots -Root $script:root) | Should -HaveCount 2
+        $r.Text | Should -Not -Match 'pathMap'
+    }
+
+    It 'retries its own title when a folder listing fails' {
+        $global:FakeKodi.ListingFailFor = 'smb://S/Data/Movies/'
+        $r = Invoke-Update -Targets @($script:movie) -Root $script:root
+        $r.Text | Should -Match 'retry on the next import'
+        Get-PendingRoots -Root $script:root | Should -Be $script:movie.RootPath
+    }
+
+    It 'keeps every entry when the sources cannot be read' {
+        $global:FakeKodi.SourcesFail = [pscustomobject]@{ Success = $false; Result = $null; Unreachable = $false; Rejected = $false; ErrorMessage = 'nope' }
+        $r = Invoke-Update -Targets @($script:movie) -Root $script:root
+        $r.Text | Should -Match 'retry on the next import'
+        $r.Text | Should -Not -Match 'pathMap'
+        Get-PendingRoots -Root $script:root | Should -Be $script:movie.RootPath
+    }
+
+    It 'treats an empty source list as a passing problem' {
+        $global:FakeKodi.Sources = @()
+        $r = Invoke-Update -Targets @($script:movie) -Root $script:root
+        $r.Text | Should -Match 'retry on the next import'
+        Get-PendingRoots -Root $script:root | Should -Be $script:movie.RootPath
+    }
+
+    It 'keeps a title that failed before an unexpected error in the next one' {
+        $script:calls = 0
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiTargetUpdate {
+            $global:FakeKodi.Calls.Add('x')
+            if ($global:FakeKodi.Calls.Count -eq 2) { throw 'boom' }
+            [pscustomobject]@{ Status = 'Skipped'; Reason = 'busy'; Retry = $true; Missing = @() }
+        }
+        $global:FakeKodi.Calls.Clear()
+        $r = Invoke-Update -Targets @($script:movie, $script:other) -Root $script:root
+        $r.Text | Should -Match 'Film'
+        $r.Text | Should -Match 'Next'
+        @(Get-PendingRoots -Root $script:root) | Should -HaveCount 2
+    }
+
+    It 'sets an unreadable list aside instead of overwriting it' {
+        $file = Join-Path $script:root 'kodi-pending.json'
+        Set-Content -Path $file -Value '{not json'
+        $global:FakeKodi.Unreachable = $true
+        $r = Invoke-Update -Targets @($script:movie) -Root $script:root
+        Test-Path (Join-Path $script:root 'kodi-pending.bad.json') | Should -BeTrue
+        $r.Text | Should -Match 'kodi-pending.bad.json'
+        Get-PendingRoots -Root $script:root | Should -Be $script:movie.RootPath
+    }
+
+    It 'does not scan a title twice when it is also on the list' {
+        $tv = [pscustomobject]@{ RootPath = 'D:\Data\TV\Show (2020)'; Title = 'Show'; MediaType = 'tv'; Verified = $true; Episodes = @([pscustomobject]@{ Season = 1; Episode = 2 }) }
+        $old = [pscustomobject]@{ RootPath = 'd:\data\tv\show (2020)'; Title = 'Show'; MediaType = 'tv'; Verified = $true; Episodes = @([pscustomobject]@{ Season = 1; Episode = 1 }); AddedAt = (Get-Date).ToUniversalTime().AddDays(-8).ToString('o') }
+        InModuleScope 'Stagearr.Core' -Parameters @{ Q = $script:root; E = $old } { param($Q, $E) $null = Save-SAKodiPending -QueueRoot $Q -Entries @($E) }
+        $global:FakeKodi.Episodes = @(@{ season = 1; episode = 2 })
+        $r = Invoke-Update -Targets @($tv) -Root $script:root
+        @($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan') | Should -HaveCount 1
+        $r.Text | Should -Not -Match 'after 7 days'
+        $r.Text | Should -Not -Match 'Caught up'
+        $r.Missing | Should -Contain 'Show S01E01'
+    }
+
+    It 'moves a failed entry behind the ones not yet tried' {
+        $a = [pscustomobject]@{ RootPath = 'D:\Data\Movies\A'; Title = 'A'; MediaType = 'movie'; Verified = $true; Episodes = @(); AddedAt = (Get-Date).ToUniversalTime().ToString('o') }
+        $b = [pscustomobject]@{ RootPath = 'D:\Data\Movies\B'; Title = 'B'; MediaType = 'movie'; Verified = $true; Episodes = @(); AddedAt = (Get-Date).ToUniversalTime().ToString('o') }
+        InModuleScope 'Stagearr.Core' -Parameters @{ Q = $script:root; A = $a; B = $b } { param($Q, $A, $B) $null = Save-SAKodiPending -QueueRoot $Q -Entries @($A, $B) }
+        $global:FakeKodi.Listing['smb://S/Data/Movies/'] = @('smb://S/Data/Movies/A/', 'smb://S/Data/Movies/B/')
+        $global:FakeKodi.OnScan = { 1..1000 | ForEach-Object { $global:FakeKodi.BusyQueue.Enqueue($true) } }
+        $null = Invoke-Update -Targets @() -Root $script:root
+        (Get-PendingRoots -Root $script:root)[0] | Should -Be $b.RootPath
+    }
+
+    It 'reports a gone folder without telling you to scan' {
+        $global:FakeKodi.Unreachable = $true
+        $null = Invoke-Update -Targets @($script:movie) -Root $script:root
+        $global:FakeKodi.Unreachable = $false
+        InModuleScope 'Stagearr.Core' { Reset-SAKodiBreaker }
+        $global:FakeKodi.Listing['smb://S/Data/Movies/'] = @('smb://S/Data/Movies/Next (2021)/')
+        $r = Invoke-Update -Targets @() -Root $script:root
+        $r.Text | Should -Match 'no longer exists'
+        $r.Text | Should -Not -Match 'until a scan runs'
+    }
+
+    It 'retries an unconfirmed import whose folder is not there yet' {
+        $t = [pscustomobject]@{ RootPath = 'D:\Data\Movies\Later (2022)'; Title = 'Later'; MediaType = 'movie'; Episodes = @(); Verified = $false }
+        $r = Invoke-Update -Targets @($t) -Root $script:root
+        $r.Text | Should -Match 'retry on the next import'
+    }
+}
+
 Describe 'Invoke-SAKodiStep' {
     BeforeEach {
         $script:context = @{ Config = @{ kodi = @{ enabled = $true } }; Paths = @{ QueueRoot = 'q' } }
@@ -696,6 +1196,39 @@ Describe 'Invoke-SAKodiStep' {
         Mock -ModuleName 'Stagearr.Core' Write-SAVerbose {}
         Mock -ModuleName 'Stagearr.Core' Add-SAEmailException {}
         Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate { [pscustomobject]@{ Status = 'Updated'; Text = 'ok'; Missing = @(); Duration = 1 } }
+    }
+
+    It 'clears the pending list on a job with nothing of its own' {
+        $root = Join-Path $TestDrive 'step1'
+        $null = New-Item -ItemType Directory -Path $root
+        Set-Content -Path (Join-Path $root 'kodi-pending.json') -Value '[{"RootPath":"D:\\M\\A","Title":"A","MediaType":"movie","Verified":true,"Episodes":[],"AddedAt":"2026-11-07T00:00:00.0000000Z"}]'
+        $script:context.Paths.QueueRoot = $root
+        $none = [pscustomobject]@{ Success = $true; Skipped = $true }
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $none } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate -Times 1
+    }
+
+    It 'skips Kodi when there is nothing to do at all' {
+        $root = Join-Path $TestDrive 'step2'
+        $null = New-Item -ItemType Directory -Path $root
+        $script:context.Paths.QueueRoot = $root
+        $none = [pscustomobject]@{ Success = $true; Skipped = $true }
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $none } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate -Times 0
+    }
+
+    It 'keeps a green result and adds other news as a note' {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate { [pscustomobject]@{ Status = 'Updated'; Text = 'ok; B: busy'; Summary = 'ok'; Notes = 'B: busy'; Missing = @(); Duration = 1 } }
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $script:import } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Write-SAOutcome -Times 1 -ParameterFilter { $Level -eq 'Success' -and $Text -eq 'ok' }
+        Should -Invoke -ModuleName 'Stagearr.Core' Add-SAEmailException -Times 1 -ParameterFilter { $Type -eq 'Info' -and $Message -match 'B: busy' }
+    }
+
+    It 'writes nothing to the job when the update has nothing to report' {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate { [pscustomobject]@{ Status = 'Idle'; Text = ''; Missing = @(); Duration = 0 } }
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $script:import } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Write-SAOutcome -Times 0
+        Should -Invoke -ModuleName 'Stagearr.Core' Add-SAEmailException -Times 0
     }
 
     It 'does nothing when the feature is off' {
