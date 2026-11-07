@@ -432,7 +432,13 @@ function Add-SATbaRetryEmailExceptions {
         return
     }
 
-    # Scenario C: Retry failed or skipped again
+    # Scenario C: A better release was imported while the retry waited
+    if ($IsTbaRetry -and $ImportResult.Superseded -eq $true) {
+        Add-SAEmailException -Message "${ImportTarget} already has these episodes at equal or better quality, so the retry is no longer needed" -Type Info
+        return
+    }
+
+    # Scenario D: Retry failed or skipped again
     if ($IsTbaRetry -and ($ImportResult.Success -ne $true -or $ImportResult.Skipped -eq $true)) {
         $reason = if ($ImportResult.Message) { $ImportResult.Message } else { 'unknown' }
         Add-SAEmailException -Message "Automatic TBA retry failed: $reason" -Type Warning

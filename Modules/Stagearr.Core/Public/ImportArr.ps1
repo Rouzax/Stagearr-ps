@@ -473,6 +473,29 @@ function Invoke-SAArrImport {
     # All files rejected - check for TBA before returning
     if ($rejectionSummary.IsAllRejected) {
 
+        # A TBA retry waits two days, so a better release of the same episodes
+        # can be imported in the meantime. Sonarr then calls every staged file
+        # "not an upgrade". That is the normal end of the retry: a rerun would be
+        # rejected the same way, so it is reported without a warning or hint.
+        if ($IsTbaRetry -and (Test-SATbaRetrySuperseded -RejectionSummary $rejectionSummary)) {
+            $supersededText = 'Already in library at equal or better quality'
+            Write-SAOutcome -Level Skip -Label $label -Text $supersededText -Duration (& $getDuration) -Indent 1
+
+            return [PSCustomObject]@{
+                Success         = $true
+                Message         = $supersededText
+                Duration        = (& $getDuration)
+                ImportedFiles   = @()
+                SkippedFiles    = $skippedFilePaths
+                SkippedCount    = $rejectionSummary.RejectedCount
+                ArrMetadata     = $arrMetadata
+                Skipped         = $true
+                QualityRejected = $true
+                Superseded      = $true
+                ErrorType       = $errorType
+            }
+        }
+
         $tbaResolved = $false
 
         # TBA rejection: attempt metadata refresh + re-scan (Sonarr only)
@@ -746,6 +769,32 @@ function Invoke-SAArrImport {
             ErrorType       = 'unknown'
         }
     }
+}
+
+function Test-SATbaRetrySuperseded {
+    <#
+    .SYNOPSIS
+        Tests whether every staged file was rejected only as "not an upgrade".
+    .DESCRIPTION
+        Pure function - no I/O. On a TBA retry this means the library already holds
+        these episodes at equal or better quality, so the retry has nothing left to do.
+    .PARAMETER RejectionSummary
+        Result of Get-SARejectionSummary.
+    .OUTPUTS
+        Boolean.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$RejectionSummary
+    )
+
+    if (-not $RejectionSummary.IsAllRejected -or $RejectionSummary.RejectedCount -lt 1) {
+        return $false
+    }
+    $reasons = @($RejectionSummary.Reasons.Keys)
+    return ($reasons.Count -eq 1 -and $reasons[0] -eq 'Quality exists')
 }
 
 function Get-SAErrorTypeFromRejection {

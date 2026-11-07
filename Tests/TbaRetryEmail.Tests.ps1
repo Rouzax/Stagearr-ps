@@ -112,4 +112,30 @@ Describe 'TBA retry email exceptions' {
             $capturedTypes[1] | Should -Be 'Warning'
         }
     }
+    It 'adds one info-level exception when a retry was superseded by a better release' {
+        InModuleScope 'Stagearr.Core' {
+            $capturedMessages = [System.Collections.Generic.List[string]]::new()
+            $capturedTypes = [System.Collections.Generic.List[string]]::new()
+            Mock Add-SAEmailException {
+                $capturedMessages.Add($Message)
+                $capturedTypes.Add($Type)
+            }
+
+            $importResult = [PSCustomObject]@{
+                Success         = $true
+                Skipped         = $true
+                QualityRejected = $true
+                Superseded      = $true
+                ErrorType       = 'quality'
+                Message         = 'Already in library at equal or better quality'
+            }
+
+            Add-SATbaRetryEmailExceptions -ImportResult $importResult -RetryAfter $null -ImportTarget 'Sonarr' -IsTbaRetry $true
+
+            $capturedMessages.Count | Should -Be 1
+            $capturedMessages[0] | Should -BeLike 'Sonarr*equal or better quality*retry is no longer needed*'
+            $capturedMessages[0] | Should -Not -BeLike '*-Rerun*'
+            $capturedTypes[0] | Should -Be 'Info'
+        }
+    }
 }
