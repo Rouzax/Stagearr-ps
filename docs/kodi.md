@@ -55,7 +55,20 @@ Stagearr works out the paths by itself in most setups, so you do not need `pathM
 
 **2. Test it.** Let one new movie and one new show come through Stagearr. Check that they appear in Kodi, and that the job log shows `Kodi: Scanned and confirmed`.
 
-**3. Change Radarr and Sonarr.** In each app, open Settings > Connect > your Kodi connection, then untick **Update Library** and **Clean Library**. Leave the connection in place if you want its on-screen notifications.
+**3. Change Radarr and Sonarr.** In each app, open Settings > Connect > your Kodi connection. Leave **Update Library** and **Clean Library** ticked, and set the notification triggers so the app only updates Kodi for changes Stagearr does not see:
+
+| Trigger | Set to | Why |
+|---------|--------|-----|
+| On File Import, and in Sonarr On Import Complete | Off | Stagearr scans imports now. |
+| On Rename | On | Stagearr never sees a rename. Without this trigger, a renamed title drops out of Kodi until you run a scan by hand. |
+| On Series Add (Sonarr) | Off | It fires when a show is added, usually before it has any files, so it costs a scan of your whole library for nothing. |
+| On Episode File Delete For Upgrade (Sonarr) | Off | Upgrades go through Stagearr, and `cleanonupdate` removes the old entry. |
+| On Movie Delete, On Movie File Delete, On Series Delete, On Episode File Delete | Your choice | They only act when files were deleted. With `cleanonupdate` on, Kodi removes those entries at the next Stagearr scan anyway; On removes them straight away. |
+| On Grab, health and update triggers | Your choice | These only show a message on screen, if **GUI Notification** is ticked. They do not scan. |
+
+Every trigger that scans asks Kodi to scan the whole library when the app cannot find the title in Kodi, and that is common. That is acceptable for renames and deletes because they are rare. If one arrives while Stagearr is scanning, both scans are cancelled; Stagearr reports the title as not confirmed and retries it.
+
+If you would rather Radarr and Sonarr never scan, untick **Update Library** and **Clean Library** instead. Renames then do not reach Kodi until you run a scan.
 
 ---
 
@@ -133,10 +146,9 @@ Stagearr does not retry a title Kodi refused or a path it could not match, becau
 
 ## What Stops Updating Kodi
 
-Once Update Library is off in Radarr and Sonarr, only imports that go through Stagearr reach Kodi. These do not, until you run a scan in Kodi:
+Once the import triggers are off in Radarr and Sonarr, only imports that go through Stagearr reach Kodi. Files imported directly in Radarr or Sonarr do not, until you run a scan in Kodi.
 
-- Files imported directly in Radarr or Sonarr
-- Renamed files
+Renamed and deleted files still reach Kodi through the triggers you left on in [Setup](#setup) step 3. If you unticked Update Library instead, renamed files do not reach Kodi either until you run a scan.
 
 ---
 
@@ -164,6 +176,6 @@ With several devices, each line starts with the device name, and the result show
 
 ## Undo
 
-Set `enabled = false` under `[kodi]`, then tick Update Library again in Radarr and Sonarr. The `kodi` folder left in your queue folder is then ignored, and you can delete it.
+Set `enabled = false` under `[kodi]`, then tick On File Import again in the Kodi connection of Radarr and Sonarr, and On Import Complete in Sonarr. If you unticked Update Library and Clean Library, tick them again too. The `kodi` folder left in your queue folder is then ignored, and you can delete it.
 
 See the [`[kodi]` settings](settings-reference.md#kodi) for every key.

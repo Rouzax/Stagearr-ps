@@ -181,8 +181,9 @@ timeoutSeconds = 10
 # Best-effort: a failure here never fails the job, and a missed scan is retried by a later
 # job. Requires Kodi's web server to be enabled.
 # Keep <cleanonupdate> on in Kodi's advancedsettings.xml: it is what removes the old entry
-# after an upgrade. Turn off "Update Library" and "Clean Library" in the Radarr and Sonarr
-# Kodi connections once this works, or their full scans can cancel this one.
+# after an upgrade. Once this works, untick "On File Import" (and "On Import Complete" in
+# Sonarr) in the Radarr and Sonarr Kodi connections, or their full scans can cancel this
+# one. Keep "On Rename" ticked so renames still reach Kodi; see docs/kodi.md.
 enabled = false
 # One device, or a list such as ["livingroom", "bedroom:8080"] for devices that each keep
 # their own library. Devices sharing one MySQL/MariaDB library need only one entry.
