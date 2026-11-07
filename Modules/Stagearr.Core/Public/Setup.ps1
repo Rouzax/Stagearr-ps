@@ -206,7 +206,8 @@ function Invoke-SASetup {
 
     $config.kodi.enabled = Read-SASetupBool -Prompt "Enable targeted Kodi library scans" -Current $config.kodi.enabled
     if ($config.kodi.enabled) {
-        $config.kodi.host = Read-SASetupValue -Prompt "  Kodi host" -Current $config.kodi.host
+        $kodiHosts = Read-SASetupArray -Prompt "  Kodi hosts (one, or several devices that each keep their own library)" -Current @($config.kodi.host)
+        $config.kodi.host = if (@($kodiHosts).Count -eq 1) { @($kodiHosts)[0] } else { $kodiHosts }
         $config.kodi.port = [int](Read-SASetupValue -Prompt "  Kodi web server port" -Current $config.kodi.port)
         $config.kodi.username = Read-SASetupValue -Prompt "  Kodi web server username (empty if none)" -Current $config.kodi.username
         $config.kodi.password = Read-SASetupValue -Prompt "  Kodi web server password (empty if none)" -Current $config.kodi.password

@@ -340,11 +340,12 @@ Optional targeted Kodi library scans after a Radarr or Sonarr import. Disabled b
 | Key | Description | Default |
 |-----|-------------|---------|
 | `enabled` | Scan the imported title's folder in Kodi and confirm it appeared. | `false` |
-| `host` | Kodi host. On a shared library, use one device that stays on. | `"localhost"` |
-| `port` | Kodi web server port. | `8080` |
-| `username` | Web server username. Leave empty if Kodi has no login. | `""` |
+| `host` | Kodi host, or a list of hosts for devices that each keep their own library, such as `["livingroom", "bedroom:8080"]`. On a shared library, use one device that stays on. See [Several Kodi Devices](kodi.md#several-kodi-devices). | `"localhost"` |
+| `port` | Kodi web server port, for every `host` entry without its own `:port`. | `8080` |
+| `username` | Web server username, the same on every device. Leave empty if Kodi has no login. | `""` |
 | `password` | Web server password. | `""` |
 | `ssl` | Connect over HTTPS. | `false` |
+| `timeoutSeconds` | How long to wait for Kodi to answer, in whole seconds. A device that does not answer in time counts as off. Raise it only if a device that is on gets reported as unreachable. Folder listings always get 30 seconds, because they wait on the file share. | `3` |
 | `pathMap` | Optional. Radarr/Sonarr paths mapped to Kodi paths, as `"arrPath\|kodiPath"` strings with each backslash doubled. Leave empty to match Kodi's sources automatically. | `[]` |
 
 See [Kodi Library Updates](kodi.md) for setup and behavior.

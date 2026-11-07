@@ -184,11 +184,19 @@ timeoutSeconds = 10
 # after an upgrade. Turn off "Update Library" and "Clean Library" in the Radarr and Sonarr
 # Kodi connections once this works, or their full scans can cancel this one.
 enabled = false
+# One device, or a list such as ["livingroom", "bedroom:8080"] for devices that each keep
+# their own library. Devices sharing one MySQL/MariaDB library need only one entry.
+# "name:port" overrides port for that device; write an IPv6 address with a port as "[addr]:port".
 host = "localhost"
 port = 8080
+# The login and ssl apply to every device in host
 username = "" # Leave empty if Kodi's web server has no login
 password = ""
 ssl = false
+# Seconds to wait for Kodi to answer. Kodi normally answers in well under a second, so a
+# short wait notices a device that is off quickly. Folder listings always get 30 seconds,
+# because they wait on the file share.
+timeoutSeconds = 3
 # Leave empty: paths are matched to Kodi's sources automatically. Only needed when folder
 # names differ, as "arrPath|kodiPath" entries with each backslash doubled.
 pathMap = [] # e.g. ["D:\\Films\\|smb://NAS/Movies/"]

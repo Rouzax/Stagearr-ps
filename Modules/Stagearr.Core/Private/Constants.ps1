@@ -98,7 +98,8 @@ $script:SAConstants = @{
 
     # Timeout for one JSON-RPC call (seconds). A sleeping host must fail fast: one worker
     # drains the queue, so every wait here delays the jobs behind it.
-    KodiRequestTimeoutSeconds = 10
+    KodiRequestTimeoutSeconds = 3
+    KodiListTimeoutSeconds = 30
 
     # Time one job may spend on Kodi: base + per item + per extra title, capped. The base
     # and the per-title share cover the library clean <cleanonupdate> adds to every scan.
