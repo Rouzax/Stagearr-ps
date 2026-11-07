@@ -932,6 +932,9 @@ function Invoke-SAStandardJob {
         }
     }
 
+    # Kodi library update (best-effort, non-fatal)
+    Invoke-SAKodiStep -Context $Context -JobId $Job.id -ImportResult $importResult
+
     # TBA auto-retry: schedule a retry job if import was skipped due to TBA title
     $tbaRetryScheduled = $false
     $tbaRetryAfter = $null

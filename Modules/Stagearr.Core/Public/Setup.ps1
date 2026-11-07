@@ -204,6 +204,15 @@ function Invoke-SASetup {
         $config.mdblist.apiKey = Read-SASetupValue -Prompt "  MDBList API key (free, from mdblist.com/preferences)" -Current $config.mdblist.apiKey
     }
 
+    $config.kodi.enabled = Read-SASetupBool -Prompt "Enable targeted Kodi library scans" -Current $config.kodi.enabled
+    if ($config.kodi.enabled) {
+        $config.kodi.host = Read-SASetupValue -Prompt "  Kodi host" -Current $config.kodi.host
+        $config.kodi.port = [int](Read-SASetupValue -Prompt "  Kodi web server port" -Current $config.kodi.port)
+        $config.kodi.username = Read-SASetupValue -Prompt "  Kodi web server username (empty if none)" -Current $config.kodi.username
+        $config.kodi.password = Read-SASetupValue -Prompt "  Kodi web server password (empty if none)" -Current $config.kodi.password
+        $config.kodi.pathMap = Read-SASetupArray -Prompt "  Path maps (usually leave empty; only if folder names differ, as arrPath|kodiPath)" -Current @($config.kodi.pathMap)
+    }
+
     # --- Review & Save ---
     Write-Host "`n--- Summary ---" -ForegroundColor Yellow
     Write-Host "Paths:         $($config.paths.stagingRoot)"
@@ -213,6 +222,7 @@ function Invoke-SASetup {
     Write-Host "Importers:     Radarr=$($config.importers.radarr.enabled), Sonarr=$($config.importers.sonarr.enabled), Medusa=$($config.importers.medusa.enabled)"
     Write-Host "Email:         $($config.notifications.email.enabled)"
     Write-Host "MDBList:       $($config.mdblist.enabled)"
+    Write-Host "Kodi:          $($config.kodi.enabled)"
     Write-Host ""
 
     $save = Read-SASetupBool -Prompt "Save configuration" -Current $true

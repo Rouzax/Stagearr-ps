@@ -333,6 +333,24 @@ See [MDBList Collection Sync](mdblist.md) for what it does and how it behaves.
 
 ---
 
+## [kodi]
+
+Optional targeted Kodi library scans after a Radarr or Sonarr import. Disabled by default. Problems with these settings never stop a job: the step is skipped and the email says why.
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `enabled` | Scan the imported title's folder in Kodi and confirm it appeared. | `false` |
+| `host` | Kodi host. On a shared library, use one device that stays on. | `"localhost"` |
+| `port` | Kodi web server port. | `8080` |
+| `username` | Web server username. Leave empty if Kodi has no login. | `""` |
+| `password` | Web server password. | `""` |
+| `ssl` | Connect over HTTPS. | `false` |
+| `pathMap` | Optional. Radarr/Sonarr paths mapped to Kodi paths, as `"arrPath\|kodiPath"` strings with each backslash doubled. Leave empty to match Kodi's sources automatically. | `[]` |
+
+See [Kodi Library Updates](kodi.md) for setup and behavior.
+
+---
+
 ## [updates]
 
 Controls automatic update checking from GitHub Releases.

@@ -176,6 +176,23 @@ enabled = false
 apiKey = ""
 timeoutSeconds = 10
 
+[kodi]
+# After a successful import, scan only that title's folder in Kodi and confirm it appeared.
+# Best-effort: a failure here never fails the job, and a missed scan is retried by a later
+# job. Requires Kodi's web server to be enabled.
+# Keep <cleanonupdate> on in Kodi's advancedsettings.xml: it is what removes the old entry
+# after an upgrade. Turn off "Update Library" and "Clean Library" in the Radarr and Sonarr
+# Kodi connections once this works, or their full scans can cancel this one.
+enabled = false
+host = "localhost"
+port = 8080
+username = "" # Leave empty if Kodi's web server has no login
+password = ""
+ssl = false
+# Leave empty: paths are matched to Kodi's sources automatically. Only needed when folder
+# names differ, as "arrPath|kodiPath" entries with each backslash doubled.
+pathMap = [] # e.g. ["D:\\Films\\|smb://NAS/Movies/"]
+
 [updates]
 # Auto-update from GitHub Releases
 # "auto" = download and apply updates from GitHub Releases

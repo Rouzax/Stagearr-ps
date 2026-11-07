@@ -168,6 +168,12 @@ For all available settings (host, port, apiKey, ssl, urlRoot, and their defaults
 
 ---
 
+## Kodi Library Updates
+
+After the import, Stagearr can scan just the imported title's folder in Kodi and confirm it appeared. See [Kodi Library Updates](kodi.md).
+
+---
+
 ## MDBList Collection Sync
 
 After a successful Radarr or Sonarr import, Stagearr can optionally mark the imported movie or TV show as collected on MDBList. This is disabled by default and requires a free MDBList API key. See [MDBList Collection Sync](mdblist.md) for setup instructions and behavior details.

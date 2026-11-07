@@ -648,6 +648,7 @@ function Invoke-SAArrImport {
             ImportedFiles    = $importedFilePaths
             ImportedCount    = $verifiedCount
             ImportedEpisodes = $importedEpisodes
+            KodiTargets      = Get-SAKodiTargets -ImportableFiles $importableFiles -AppType $AppType -Verification $verification
             SkippedFiles     = $skippedFilePaths
             SkippedCount     = $rejectionSummary.RejectedCount
             AbortedFiles     = @()
@@ -706,6 +707,7 @@ function Invoke-SAArrImport {
                     ImportedFiles    = $importedFilePaths
                     ImportedCount    = $verifiedCount
                     ImportedEpisodes = $importedEpisodesNre
+                    KodiTargets      = Get-SAKodiTargets -ImportableFiles $importableFiles -AppType $AppType -Verification $verification
                     SkippedFiles     = $skippedFilePaths
                     SkippedCount     = $rejectionSummary.RejectedCount
                     AbortedFiles     = @()
@@ -735,6 +737,7 @@ function Invoke-SAArrImport {
             Message         = $importResult.Message
             Duration        = $importResult.Duration
             ImportedFiles   = @()
+            KodiTargets     = Get-SAKodiTargets -ImportableFiles $importableFiles -AppType $AppType
             SkippedFiles    = $skippedFilePaths
             SkippedCount    = $rejectionSummary.RejectedCount
             ArrMetadata     = $arrMetadata

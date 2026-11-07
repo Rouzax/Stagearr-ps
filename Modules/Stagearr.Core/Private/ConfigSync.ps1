@@ -8,6 +8,51 @@
     changes interactively (add missing settings, remove deprecated ones).
 #>
 
+function Format-SAConfigValuePreview {
+    <#
+    .SYNOPSIS
+        Formats a config value for sync output, hiding secrets. Pure function.
+    .DESCRIPTION
+        Extra keys are often typos, so a secret can sit under an unexpected name. Everything
+        under [kodi] is masked for that reason, alongside anything named like a secret.
+    .PARAMETER Path
+        Dotted config path.
+    .PARAMETER Value
+        The value to show.
+    .PARAMETER Full
+        Show every array item rather than the first two.
+    .OUTPUTS
+        [string]
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter()]
+        [AllowNull()]
+        [object]$Value,
+
+        [Parameter()]
+        [switch]$Full
+    )
+
+    if ($Path -match '^kodi\.|(password|passwd|apikey|api_key|secret|token)$') {
+        return '***'
+    }
+    if ($Value -is [hashtable] -or $Value -is [PSCustomObject]) {
+        return '{...}'
+    }
+    if ($Value -is [array]) {
+        if ($Full) {
+            return "[$($Value -join ', ')]"
+        }
+        return "[$(($Value | Select-Object -First 2) -join ', ')...]"
+    }
+    return "$Value"
+}
+
 function Compare-SAConfigSchema {
     <#
     .SYNOPSIS
@@ -220,15 +265,7 @@ function Sync-SAConfig {
     if ($result.ExtraCount -gt 0) {
         Write-Host "`n[Config Sync] Found $($result.ExtraCount) unknown setting(s) in your config:" -ForegroundColor Yellow
         foreach ($item in $comparison.ExtraKeys) {
-            $valuePreview = if ($item.UserValue -is [hashtable] -or $item.UserValue -is [PSCustomObject]) {
-                '{...}'
-            }
-            elseif ($item.UserValue -is [array]) {
-                "[$(($item.UserValue | Select-Object -First 2) -join ', ')...]"
-            }
-            else {
-                "$($item.UserValue)"
-            }
+            $valuePreview = Format-SAConfigValuePreview -Path $item.Path -Value $item.UserValue
             Write-Host "  - $($item.Path) = $valuePreview" -ForegroundColor DarkGray
         }
     }
@@ -390,15 +427,7 @@ function Invoke-SAConfigSync {
     if ($hasExtra) {
         Write-SAProgress -Label "Extra" -Text "$($comparison.ExtraKeys.Count) unknown setting(s) will be removed"
         foreach ($item in $comparison.ExtraKeys) {
-            $valuePreview = if ($item.UserValue -is [hashtable] -or $item.UserValue -is [PSCustomObject]) {
-                '{...}'
-            }
-            elseif ($item.UserValue -is [array]) {
-                "[$(($item.UserValue | Select-Object -First 2) -join ', ')...]"
-            }
-            else {
-                "$($item.UserValue)"
-            }
+            $valuePreview = Format-SAConfigValuePreview -Path $item.Path -Value $item.UserValue
             Write-SAKeyValue -Key "  - $($item.Path)" -Value $valuePreview
         }
     }
@@ -517,15 +546,7 @@ function Get-SAConfigSyncReport {
                     $indent = "  "
                     [void]$sb.AppendLine("$indent- $($item.Path)")
 
-                    $valueStr = if ($item.UserValue -is [hashtable] -or $item.UserValue -is [PSCustomObject]) {
-                        '{...}'
-                    }
-                    elseif ($item.UserValue -is [array]) {
-                        "[$($item.UserValue -join ', ')]"
-                    }
-                    else {
-                        "$($item.UserValue)"
-                    }
+                    $valueStr = Format-SAConfigValuePreview -Path $item.Path -Value $item.UserValue -Full
                     [void]$sb.AppendLine("$indent  Current: $valueStr")
                     [void]$sb.AppendLine()
                 }

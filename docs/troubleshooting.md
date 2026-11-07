@@ -202,6 +202,48 @@ Fix: in MDBList, **Preferences → Trakt**, turn off **"Trakt Sync (Watchlist, W
 
 ---
 
+### Kodi: Not scanned
+
+The email note gives the reason. In every case the import itself is fine. If the note says Stagearr will retry, you need do nothing: the next job tries again. Otherwise fix the cause, then run a scan in Kodi.
+
+| Note says | Likely cause | Fix |
+|-----------|--------------|-----|
+| Kodi is unreachable | Kodi is off, asleep, or the web server is disabled. | Check `host` and `port`, and that Allow remote control via HTTP is on. Stagearr retries. |
+| Kodi rejected the request: authentication failed | Wrong login. | Check `username` and `password`. |
+| no Kodi source matches its folder | This Kodi device lacks the source, or folder names differ between Radarr or Sonarr and Kodi. | Add the source in Kodi. If it exists under different folder names, set [`pathMap`](kodi.md#when-you-need-pathmap). |
+| more than one Kodi source holds its folder | Two sources match equally well and both hold the title. | Set `pathMap` for that root. |
+| Kodi cannot see its folder | Kodi listed the source and the title is not there. A `pathMap` entry may point somewhere wrong, or the best-matching source may not be the one holding the title. | Compare the same title's path in Radarr or Sonarr and in Kodi. |
+| Kodi could not list its folder | The share is down, or the source is locked or missing on this device. | Stagearr retries. If it keeps happening, check the share and the source. |
+| Kodi did not list its sources | Kodi answered with an error, or this device has no video sources. | Stagearr retries. If it keeps happening, check the sources on this device. |
+| Kodi was unreachable earlier in this run, or not attempted because Kodi dropped out | Kodi stopped answering during this worker run. | Stagearr retries. |
+| the update failed | An unexpected error. The verbose log has the detail. | Stagearr retries. If it keeps happening, check the log. |
+| still not scanned after 7 days | Retries kept failing for a week, so Stagearr gave up. | Fix what was stopping the scans, then run a scan in Kodi. |
+| Kodi was still busy when the time limit ran out | Another scan outlasted Stagearr's time limit. | Stagearr retries. If it keeps happening, check Update Library is off in Radarr and Sonarr, and that no other tool triggers full scans. |
+| Kodi did not list its folder in time | The share was slow to respond, for example a disk spinning up. | Stagearr retries. If it keeps happening, check the share. |
+| Kodi would not report its scan state | Kodi answered with an error. | Stagearr retries. If it keeps happening, check Kodi's log. |
+
+### Kodi: Not everything reached Kodi
+
+The scan ran, but Kodi did not add something. The warning names it. Stagearr does not retry, because it would fail the same way.
+
+- **The title is unknown to Kodi's scraper:** check the folder name matches what the scraper expects. Scanning again will not help until that is fixed.
+- **An episode is missing from an otherwise fine show:** Kodi drops episodes its scraper does not list, for example when your scraper numbers seasons differently from Sonarr's.
+- **The email also says the import failed:** the file may never have arrived. Check Radarr or Sonarr.
+
+### Kodi: the title may not have been added
+
+If a note says the scan was sent but Kodi was still busy, or did not answer the scan request, the scan may well have worked. Stagearr could not confirm it, so it retries, and that retry confirms the title.
+
+### Upgrades show two entries in Kodi
+
+`cleanonupdate` is off on the Kodi device Stagearr talks to, or Stagearr is pointed at a different device from the one with the setting. See [Prerequisites](kodi.md#prerequisites).
+
+### New titles stopped appearing in Kodi
+
+Radarr and Sonarr no longer update Kodi, so only Stagearr does. Check `enabled = true` under `[kodi]` and read the Kodi line in the latest job log. Files imported directly in Radarr or Sonarr need a manual scan.
+
+---
+
 ## FAQ
 
 ### Which external tools do I actually need?
