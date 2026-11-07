@@ -85,6 +85,7 @@ nav:
       - Importing to Radarr / Sonarr / Medusa: importing.md
       - Email Notifications: email.md
       - MDBList Collection Sync: mdblist.md
+      - Kodi Library Updates: kodi.md
   - Configuration:
       - Configuration Overview: configuration.md
       - Settings Reference: settings-reference.md

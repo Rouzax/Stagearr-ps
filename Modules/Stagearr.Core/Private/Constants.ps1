@@ -94,6 +94,27 @@ $script:SAConstants = @{
 
     #endregion
 
+    #region Kodi Defaults
+
+    # Timeout for one JSON-RPC call (seconds). A sleeping host must fail fast: one worker
+    # drains the queue, so every wait here delays the jobs behind it.
+    KodiRequestTimeoutSeconds = 10
+
+    # Time one job may spend on Kodi: base + per item + per extra title, capped. The base
+    # and the per-title share cover the library clean <cleanonupdate> adds to every scan.
+    KodiBudgetBaseSeconds     = 120
+    KodiBudgetPerItemSeconds  = 5
+    KodiBudgetPerTitleSeconds = 30
+    KodiBudgetMaxSeconds      = 600
+
+    # Interval between idle and library checks (seconds)
+    KodiPollSeconds = 2
+
+    # How long a missing item is re-checked after Kodi goes idle (seconds)
+    KodiVerifyGraceSeconds = 10
+
+    #endregion
+
     #region SubtitleEdit Defaults
     
     # Base timeout for SubtitleEdit processing (seconds)

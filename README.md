@@ -54,6 +54,7 @@ flowchart LR
 | 📝 **Subtitle Handling** | Extract, download from OpenSubtitles, clean with SubtitleEdit |
 | 🔄 **Media Server Import** | Radarr, Sonarr, and Medusa integration |
 | 📚 **MDBList Sync** | Mark imports as collected / In Library on MDBList (free account) |
+| 📺 **Kodi Updates** | Scan only the imported title in Kodi instead of the whole library |
 | 📧 **Email Notifications** | Dark-themed HTML emails with configurable subject templates |
 | 🎬 **Metadata Enrichment** | Movie posters, IMDb/RT/Metacritic ratings in emails |
 | 📋 **Job Queue** | Persistent file-backed queue survives reboots |

@@ -202,6 +202,42 @@ Fix: in MDBList, **Preferences → Trakt**, turn off **"Trakt Sync (Watchlist, W
 
 ---
 
+### Kodi: Not scanned
+
+The email note gives the reason. In every case the import itself is fine. After fixing the cause, run a scan in Kodi, because Stagearr does not retry.
+
+| Note says | Likely cause | Fix |
+|-----------|--------------|-----|
+| Kodi is unreachable | Kodi is off, asleep, or the web server is disabled. | Check `host` and `port`, and that Allow remote control via HTTP is on. |
+| Kodi rejected the request: authentication failed | Wrong login. | Check `username` and `password`. |
+| no kodi.pathMap entry matches its folder | The title's folder is outside every `pathMap` entry. | Add an entry for that library root. |
+| Kodi cannot see its folder | The `pathMap` entry points somewhere wrong, or the share is down. | Compare the same title's path in Radarr or Sonarr and in Kodi. |
+| Kodi was still busy when the time limit ran out | Another scan outlasted Stagearr's time limit. | Check Update Library is off in Radarr and Sonarr, and that no other tool triggers full scans. |
+| Kodi did not list its folder in time | The share was slow to respond, for example a disk spinning up. | Run a scan in Kodi. If it keeps happening, check the share. |
+| Kodi would not report its scan state | Kodi answered with an error. | Check Kodi's log. |
+
+### Kodi: Not everything reached Kodi
+
+The warning names what is missing and why.
+
+- **Something was skipped:** a job with several titles can reach Kodi for some and not others. Fix the cause in the note, then run a scan in Kodi.
+- **Kodi was still busy, or did not answer the scan request:** the scan may have run, but Stagearr could not confirm it. Check Kodi after it finishes.
+- **The time limit ran out:** a pack with many titles can run out of time. The note names what was not scanned.
+
+- **The title is unknown to Kodi's scraper:** check the folder name matches what the scraper expects. Scanning again will not help until that is fixed.
+- **An episode is missing from an otherwise fine show:** Kodi drops episodes its scraper does not list, for example when your scraper numbers seasons differently from Sonarr's.
+- **The email also says the import failed:** the file may never have arrived. Check Radarr or Sonarr.
+
+### Upgrades show two entries in Kodi
+
+`cleanonupdate` is off on the Kodi device Stagearr talks to, or Stagearr is pointed at a different device from the one with the setting. See [Prerequisites](kodi.md#prerequisites).
+
+### New titles stopped appearing in Kodi
+
+Radarr and Sonarr no longer update Kodi, so only Stagearr does. Check `enabled = true` under `[kodi]` and read the Kodi line in the latest job log. Files imported directly in Radarr or Sonarr need a manual scan.
+
+---
+
 ## FAQ
 
 ### Which external tools do I actually need?

@@ -149,6 +149,15 @@ $script:SAConfigDefaults = @{
         apiKey         = ''
         timeoutSeconds = 10
     }
+    kodi = @{
+        enabled  = $false
+        host     = 'localhost'
+        port     = 8080
+        username = ''
+        password = ''
+        ssl      = $false
+        pathMap  = @()
+    }
     logging = @{
         dateFormat    = 'yyyy.MM.dd_HH.mm.ss'
         consoleColors = $true
@@ -559,7 +568,7 @@ function Test-SAFeatureEnabled {
         
         [Parameter(Mandatory)]
         [ValidateSet('SubtitleExtraction', 'SubtitleStripping', 'SubtitleCleanup',
-                     'OpenSubtitles', 'Mp4Remux', 'omdb', 'MDBList')]
+                     'OpenSubtitles', 'Mp4Remux', 'omdb', 'MDBList', 'Kodi')]
         [string]$Feature
     )
     
@@ -629,6 +638,14 @@ function Test-SAFeatureEnabled {
             # MDBList collection sync is optional - requires explicit enablement
             if ($null -ne $Config.mdblist) {
                 return ($Config.mdblist.enabled -eq $true)
+            }
+            # Default: disabled
+            return $false
+        }
+        'Kodi' {
+            # Opt-in: scanning needs a path map, so it can never be on implicitly
+            if ($null -ne $Config.kodi) {
+                return ($Config.kodi.enabled -eq $true)
             }
             # Default: disabled
             return $false

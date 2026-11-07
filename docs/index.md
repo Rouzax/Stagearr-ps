@@ -43,6 +43,7 @@ Before Stage runs, Stagearr checks for dangerous files (executables, scripts). I
 | **Job Queue** | Persistent file-backed queue; survives reboots and process crashes |
 | **Safe Processing** | Heartbeat-based global lock, path traversal prevention, zip-slip protection |
 | **MDBList Collection Sync** | Mark imported movies and TV shows as In Library on MDBList |
+| **Kodi Library Updates** | Scan only the imported title in Kodi and confirm it appeared |
 
 ---
 
@@ -59,6 +60,7 @@ Before Stage runs, Stagearr checks for dangerous files (executables, scripts). I
 | **[Importing](importing.md)** | How Radarr, Sonarr, and Medusa imports work |
 | **[Email Notifications](email.md)** | Template syntax, metadata, and preview |
 | **[MDBList Collection Sync](mdblist.md)** | Mark imports as collected on MDBList |
+| **[Kodi Library Updates](kodi.md)** | Targeted Kodi scans after each import |
 | **[Configuration Overview](configuration.md)** | TOML config file structure and sync workflow |
 | **[Settings Reference](settings-reference.md)** | Every setting, its default, and what it controls |
 | **[Labels and Content Routing](labels.md)** | How download labels map to TV, movie, or passthrough processing |
