@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-11-07
+
 ### Added
 - **Targeted Kodi library updates.** After a Radarr or Sonarr import, Stagearr can scan just that title's folder in Kodi, confirm it appeared, and report the result in the log and email, instead of the whole-library scans Radarr and Sonarr usually trigger. Paths are matched to Kodi's sources automatically, with an optional `pathMap` for setups where folder names differ, a missed scan is retried by a later job, `host` takes a list for Kodi devices that each keep their own library, and `timeoutSeconds` sets how long to wait for Kodi to answer. Optional and off by default, under the new `[kodi]` config section. See the [Kodi Library Updates](https://rouzax.github.io/Stagearr-ps/docs/kodi/) page.
 
