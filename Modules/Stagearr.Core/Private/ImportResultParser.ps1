@@ -903,7 +903,7 @@ function Get-SAImportHint {
             return "Ensure show exists in $ImporterLabel"
         }
         'tba' {
-            return "$ImporterLabel auto-accepts TBA titles after 48 hours. Use -Rerun to retry."
+            return "$ImporterLabel accepts TBA titles 48 hours after the episode airs. Use -Rerun to retry."
         }
         'disk-space' {
             return "Free up space on the destination drive or adjust minimum free space in $ImporterLabel settings"

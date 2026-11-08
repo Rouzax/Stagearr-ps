@@ -160,6 +160,7 @@ Modules/Stagearr.Core/
 | Extract *arr metadata | `ConvertTo-SAArrMetadata` | ArrMetadata.ps1 |
 | Filter importable files | `Get-SAImportableFiles` | ArrMetadata.ps1 |
 | Summarize rejections | `Get-SARejectionSummary` | ArrMetadata.ps1 |
+| Latest episode air date in a scan (UTC) | `Get-SALatestEpisodeAirDate` | ArrMetadata.ps1 |
 | Run external tool | `Invoke-SAProcess` | Process.ps1 |
 | Run tool with retry | `Invoke-SAProcessWithRetry` | ErrorHandling.ps1 |
 | Format file size | `Format-SASize` | Formatting.ps1 |
@@ -459,6 +460,7 @@ Multiple labels can be configured to route downloads to the correct importer.
 |----------|---------|------|
 | `Invoke-SAJobProcessing` | **Main entry** - full pipeline | JobProcessor.ps1 |
 | `Test-SATbaRetryNeeded` | Check if TBA auto-retry should be scheduled | JobProcessor.ps1 |
+| `Get-SATbaRetryAfter` | When to retry: 49h after the latest air date, capped at 7 days | JobProcessor.ps1 |
 | `Test-SATbaRetryMode` | Determine retry mode (ImportOnly/FullPipeline/Failed) | JobProcessor.ps1 |
 | `Add-SATbaRetryEmailExceptions` | Add email exceptions for TBA retry scenarios | JobProcessor.ps1 |
 
@@ -815,7 +817,7 @@ These have no I/O — input → output only:
 
 **SubtitleProcessing.ps1:** `Get-SAVideoExistingLanguages`, `Get-SAVideoMissingLanguages`, `Get-SASubtitleLanguageCounts`, `Format-SASubtitleSummary`, `Get-SAMissingLanguagesInfo`
 
-**JobProcessor.ps1:** `Get-SASubtitleLanguagesFromResult`, `Get-SAMissingLanguageNames`, `Get-SAImportTargetName`, `Get-SAImportResultText`, `Get-SAEmailResultLevel`, `Format-SAImportEpisodeNote`, `Test-SATbaRetryNeeded`, `Test-SATbaRetryMode`, `Add-SATbaRetryEmailExceptions`
+**JobProcessor.ps1:** `Get-SASubtitleLanguagesFromResult`, `Get-SAMissingLanguageNames`, `Get-SAImportTargetName`, `Get-SAImportResultText`, `Get-SAEmailResultLevel`, `Format-SAImportEpisodeNote`, `Test-SATbaRetryNeeded`, `Get-SATbaRetryAfter`, `Test-SATbaRetryMode`, `Add-SATbaRetryEmailExceptions`
 
 **ErrorHandling.ps1:** `Get-SAToolErrorInfo` (error translation)
 
@@ -829,7 +831,7 @@ These have no I/O — input → output only:
 
 **ImportResultParser.ps1:** `Get-SAMedusaFileDetails`, `Get-SAMedusaSimplifiedReason`, `Get-SAMedusaSameSizeSkipReason`, `Get-SAImportHint`, `Get-SAImportErrorMessage`, `Get-SAImportSkipMessage`
 
-**ArrMetadata.ps1:** `ConvertTo-SAArrMetadata`, `Get-SAImportableFiles`, `Get-SARejectionSummary`, `Get-SASimplifiedRejectionReason` (*arr metadata extraction and rejection filtering)
+**ArrMetadata.ps1:** `ConvertTo-SAArrMetadata`, `Get-SAImportableFiles`, `Get-SARejectionSummary`, `Get-SALatestEpisodeAirDate`, `Get-SASimplifiedRejectionReason` (*arr metadata extraction and rejection filtering)
 
 **ImportArr.ps1:** `Get-SAErrorTypeFromRejection` (maps rejection reasons to error types for hint compatibility), `Test-SATbaRetrySuperseded` (detects a TBA retry overtaken by a better release)
 

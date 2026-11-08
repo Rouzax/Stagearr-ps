@@ -256,6 +256,56 @@ function Get-SAImportableFiles {
     return , $importable
 }
 
+function Get-SALatestEpisodeAirDate {
+    <#
+    .SYNOPSIS
+        Returns the latest episode air date in a ManualImport scan, as UTC.
+    .DESCRIPTION
+        Pure function - no I/O. Reads episodes[].airDateUtc of every scanned file.
+        The value arrives as a DateTime or as an ISO 8601 string, depending on how
+        the JSON was parsed; unreadable values are ignored.
+    .PARAMETER ScanResults
+        Array of file objects from Invoke-SAArrManualImportScan.
+    .OUTPUTS
+        UTC DateTime, or $null when no episode has a readable air date.
+    #>
+    [CmdletBinding()]
+    [OutputType([datetime])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [array]$ScanResults
+    )
+
+    $latest = $null
+    foreach ($file in @($ScanResults)) {
+        if ($null -eq $file -or $null -eq $file.episodes) { continue }
+        foreach ($episode in @($file.episodes)) {
+            $raw = $episode.airDateUtc
+            if ($null -eq $raw) { continue }
+
+            $value = $null
+            if ($raw -is [datetime]) {
+                $value = if ($raw.Kind -eq [DateTimeKind]::Local) { $raw.ToUniversalTime() }
+                         else { [datetime]::SpecifyKind($raw, [DateTimeKind]::Utc) }
+            } else {
+                $parsed = [datetime]::MinValue
+                $styles = [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor
+                          [System.Globalization.DateTimeStyles]::AssumeUniversal
+                if ([datetime]::TryParse([string]$raw, [System.Globalization.CultureInfo]::InvariantCulture, $styles, [ref]$parsed)) {
+                    $value = $parsed
+                }
+            }
+
+            if ($null -ne $value -and ($null -eq $latest -or $value -gt $latest)) {
+                $latest = $value
+            }
+        }
+    }
+    return $latest
+}
+
 function Get-SARejectionSummary {
     <#
     .SYNOPSIS

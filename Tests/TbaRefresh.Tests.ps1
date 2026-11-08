@@ -207,7 +207,7 @@ Describe 'Invoke-SAArrImport TBA refresh and retry' {
                                 path       = 'C:\Test\S01E01.mkv'
                                 quality    = @{ quality = @{ id = 3 }; revision = @{ version = 1 } }
                                 series     = @{ id = 100; title = 'Test Show'; year = 2026 }
-                                episodes   = @( @{ id = 200 } )
+                                episodes   = @( @{ id = 200; airDateUtc = '2026-11-06T19:30:00Z' } )
                                 rejections = @( @{ type = 'permanent'; reason = 'Episode has a TBA title and recently aired' } )
                             }
                         )
@@ -227,6 +227,7 @@ Describe 'Invoke-SAArrImport TBA refresh and retry' {
                 $result.Success | Should -BeTrue
                 $result.Skipped | Should -BeTrue
                 $result.ErrorType | Should -Be 'tba'
+                $result.LatestAirDateUtc | Should -Be ([datetime]::new(2026, 11, 6, 19, 30, 0, [DateTimeKind]::Utc))
 
                 Should -Invoke Get-SAImportHint -Times 1 -ParameterFilter {
                     $ErrorType -eq 'tba'
