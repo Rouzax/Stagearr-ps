@@ -1,3 +1,7 @@
+# The call-order list is global because mock bodies run in module scope.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '', Justification = 'Shared with mock bodies that run in module scope')]
+param()
+
 BeforeAll {
     Import-Module "$PSScriptRoot/../Modules/Stagearr.Core/Stagearr.Core.psd1" -Force
 }
@@ -17,7 +21,8 @@ Describe 'Pushover in the job pipeline' {
         }
         $script:job = @{ id = 'job1'; input = @{ downloadPath = 'C:\Downloads\Show.S01E01.1080p.WEB-DL-GRP'; downloadLabel = 'tv'; torrentHash = '' } }
 
-        Mock -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify {}
+        $global:PushoverOrder = [System.Collections.Generic.List[string]]::new()
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify { $global:PushoverOrder.Add('pushover') }
         Mock -ModuleName 'Stagearr.Core' Send-SAEmail {}
         Mock -ModuleName 'Stagearr.Core' Write-SAOutcome {}
         Mock -ModuleName 'Stagearr.Core' Write-SAProgress {}
@@ -26,7 +31,7 @@ Describe 'Pushover in the job pipeline' {
         Mock -ModuleName 'Stagearr.Core' Update-SAJobProgress {}
         Mock -ModuleName 'Stagearr.Core' Get-SAContextDuration { [timespan]::FromSeconds(5) }
         Mock -ModuleName 'Stagearr.Core' Get-SAContextLogPath { 'job.log' }
-        Mock -ModuleName 'Stagearr.Core' Save-SAFileLog {}
+        Mock -ModuleName 'Stagearr.Core' Save-SAFileLog { $global:PushoverOrder.Add('save') }
         Mock -ModuleName 'Stagearr.Core' Set-SAEmailLogPath {}
         Mock -ModuleName 'Stagearr.Core' Remove-SAStagingFolder {}
         Mock -ModuleName 'Stagearr.Core' Test-SALockStolen { $false }
@@ -40,6 +45,7 @@ Describe 'Pushover in the job pipeline' {
         Mock -ModuleName 'Stagearr.Core' Invoke-SAPassthroughProcessing { [pscustomobject]@{ Success = $true; StagingPath = 'C:\Staging\x' } }
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAPassthroughJob -Context $X -Job $J }
         $r | Should -BeTrue
+        @($global:PushoverOrder) | Should -Be @('pushover', 'save') -Because 'the Pushover result line must reach the saved job log'
         Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify -Times 1 -ParameterFilter { $JobSuccess -eq $true -and $IsPassthrough -eq $true }
         InModuleScope 'Stagearr.Core' { $script:SAEmailSummary.Label | Should -Be 'tv' }
     }
@@ -48,6 +54,7 @@ Describe 'Pushover in the job pipeline' {
         Mock -ModuleName 'Stagearr.Core' Invoke-SAPassthroughProcessing { [pscustomobject]@{ Success = $false; Reason = 'RarExtractionFailed' } }
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAPassthroughJob -Context $X -Job $J }
         $r | Should -BeFalse
+        @($global:PushoverOrder) | Should -Be @('pushover', 'save') -Because 'the Pushover result line must reach the saved job log'
         Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify -Times 1 -ParameterFilter { $JobSuccess -eq $false -and $IsPassthrough -eq $true }
     }
 
@@ -55,6 +62,7 @@ Describe 'Pushover in the job pipeline' {
         Mock -ModuleName 'Stagearr.Core' Test-SADangerousDownload { [pscustomobject]@{ IsDangerous = $true; DangerousFiles = @('setup.exe') } }
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAStandardJob -Context $X -Job $J }
         $r | Should -BeFalse
+        @($global:PushoverOrder) | Should -Be @('pushover', 'save') -Because 'the Pushover result line must reach the saved job log'
         Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify -Times 1 -ParameterFilter { $JobSuccess -eq $false }
         InModuleScope 'Stagearr.Core' { $script:SAEmailSummary.Label | Should -Be 'tv' }
     }
@@ -63,6 +71,7 @@ Describe 'Pushover in the job pipeline' {
         Mock -ModuleName 'Stagearr.Core' Test-SATbaRetryMode { [pscustomobject]@{ Mode = 'Failed' } }
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAStandardJob -Context $X -Job $J }
         $r | Should -BeFalse
+        @($global:PushoverOrder) | Should -Be @('pushover', 'save') -Because 'the Pushover result line must reach the saved job log'
         Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify -Times 1 -ParameterFilter { $JobSuccess -eq $false }
         InModuleScope 'Stagearr.Core' {
             $script:SAEmailSummary.Name | Should -Not -BeNullOrEmpty
@@ -80,6 +89,7 @@ Describe 'Pushover in the job pipeline' {
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAStandardJob -Context $X -Job $J }
         @($r) | Should -HaveCount 1
         $r | Should -BeTrue
+        @($global:PushoverOrder) | Should -Be @('pushover', 'save') -Because 'the Pushover result line must reach the saved job log'
         Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify -Times 1 -ParameterFilter {
             $JobSuccess -eq $true -and $KodiStatus -eq 'Updated' -and $ImportResult.ImportedCount -eq 1 -and $TbaRetryScheduled -eq $false
         }

@@ -635,7 +635,7 @@ These aren't exported but are heavily used internally:
 
 | Function | Purpose | File |
 |----------|---------|------|
-| `Invoke-SAKodiStep` | Pipeline step: gates, one update per Kodi host, reporting; never throws. Returns `Updated`, `Partial` or `Skipped` for Pushover, or nothing when it did not run | Kodi.ps1 |
+| `Invoke-SAKodiStep` | Pipeline step: gates, one update per Kodi host, reporting; never throws. Returns `Updated`, `Partial` or `Skipped` for Pushover when the job had titles of its own, otherwise nothing | Kodi.ps1 |
 | `Invoke-SAKodiUpdate` | Scan and confirm every title in a job on one host; never throws | Kodi.ps1 |
 | `Invoke-SAKodiTargetUpdate` | Scan and confirm one title | Kodi.ps1 |
 | `Invoke-SAKodiRpc` | One JSON-RPC call, single attempt | Kodi.ps1 |
@@ -652,7 +652,7 @@ These aren't exported but are heavily used internally:
 | `Invoke-SAPushoverNotify` | Pipeline step: route by label, build per audience, send per recipient within a time budget; never throws | Pushover.ps1 |
 | `ConvertFrom-SAPushoverConfig` | Parse `recipients` and `routes` strings; errors never contain keys | Pushover.ps1 |
 | `Get-SAPushoverRecipients` | Recipients for a label (tv/movie aliases, `*` catch-all) | Pushover.ps1 |
-| `Get-SAPushoverState` | Classify a job: Imported, Partial, NothingNew, Failed | Pushover.ps1 |
+| `Get-SAPushoverState` | Classify a job: Imported, Partial, NothingNew, NotImported, Failed; counts files already in library | Pushover.ps1 |
 | `New-SAPushoverMessage` | Message fields for the `all` or `success` audience, or `$null` | Pushover.ps1 |
 | `Send-SAPushoverMessage` | One form POST to one key, single attempt; never throws | Pushover.ps1 |
 

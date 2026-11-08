@@ -1616,6 +1616,18 @@ Describe 'Invoke-SAKodiStep result' {
         $r | Should -BeNullOrEmpty
     }
 
+    It 'returns nothing when it only caught up on titles from earlier jobs' {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate { [pscustomobject]@{ Status = 'Updated'; Text = 'Caught up'; Missing = @(); Duration = 1 } }
+        $root = Join-Path $TestDrive 'caughtup'
+        $null = New-Item -ItemType Directory -Path (Join-Path $root 'kodi' 'h_80')
+        Set-Content -Path (Join-Path $root 'kodi' 'h_80' 'kodi-pending.json') -Value '[{"RootPath":"D:\\M\\A","Title":"A","MediaType":"movie","Verified":true,"Episodes":[],"AddedAt":"2026-11-07T00:00:00.0000000Z"}]'
+        $script:context.Paths.QueueRoot = $root
+        $none = [pscustomobject]@{ Success = $true; Skipped = $true }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $none } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate -Times 1
+        $r | Should -BeNullOrEmpty
+    }
+
     It 'returns Skipped when the update throws' {
         Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate { throw 'boom' }
         $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $script:import } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }

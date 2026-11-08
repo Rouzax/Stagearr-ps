@@ -642,6 +642,9 @@ function Invoke-SAPassthroughJob {
         Add-SAEmailException -Message $passthroughResult.Reason -Type Error
     }
     
+    # Before the log is saved, so its result line is in the job log
+    Invoke-SAPushoverNotify -Context $Context -JobSuccess $passthroughSuccess -IsPassthrough $true
+
     # Save file log and set path in email
     $logPath = Get-SAContextLogPath -Context $Context
     Save-SAFileLog -Path $logPath
@@ -659,8 +662,6 @@ function Invoke-SAPassthroughJob {
             -Subject $emailSubject `
             -Body $emailBody
     }
-
-    Invoke-SAPushoverNotify -Context $Context -JobSuccess $passthroughSuccess -IsPassthrough $true
     
     return $passthroughSuccess
 }
@@ -803,6 +804,9 @@ function Invoke-SAStandardJob {
         }
         Add-SAEmailException -Message $securityMsg -Type Error
 
+        # Before the log is saved, so its result line is in the job log
+        Invoke-SAPushoverNotify -Context $Context -JobSuccess $false
+
         # Save log and send notification
         $logPath = Get-SAContextLogPath -Context $Context
         Save-SAFileLog -Path $logPath
@@ -818,8 +822,6 @@ function Invoke-SAStandardJob {
                 -Body $emailBody
         }
 
-        Invoke-SAPushoverNotify -Context $Context -JobSuccess $false
-
         return $false
     }
 
@@ -834,11 +836,6 @@ function Invoke-SAStandardJob {
             Update-SAJobProgress -QueueRoot $Context.Paths.QueueRoot -JobId $Job.id -Phase 'Finalize' -Activity 'Cleaning up...'
             Write-SAPhaseHeader -Title "Finalize"
 
-            $logPath = Get-SAContextLogPath -Context $Context
-            Save-SAFileLog -Path $logPath
-            Set-SAEmailLogPath -Path $logPath
-            Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
-
             # Set outside the email check: Pushover reads the same summary
             $earlyFriendlyName = if ($releaseInfo -and $releaseInfo.FriendlyName) { $releaseInfo.FriendlyName } else { $displayName }
             Set-SAEmailSummary -Name $earlyFriendlyName -SourceName $displayName `
@@ -847,6 +844,14 @@ function Invoke-SAStandardJob {
                 -FailureError 'TBA retry failed: source files no longer available'
             Add-SAEmailException -Message "Use -Rerun to retry manually if files become available" -Type Warning
 
+            # Before the log is saved, so its result line is in the job log
+            Invoke-SAPushoverNotify -Context $Context -JobSuccess $false
+
+            $logPath = Get-SAContextLogPath -Context $Context
+            Save-SAFileLog -Path $logPath
+            Set-SAEmailLogPath -Path $logPath
+            Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
+
             if (-not $Context.Flags.NoMail -and $Context.Config.notifications.email.enabled) {
                 $title = "$($Job.input.downloadLabel) - $displayName"
                 $emailBody = ConvertTo-SAEmailHtml -Title $title
@@ -854,8 +859,6 @@ function Invoke-SAStandardJob {
                 Send-SAEmail -Config $Context.Config.notifications.email `
                     -Subject $emailSubject -Body $emailBody
             }
-
-            Invoke-SAPushoverNotify -Context $Context -JobSuccess $false
 
             return $false
         }
@@ -1285,6 +1288,10 @@ function Invoke-SAStandardJob {
             -IsTbaRetry $isTbaRetry
     }
 
+    # Before the log is saved, so its result line is in the job log
+    Invoke-SAPushoverNotify -Context $Context -JobSuccess $jobSuccess -ImportResult $importResult `
+        -MissingLanguages $missingLangs -TbaRetryScheduled $tbaRetryScheduled -KodiStatus $kodiStatus
+
     # Step 6: Save file log and set path in email
     $logPath = Get-SAContextLogPath -Context $Context
     Save-SAFileLog -Path $logPath
@@ -1335,9 +1342,6 @@ function Invoke-SAStandardJob {
             -Body $emailBody `
             -InlineImages $inlineImages
     }
-
-    Invoke-SAPushoverNotify -Context $Context -JobSuccess $jobSuccess -ImportResult $importResult `
-        -MissingLanguages $missingLangs -TbaRetryScheduled $tbaRetryScheduled -KodiStatus $kodiStatus
     
     # Return success only if both video processing and import succeeded
     return $jobSuccess

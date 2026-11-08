@@ -44,8 +44,7 @@ Describe 'ConvertFrom-SAPushoverConfig' {
             $p.Routes | Should -HaveCount 1
             $p.Routes[0].Recipients | Should -Be @('me')
             $p.Errors | Should -HaveCount 5
-            ($p.Errors -join ' ') | Should -Not -Match 'uAAA|uXXX|uDUP'
-            ($p.Errors -join ' ') | Should -Match 'ghost'
+            ($p.Errors -join ' ') | Should -Not -Match 'uAAA|uXXX|uDUP|ghost|sometimes'
         }
     }
 
@@ -548,7 +547,7 @@ Describe 'Invoke-SAPushoverNotify' {
         $script:ctx.Config.notifications.pushover.recipients = @('me|uME|all', 'x|uX|sometimes')
         InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; I = $script:ok } { param($X, $I) Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult $I }
         Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { $UserKey -eq 'uME' }
-        Should -Invoke -ModuleName 'Stagearr.Core' Write-SAOutcome -Times 1 -ParameterFilter { $Level -eq 'Skip' -and $Text -match 'sometimes' -and $Text -notmatch 'uX' }
+        Should -Invoke -ModuleName 'Stagearr.Core' Write-SAOutcome -Times 1 -ParameterFilter { $Level -eq 'Skip' -and $Text -match "recipient 'x' does not end in all or success" -and $Text -notmatch 'uX|sometimes' }
     }
 
     It 'stops starting sends once the time budget is used up' {
@@ -576,5 +575,181 @@ Describe 'Test-SAPushoverConfig' {
         $r | Should -HaveCount 2
         ($r | Where-Object Name -eq 'me').Success | Should -BeTrue
         ($r | Where-Object Name -eq 'partner').Error | Should -Be 'bad key'
+    }
+}
+
+
+Describe 'Review fixes: config' {
+
+    It 'never echoes a notify value or route name, which could be a pasted key' {
+        InModuleScope 'Stagearr.Core' {
+            $p = ConvertFrom-SAPushoverConfig -Config @{
+                recipients = @('alice|all|uKEYKEYKEYKEYKEYKEYKEYKEYKEYKE')
+                routes     = @('tv|uKEYKEYKEYKEYKEYKEYKEYKEYKEYKE')
+            }
+            ($p.Errors -join ' ') | Should -Not -Match 'uKEY'
+            $p.Errors | Should -HaveCount 2
+        }
+    }
+
+    It 'rejects a recipient name that looks like a Pushover key' {
+        InModuleScope 'Stagearr.Core' {
+            $p = ConvertFrom-SAPushoverConfig -Config @{ recipients = @('uKEYKEYKEYKEYKEYKEYKEYKEYKEYKE|alice|all') }
+            $p.Recipients.Count | Should -Be 0
+            ($p.Errors -join ' ') | Should -Not -Match 'uKEY'
+            $p.Errors | Should -HaveCount 1
+        }
+    }
+
+    It 'sends once to a recipient named in different case by two routes' {
+        InModuleScope 'Stagearr.Core' {
+            $cfg = @{ labels = @{ tv = 'tv'; tvLabels = @('series'); movie = 'movie'; movieLabels = @() } }
+            $p = ConvertFrom-SAPushoverConfig -Config @{ recipients = @('Alice|uA|all'); routes = @('tv|Alice', 'Series|alice') }
+            @(Get-SAPushoverRecipients -Parsed $p -Label 'series' -Config $cfg) | Should -HaveCount 1
+        }
+    }
+}
+
+Describe 'Review fixes: state and message' {
+
+    BeforeAll {
+        $script:cfg2 = @{ sound = ''; failureSound = 'falling' }
+        $script:sum2 = {
+            param([hashtable]$O = @{})
+            $s = @{ Name = 'Show S01'; ImportTarget = 'Sonarr'; Subtitles = @(); MissingLangs = @(); Exceptions = @()
+                IsPassthrough = $false; FailureError = ''; ReleaseInfo = $null; OmdbData = $null; ArrLink = $null; ImportResult = '' }
+            foreach ($k in $O.Keys) { $s[$k] = $O[$k] }
+            $s
+        }
+        $script:t2 = [datetime]'2026-11-08T12:00:00Z'
+    }
+
+    It 'classifies an all-rejected job that is not about quality as NotImported' {
+        InModuleScope 'Stagearr.Core' {
+            $r = [PSCustomObject]@{ Success = $true; Skipped = $true; QualityRejected = $false; ImportedFiles = @(); Message = 'Unknown Series' }
+            (Get-SAPushoverState -JobSuccess $true -ImportResult $r).State | Should -Be 'NotImported'
+        }
+    }
+
+    It 'keeps NothingNew for a quality rejection' {
+        InModuleScope 'Stagearr.Core' {
+            $r = [PSCustomObject]@{ Success = $true; Skipped = $true; QualityRejected = $true; ImportedFiles = @() }
+            (Get-SAPushoverState -JobSuccess $true -ImportResult $r).State | Should -Be 'NothingNew'
+        }
+    }
+
+    It 'is Partial when a file next to the imports was rejected for another reason' {
+        InModuleScope 'Stagearr.Core' {
+            $r = [PSCustomObject]@{ Success = $true; ImportedCount = 7; AbortedCount = 0; Skipped = $false; QualityRejected = $false
+                SkippedFiles = @([PSCustomObject]@{ Season = 1; Episode = 9; Reason = 'Unknown episode' }) }
+            $s = Get-SAPushoverState -JobSuccess $true -ImportResult $r
+            $s.State | Should -Be 'Partial'
+            $s.AlreadyInLibrary | Should -Be 0
+        }
+    }
+
+    It 'stays Imported and counts files already in the library' {
+        InModuleScope 'Stagearr.Core' {
+            $r = [PSCustomObject]@{ Success = $true; ImportedCount = 7; AbortedCount = 0; Skipped = $false; QualityRejected = $false
+                SkippedFiles = @([PSCustomObject]@{ Season = 1; Episode = 8; Reason = 'Quality exists' }) }
+            $s = Get-SAPushoverState -JobSuccess $true -ImportResult $r
+            $s.State | Should -Be 'Imported'
+            $s.AlreadyInLibrary | Should -Be 1
+        }
+    }
+
+    It 'tells an all recipient what was not imported, and nothing to a success recipient' {
+        $st = [PSCustomObject]@{ State = 'NotImported'; ImportedCount = 0; HasWarnings = $true; AlreadyInLibrary = 0 }
+        $r = [PSCustomObject]@{ Success = $true; Skipped = $true; Message = 'Unknown Series' }
+        InModuleScope 'Stagearr.Core' -Parameters @{ S = (& $script:sum2); St = $st; R = $r; C = $script:cfg2; T = $script:t2 } {
+            param($S, $St, $R, $C, $T)
+            $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -ImportResult $R -FinishedAt $T -PushoverConfig $C
+            $m.title | Should -Be '⚠️ Not imported · Show S01'
+            $m.priority | Should -Be 0
+            $m.message | Should -Match '<b>Status:</b> Unknown Series'
+            New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'success' -ImportResult $R -FinishedAt $T -PushoverConfig $C | Should -BeNullOrEmpty
+        }
+    }
+
+    It 'adds an already-in-library line to an imported message' {
+        $st = [PSCustomObject]@{ State = 'Imported'; ImportedCount = 7; HasWarnings = $false; AlreadyInLibrary = 1 }
+        InModuleScope 'Stagearr.Core' -Parameters @{ S = (& $script:sum2); St = $st; C = $script:cfg2; T = $script:t2 } {
+            param($S, $St, $C, $T)
+            (New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'success' -FinishedAt $T -PushoverConfig $C).message | Should -Match '<b>Already in library:</b> 1 file'
+        }
+    }
+
+    It 'shows the imported count when the episode list is not known' {
+        $st = [PSCustomObject]@{ State = 'Imported'; ImportedCount = 7; HasWarnings = $false; AlreadyInLibrary = 0 }
+        $r = [PSCustomObject]@{ Success = $true; ImportedCount = 7; ImportedFiles = @() }
+        InModuleScope 'Stagearr.Core' -Parameters @{ S = (& $script:sum2); St = $st; R = $r; C = $script:cfg2; T = $script:t2 } {
+            param($S, $St, $R, $C, $T)
+            (New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -ImportResult $R -FinishedAt $T -PushoverConfig $C).message | Should -Match '<b>Status:</b> Imported 7 files to Sonarr'
+        }
+    }
+
+    It 'shortens a very long failure reason instead of sending an empty message' {
+        $st = [PSCustomObject]@{ State = 'Failed'; ImportedCount = 0; HasWarnings = $true; AlreadyInLibrary = 0 }
+        InModuleScope 'Stagearr.Core' -Parameters @{ S = (& $script:sum2 @{ FailureError = ('x & y ' * 300) }); St = $st; C = $script:cfg2; T = $script:t2 } {
+            param($S, $St, $C, $T)
+            $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt $T -PushoverConfig $C
+            $m.message.Length | Should -BeLessOrEqual 1024
+            $m.message | Should -Match '^<b>Status:</b> x &amp; y'
+            $m.message | Should -Not -Match '&a$|&am$|&amp$'
+        }
+    }
+
+    It 'points to the job log for warnings left out' {
+        $w = @(1..40 | ForEach-Object { [PSCustomObject]@{ Message = "Warning $_ with words to fill the message up"; Type = 'Warning' } })
+        $st = [PSCustomObject]@{ State = 'Partial'; ImportedCount = 1; HasWarnings = $true; AlreadyInLibrary = 0 }
+        InModuleScope 'Stagearr.Core' -Parameters @{ S = (& $script:sum2 @{ Exceptions = $w }); St = $st; C = $script:cfg2; T = $script:t2 } {
+            param($S, $St, $C, $T)
+            (New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt $T -PushoverConfig $C).message | Should -Match '<i>\+\d+ more in the job log</i>$'
+        }
+    }
+}
+
+Describe 'Review fixes: sending' {
+
+    It 'shows the Pushover reason for a real 4xx response' {
+        Mock -ModuleName 'Stagearr.Core' Invoke-WebRequest {
+            $er = [System.Management.Automation.ErrorRecord]::new(
+                [System.Net.Http.HttpRequestException]::new('Response status code does not indicate success: 400 (Bad Request).'),
+                'WebCmdletWebResponseException', 'InvalidOperation', $null)
+            $er.ErrorDetails = [System.Management.Automation.ErrorDetails]::new('{"token":"invalid","errors":["application token is invalid"],"status":0}')
+            throw $er
+        }
+        $r = InModuleScope 'Stagearr.Core' { Send-SAPushoverMessage -AppToken 'aTOKEN' -UserKey 'uKEY' -Fields @{ message = 'x' } -TimeoutSeconds 5 }
+        $r.Success | Should -BeFalse
+        $r.StatusCode | Should -Be 400
+        $r.Error | Should -Be 'application token is invalid'
+    }
+
+    It 'reports an empty token per recipient instead of throwing' {
+        Mock -ModuleName 'Stagearr.Core' Send-SAPushoverMessage { throw 'should not be called' }
+        $r = @(Test-SAPushoverConfig -Config @{ appToken = ''; recipients = @('me|uME|all'); routes = @() })
+        $r | Should -HaveCount 1
+        $r[0].Success | Should -BeFalse
+        $r[0].Error | Should -Match 'appToken'
+    }
+
+    It 'never lets one send run past the time budget' {
+        Mock -ModuleName 'Stagearr.Core' Write-SAOutcome {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAVerbose {}
+        Mock -ModuleName 'Stagearr.Core' Send-SAPushoverMessage { [pscustomobject]@{ Success = $true; StatusCode = 200; Error = '' } }
+        $ctx = @{
+            Config = @{ labels = @{ tv = 'tv'; tvLabels = @(); movie = 'movie'; movieLabels = @() }
+                notifications = @{ pushover = @{ enabled = $true; appToken = 'aT'; timeoutSeconds = 10; recipients = @('me|uME|all'); routes = @('tv|me') } } }
+            Flags = @{ NoMail = $false }; State = @{}
+        }
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $ctx } {
+            param($X)
+            $script:SAEmailSummary = @{ Name = 'S'; Label = 'tv'; ImportTarget = 'Sonarr'; Subtitles = @(); MissingLangs = @(); Exceptions = @(); IsPassthrough = $false; ReleaseInfo = $null; OmdbData = $null; ArrLink = $null }
+            $script:SAConstants.PushoverTotalBudgetSeconds = 4
+            try {
+                Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult ([pscustomobject]@{ Success = $true; ImportedCount = 1 })
+            } finally { $script:SAConstants.PushoverTotalBudgetSeconds = 30 }
+        }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { $TimeoutSeconds -le 4 }
     }
 }

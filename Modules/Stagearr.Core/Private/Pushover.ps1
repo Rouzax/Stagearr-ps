@@ -27,8 +27,9 @@ function ConvertFrom-SAPushoverConfig {
         recipients: "name|userOrGroupKey|all" or "...|success"
         routes:     "label,label|name,name"; label "*" catches labels without a route.
 
-        A malformed entry is skipped with an error naming its position and, for recipients,
-        the name only, so a key never ends up in a log line.
+        A malformed entry is skipped with an error naming its position and at most a valid
+        recipient name. Other values are never echoed: with the fields in the wrong order or
+        pasted into routes, they may be a key.
     .PARAMETER Config
         The [notifications.pushover] hashtable.
     .OUTPUTS
@@ -56,9 +57,13 @@ function ConvertFrom-SAPushoverConfig {
             continue
         }
         $name = $parts[0]
+        if ($name -match '^[A-Za-z0-9]{30}$') {
+            $errors.Add("recipients entry $position starts with what looks like a Pushover key; write name|key|all or name|key|success")
+            continue
+        }
         $notify = $parts[2].ToLowerInvariant()
         if ($notify -notin @('all', 'success')) {
-            $errors.Add("recipient '$name' has notify '$($parts[2])'; use all or success")
+            $errors.Add("recipient '$name' does not end in all or success")
             continue
         }
         if ($recipients.Contains($name)) {
@@ -81,9 +86,11 @@ function ConvertFrom-SAPushoverConfig {
         $names = [System.Collections.Generic.List[string]]::new()
         foreach ($n in @(($parts[1] -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
             if ($recipients.Contains($n)) {
-                $names.Add($n)
+                # The recipient's own spelling, so names that differ only in case are one person
+                $canonical = $recipients[$n].Name
+                if (-not $names.Contains($canonical)) { $names.Add($canonical) }
             } else {
-                $errors.Add("routes entry $position names unknown recipient '$n'")
+                $errors.Add("routes entry $position names a recipient that is not in recipients")
             }
         }
         if ($labels.Count -eq 0 -or $names.Count -eq 0) {
@@ -169,7 +176,11 @@ function Get-SAPushoverState {
         imported something, and an "all" recipient must see the retry.
 
         States: Imported, Partial (imported with warnings, or nothing yet and a TBA retry
-        scheduled), NothingNew (already in the library), Failed.
+        scheduled), NothingNew (already in the library at equal or better quality),
+        NotImported (rejected for another reason), Failed.
+
+        A file skipped because the library already has it at equal or better quality is not
+        a problem; any other rejected file next to the imports makes the job Partial.
     .PARAMETER JobSuccess
         Overall job success.
     .PARAMETER ImportResult
@@ -181,7 +192,8 @@ function Get-SAPushoverState {
     .PARAMETER IsPassthrough
         Whether the job ran in passthrough mode (no import).
     .OUTPUTS
-        PSCustomObject with State, ImportedCount and HasWarnings.
+        PSCustomObject with State, ImportedCount, HasWarnings and AlreadyInLibrary (files
+        skipped as equal or better quality).
     #>
     [CmdletBinding()]
     [OutputType([PSCustomObject])]
@@ -204,7 +216,19 @@ function Get-SAPushoverState {
         [bool]$IsPassthrough = $false
     )
 
-    $result = { param($State, $Count, $Warn) [PSCustomObject]@{ State = $State; ImportedCount = [int]$Count; HasWarnings = [bool]$Warn } }
+    $qualityReasons = @('Quality exists', 'Same size', 'File exists')
+    $alreadyInLibrary = 0
+    $otherRejected = 0
+    if ($null -ne $ImportResult) {
+        foreach ($file in @($ImportResult.SkippedFiles)) {
+            if ($null -eq $file) { continue }
+            if ($file.Reason -in $qualityReasons) { $alreadyInLibrary++ } else { $otherRejected++ }
+        }
+    }
+    $result = {
+        param($State, $Count, $Warn)
+        [PSCustomObject]@{ State = $State; ImportedCount = [int]$Count; HasWarnings = [bool]$Warn; AlreadyInLibrary = $alreadyInLibrary }
+    }
 
     if (-not $JobSuccess) {
         return & $result 'Failed' 0 $true
@@ -227,12 +251,15 @@ function Get-SAPushoverState {
         if ($TbaRetryScheduled) {
             return & $result 'Partial' 0 $true
         }
-        return & $result 'NothingNew' 0 $false
+        if ($null -ne $ImportResult -and ($ImportResult.QualityRejected -eq $true -or $ImportResult.Superseded -eq $true)) {
+            return & $result 'NothingNew' 0 $false
+        }
+        return & $result 'NotImported' 0 $true
     }
 
     $aborted = $null -ne $ImportResult -and $ImportResult.Status -eq 'partial' -and $ImportResult.AbortedCount -gt 0
     $missing = $null -ne $MissingLanguages -and @($MissingLanguages).Count -gt 0
-    if ($aborted -or $TbaRetryScheduled -or $missing) {
+    if ($aborted -or $otherRejected -gt 0 -or $TbaRetryScheduled -or $missing) {
         return & $result 'Partial' $count $true
     }
     return & $result 'Imported' $count $false
@@ -313,10 +340,23 @@ function New-SAPushoverMessage {
     }
 
     $h = { param($t) ConvertTo-SAHtmlSafe -Text ([string]$t) }
+    # Shortens raw text before escaping, so a cut never splits an entity, and a long
+    # error cannot push the Status line past the message limit on its own
+    $statusMax = 700
+    $fit = {
+        param($t)
+        $t = [string]$t
+        while ($t.Length -gt 0 -and (& $h $t).Length -gt $statusMax) {
+            $t = $t.Substring(0, [int]($t.Length * 0.9)).TrimEnd() + '...'
+        }
+        & $h $t
+    }
+    $files = { param([int]$n) if ($n -eq 1) { '1 file' } else { "$n files" } }
 
     $prefix = switch ($state) {
         'Failed'     { '❌ Failed' }
         'NothingNew' { 'ℹ️ Already in library' }
+        'NotImported' { '⚠️ Not imported' }
         'Partial'    {
             if (-not $isAll) { '✅ Ready to watch' }
             elseif ($StateInfo.ImportedCount -lt 1) { '⏳ Waiting' }
@@ -339,12 +379,12 @@ function New-SAPushoverMessage {
 
     if ($Summary.IsPassthrough) {
         if ($state -eq 'Failed' -and $Summary.FailureError) {
-            $lines.Add("<b>Status:</b> $(& $h $Summary.FailureError)")
+            $lines.Add("<b>Status:</b> $(& $fit $Summary.FailureError)")
         }
         if ($Summary.VideoCount -gt 0) {
-            $files = "$($Summary.VideoCount)"
-            if ($Summary.VideoSize) { $files += ", $($Summary.VideoSize)" }
-            $lines.Add("<b>Files:</b> $(& $h $files)")
+            $fileText = "$($Summary.VideoCount)"
+            if ($Summary.VideoSize) { $fileText += ", $($Summary.VideoSize)" }
+            $lines.Add("<b>Files:</b> $(& $h $fileText)")
         }
         if ($FolderPath -and $state -ne 'Failed') { $lines.Add("<b>Folder:</b> $(& $h $FolderPath)") }
         if ($Summary.Duration) { $lines.Add("<b>Took:</b> $(& $h $Summary.Duration)") }
@@ -358,6 +398,11 @@ function New-SAPushoverMessage {
                 else { 'Job failed' }
             }
             'NothingNew' { 'Already in library at equal or better quality' }
+            'NotImported' {
+                if ($null -ne $ImportResult -and $ImportResult.Message) { $ImportResult.Message }
+                elseif ($Summary.ImportResult) { $Summary.ImportResult }
+                else { 'Not imported' }
+            }
             default {
                 if ($StateInfo.ImportedCount -lt 1) {
                     "Waiting until $($Summary.ImportTarget) accepts the episode title"
@@ -366,12 +411,20 @@ function New-SAPushoverMessage {
                     if ($null -ne $ImportResult -and $ImportResult.ImportedFiles) {
                         $note = Format-SAImportEpisodeNote -Files @($ImportResult.ImportedFiles) -Action 'Imported'
                     }
-                    if (-not $note) { $note = 'Imported' }
+                    if (-not $note) {
+                        # A partial verification knows the count but not the episodes
+                        $note = if ($null -ne $ImportResult -and $ImportResult.ImportedCount -gt 0) {
+                            "Imported $(& $files ([int]$ImportResult.ImportedCount))"
+                        } else { 'Imported' }
+                    }
                     if ($Summary.ImportTarget) { "$note to $($Summary.ImportTarget)" } else { $note }
                 }
             }
         }
-        $lines.Add("<b>Status:</b> $(& $h $status)")
+        $lines.Add("<b>Status:</b> $(& $fit $status)")
+        if ($StateInfo.AlreadyInLibrary -gt 0) {
+            $lines.Add("<b>Already in library:</b> $(& $files ([int]$StateInfo.AlreadyInLibrary))")
+        }
 
         $quality = Get-SAEmailQualityDisplay -Summary $Summary
         if ($quality) { $lines.Add("<b>Quality:</b> $(& $h $quality)") }
@@ -414,7 +467,7 @@ function New-SAPushoverMessage {
         $all.AddRange($lines)
         for ($i = 0; $i -lt $warnCount; $i++) { $all.Add($warningLines[$i]) }
         $left = $warningLines.Count - $warnCount
-        if ($left -gt 0) { $all.Add("<i>+$left more in the email and job log</i>") }
+        if ($left -gt 0) { $all.Add("<i>+$left more in the job log</i>") }
         return ($all -join "`n")
     }
     $message = & $compose $true $warningLines.Count
@@ -637,12 +690,14 @@ function Invoke-SAPushoverNotify {
         foreach ($recipient in $recipients) {
             $fields = $messages[$recipient.Notify]
             if ($null -eq $fields) { continue }
-            if ($budget.Elapsed.TotalSeconds -ge $script:SAConstants.PushoverTotalBudgetSeconds) {
+            # Each send gets at most the time left, so the budget is a real ceiling
+            $left = [int][Math]::Floor($script:SAConstants.PushoverTotalBudgetSeconds - $budget.Elapsed.TotalSeconds)
+            if ($left -lt 1) {
                 $problems.Add("$($recipient.Name): out of time")
                 continue
             }
             $result = Send-SAPushoverMessage -AppToken $poConfig.appToken -UserKey $recipient.Key `
-                -Fields $fields -TimeoutSeconds $timeout
+                -Fields $fields -TimeoutSeconds ([Math]::Min($timeout, $left))
             if ($result.Success) {
                 $sent.Add($recipient.Name)
             } else {
@@ -686,6 +741,10 @@ function Test-SAPushoverConfig {
     $timeout = if ($Config.timeoutSeconds -gt 0) { [int]$Config.timeoutSeconds } else { 10 }
 
     foreach ($recipient in $parsed.Recipients.Values) {
+        if ([string]::IsNullOrWhiteSpace([string]$Config.appToken)) {
+            [PSCustomObject]@{ Name = $recipient.Name; Success = $false; Error = 'appToken is empty' }
+            continue
+        }
         $fields = @{
             title    = 'Stagearr test'
             message  = "This is a test message for <b>$(ConvertTo-SAHtmlSafe -Text $recipient.Name)</b>, who receives <b>$($recipient.Notify)</b> messages."

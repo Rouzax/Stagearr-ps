@@ -86,16 +86,17 @@ A malformed entry, an unknown name in a route, or a filter other than `all` or `
 | Job outcome | `all` recipient | `success` recipient |
 |-------------|-----------------|---------------------|
 | Everything imported | ✅ Imported, with details | ✅ Ready to watch, with details |
-| Some imported, with a problem (a TBA title waiting for its retry, a file the app skipped, a missing subtitle language) | ⚠️ Partly imported, with the problems | ✅ Ready to watch, listing only what was imported |
+| Some imported, with a problem (a TBA title waiting for its retry, a file Radarr or Sonarr rejected or skipped, a missing subtitle language) | ⚠️ Partly imported, with the problems | ✅ Ready to watch, listing only what was imported |
 | Nothing imported yet, TBA retry scheduled | ⏳ Waiting | Nothing |
 | Already in the library at equal or better quality | ℹ️ Already in library, sent silently | Nothing |
+| Nothing imported, rejected for another reason (for example an unknown series) | ⚠️ Not imported, with the reason | Nothing |
 | Failed or blocked | ❌ Failed, high priority, with the reason | Nothing |
 | Passthrough job (unknown label) done | ✅ Done | ✅ Done |
 | Passthrough job failed | ❌ Failed | Nothing |
 
 When a TBA retry later imports the missing episode, that retry is its own job and sends its own message, so a `success` recipient still hears about it.
 
-Episodes that were skipped because the library already had them at equal or better quality do not count as a problem: if the rest imported, the job is "Imported".
+Episodes that were skipped because the library already had them at equal or better quality do not count as a problem: if the rest imported, the job is "Imported", and the message adds a line such as **Already in library:** 1 file.
 
 ---
 
@@ -106,15 +107,16 @@ The title gives the state and the name, for example `✅ Imported · Lanterns S0
 For TV and movies, in this order, each line only when the data is there:
 
 - The plot, from OMDb.
-- **Status:** what was imported, such as `Imported S01E01-E03 to Sonarr`. For more than three episodes it shows the count, as the email does.
+- **Status:** what was imported, such as `Imported S01E01-E03 to Sonarr`. For more than three episodes it shows the count, as the email does. A very long error is shortened.
+- **Already in library**, when some files were skipped because the library already had them.
 - **Quality**, **Subtitles**, and **IMDb** with the rating as a link to the IMDb page and the genres.
-- **Kodi**, when the [Kodi step](kodi.md) ran. A `success` recipient only sees it when the title is in the library.
+- **Kodi**, when the [Kodi step](kodi.md) ran for this job's title. A `success` recipient only sees it when the title is in the library.
 - For an `all` recipient: the warnings and errors from the job, the same ones the email lists.
 - The poster as the image, and a **View in Radarr** or **View in Sonarr** button. The button uses the address Stagearr has for Radarr or Sonarr, so it only opens where that address is reachable, typically at home. Medusa imports have no button.
 
 For a passthrough job: the number and size of the files, the folder they are in, and how long the job took.
 
-A message is limited to 1024 characters. When there is more, the plot is left out first, then the last warnings; the email and job log always have the full list.
+A message is limited to 1024 characters. When there is more, the plot is left out first, then the last warnings, with a line saying how many more are in the job log.
 
 ---
 
@@ -129,12 +131,12 @@ The `NoMail` label and the `-SkipEmail` switch (also accepted as `-NoMail`) sile
 | What you see | Likely cause | What to do |
 |--------------|--------------|------------|
 | No message, and no `Pushover` line in the job log | `enabled` is false, the job used `NoMail`, or no route matches the label | Check `enabled` and `routes`. The job log's verbose lines show `Pushover: no route for label '...'`. |
-| `Pushover: Not sent: appToken is empty` | The token is missing | Copy the application token from pushover.net into `appToken`. |
+| `Pushover: Not sent: appToken is empty` | The token is missing | Copy the application token from pushover.net into `appToken`. `Test-SAPushoverConfig` reports the same per recipient. |
 | `Pushover: Not sent to all: me: application token is invalid` | Wrong token | Copy it again from your application's page on pushover.net. |
 | `... me: user identifier is not a valid user, group, or subscribed user key` | Wrong user key for that person | Copy the key from their Pushover dashboard. The others still get their messages. |
 | `... monthly message limit reached` | The Pushover account used its monthly quota | Wait for the next month or upgrade the plan. |
-| `... config: recipient 'x' has notify 'sometimes'` | A typo in `recipients` or `routes` | Fix the entry the message names. |
-| `... out of time` | Pushover did not answer, and all sends for one job share 30 seconds | Nothing; the next job tries again. Lower `timeoutSeconds` if this happens often. |
+| `config: recipient 'x' does not end in all or success`, `config: routes entry 2 names a recipient that is not in recipients` | A typo in `recipients` or `routes`. The message names the entry by position, and never repeats what you typed in case it is a key. | Fix the entry the message points to. |
+| `... out of time` | Pushover did not answer, and all sends for one job share 30 seconds | Nothing; later jobs send as normal. Lower `timeoutSeconds` if this happens often. |
 | Partner never gets messages | Their filter is `success` and the jobs imported nothing new, or they are not in the route for that label | Check `routes` and the table above. |
 
 A Pushover problem never fails a job and never turns the email amber; it only adds the line in the job log.
