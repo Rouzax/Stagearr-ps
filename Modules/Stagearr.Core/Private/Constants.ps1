@@ -100,6 +100,22 @@ $script:SAConstants = @{
 
     #endregion
 
+    #region Pushover Defaults
+
+    PushoverApiUrl = 'https://api.pushover.net/1/messages.json'
+
+    # Limits from https://pushover.net/api; longer values are rejected by the API
+    PushoverMessageMaxLength   = 1024
+    PushoverTitleMaxLength     = 250
+    PushoverUrlTitleMaxLength  = 100
+    PushoverAttachmentMaxBytes = 5242880
+
+    # Time one job may spend on all its Pushover sends together, so several recipients
+    # behind an unreachable API cannot hold up the queue
+    PushoverTotalBudgetSeconds = 30
+
+    #endregion
+
     #region Kodi Defaults
 
     # Timeout for one JSON-RPC call (seconds). A sleeping host must fail fast: one worker

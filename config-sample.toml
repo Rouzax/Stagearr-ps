@@ -153,6 +153,19 @@ password = "your_smtp_password_or_app_password"
 # auto: merges *arr ratings/genre with OMDb poster; omdb: OMDb only; none: disabled
 source = "auto" # auto | omdb | none
 
+[notifications.pushover]
+# Push messages to phones via Pushover. See docs/pushover.md.
+enabled = false
+appToken = "" # pushover.net > Create an Application/API Token
+timeoutSeconds = 10
+sound = "" # empty = your Pushover default sound
+failureSound = "falling"
+# name|userOrGroupKey|all or success. "success" = only when something new was imported.
+recipients = []
+# labels|recipients. "tv" and "movie" also match their [labels] aliases.
+# "*" sends every label that has no route of its own.
+routes = []
+
 [omdb]
 # OMDb API for email enrichment. Get free key: https://www.omdbapi.com/apikey.aspx
 enabled = false
