@@ -1,3 +1,10 @@
+﻿# The fake Kodi and clock are globals because the mock bodies that read them run in the
+# module's scope, where the test file's script scope is not visible.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '', Justification = 'Shared with mock bodies that run in module scope')]
+# InModuleScope parameters are consumed inside mock and assertion scriptblocks, which the rule does not follow.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '', Justification = 'Used inside nested scriptblocks')]
+param()
+
 BeforeAll {
     Import-Module "$PSScriptRoot/../Modules/Stagearr.Core/Stagearr.Core.psd1" -Force
 }
@@ -1049,7 +1056,7 @@ Describe 'Invoke-SAKodiUpdate retries' {
         InModuleScope 'Stagearr.Core' { Reset-SAKodiBreaker }
         Mock -ModuleName 'Stagearr.Core' Get-SAKodiBudgetSeconds { 4 }
         $global:FakeKodi.Calls.Clear()
-        $r = Invoke-Update -Targets @($script:other) -Root $script:root
+        $null = Invoke-Update -Targets @($script:other) -Root $script:root
         @($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan').Params.directory | Should -Not -Contain 'smb://S/Data/Movies/Film (2020)/'
         Get-PendingRoots -Root $script:root | Should -Be $script:movie.RootPath
     }

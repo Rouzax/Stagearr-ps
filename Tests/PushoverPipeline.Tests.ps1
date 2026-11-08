@@ -1,0 +1,87 @@
+BeforeAll {
+    Import-Module "$PSScriptRoot/../Modules/Stagearr.Core/Stagearr.Core.psd1" -Force
+}
+
+Describe 'Pushover in the job pipeline' {
+
+    BeforeEach {
+        $script:ctx = @{
+            Config = @{
+                labels        = @{ tv = 'tv'; tvLabels = @(); movie = 'movie'; movieLabels = @() }
+                importers     = @{ sonarr = @{ enabled = $false }; radarr = @{ enabled = $false } }
+                notifications = @{ email = @{ enabled = $false }; pushover = @{ enabled = $true } }
+            }
+            Flags  = @{ NoMail = $false; NoCleanup = $true; TbaRetryScheduled = $false }
+            State  = @{ StagingPath = (Join-Path $TestDrive 'staging') }
+            Paths  = @{ QueueRoot = 'q' }
+        }
+        $script:job = @{ id = 'job1'; input = @{ downloadPath = 'C:\Downloads\Show.S01E01.1080p.WEB-DL-GRP'; downloadLabel = 'tv'; torrentHash = '' } }
+
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify {}
+        Mock -ModuleName 'Stagearr.Core' Send-SAEmail {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAOutcome {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAProgress {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAVerbose {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAPhaseHeader {}
+        Mock -ModuleName 'Stagearr.Core' Update-SAJobProgress {}
+        Mock -ModuleName 'Stagearr.Core' Get-SAContextDuration { [timespan]::FromSeconds(5) }
+        Mock -ModuleName 'Stagearr.Core' Get-SAContextLogPath { 'job.log' }
+        Mock -ModuleName 'Stagearr.Core' Save-SAFileLog {}
+        Mock -ModuleName 'Stagearr.Core' Set-SAEmailLogPath {}
+        Mock -ModuleName 'Stagearr.Core' Remove-SAStagingFolder {}
+        Mock -ModuleName 'Stagearr.Core' Test-SALockStolen { $false }
+        Mock -ModuleName 'Stagearr.Core' Test-SAFeatureEnabled { $false }
+        Mock -ModuleName 'Stagearr.Core' Test-SADangerousDownload { [pscustomobject]@{ IsDangerous = $false; DangerousFiles = @() } }
+        Mock -ModuleName 'Stagearr.Core' Test-SATbaRetryMode { $null }
+        InModuleScope 'Stagearr.Core' { Initialize-SAEmailRenderer }
+    }
+
+    It 'notifies once for a passthrough job, with email off' {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAPassthroughProcessing { [pscustomobject]@{ Success = $true; StagingPath = 'C:\Staging\x' } }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAPassthroughJob -Context $X -Job $J }
+        $r | Should -BeTrue
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify -Times 1 -ParameterFilter { $JobSuccess -eq $true -and $IsPassthrough -eq $true }
+        InModuleScope 'Stagearr.Core' { $script:SAEmailSummary.Label | Should -Be 'tv' }
+    }
+
+    It 'notifies a failed passthrough job as failed' {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAPassthroughProcessing { [pscustomobject]@{ Success = $false; Reason = 'RarExtractionFailed' } }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAPassthroughJob -Context $X -Job $J }
+        $r | Should -BeFalse
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify -Times 1 -ParameterFilter { $JobSuccess -eq $false -and $IsPassthrough -eq $true }
+    }
+
+    It 'notifies a security block as failed with the label set' {
+        Mock -ModuleName 'Stagearr.Core' Test-SADangerousDownload { [pscustomobject]@{ IsDangerous = $true; DangerousFiles = @('setup.exe') } }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAStandardJob -Context $X -Job $J }
+        $r | Should -BeFalse
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify -Times 1 -ParameterFilter { $JobSuccess -eq $false }
+        InModuleScope 'Stagearr.Core' { $script:SAEmailSummary.Label | Should -Be 'tv' }
+    }
+
+    It 'notifies a TBA retry whose files are gone, with the summary set even when email is off' {
+        Mock -ModuleName 'Stagearr.Core' Test-SATbaRetryMode { [pscustomobject]@{ Mode = 'Failed' } }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAStandardJob -Context $X -Job $J }
+        $r | Should -BeFalse
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify -Times 1 -ParameterFilter { $JobSuccess -eq $false }
+        InModuleScope 'Stagearr.Core' {
+            $script:SAEmailSummary.Name | Should -Not -BeNullOrEmpty
+            $script:SAEmailSummary.Label | Should -Be 'tv'
+            $script:SAEmailSummary.FailureError | Should -Match 'TBA retry failed'
+        }
+    }
+
+    It 'notifies a standard job with its import and Kodi results, and returns a plain bool' {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAVideoProcessing { [pscustomobject]@{ Success = $true; ProcessedFiles = @(); TotalSize = 0 } }
+        Mock -ModuleName 'Stagearr.Core' Invoke-SASubtitleProcessing { $null }
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAImport { [pscustomobject]@{ Success = $true; ImportedCount = 1; ImportedFiles = @(); SkippedFiles = @(); Skipped = $false; QualityRejected = $false; Message = 'Imported' } }
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiStep { 'Updated' }
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAMDBListCollect { $null }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAStandardJob -Context $X -Job $J }
+        @($r) | Should -HaveCount 1
+        $r | Should -BeTrue
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify -Times 1 -ParameterFilter {
+            $JobSuccess -eq $true -and $KodiStatus -eq 'Updated' -and $ImportResult.ImportedCount -eq 1 -and $TbaRetryScheduled -eq $false
+        }
+    }
+}

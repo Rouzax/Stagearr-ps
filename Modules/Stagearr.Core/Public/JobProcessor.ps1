@@ -659,6 +659,8 @@ function Invoke-SAPassthroughJob {
             -Subject $emailSubject `
             -Body $emailBody
     }
+
+    Invoke-SAPushoverNotify -Context $Context -JobSuccess $passthroughSuccess -IsPassthrough $true
     
     return $passthroughSuccess
 }
@@ -788,6 +790,7 @@ function Invoke-SAStandardJob {
 
         # Set up email notification for the security block
         Set-SAEmailSummary -Name $displayName `
+            -Label $Job.input.downloadLabel `
             -Result 'Blocked' `
             -ImportTarget $arrAppType `
             -FailurePhase 'Security' `
@@ -815,6 +818,8 @@ function Invoke-SAStandardJob {
                 -Body $emailBody
         }
 
+        Invoke-SAPushoverNotify -Context $Context -JobSuccess $false
+
         return $false
     }
 
@@ -834,20 +839,23 @@ function Invoke-SAStandardJob {
             Set-SAEmailLogPath -Path $logPath
             Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
 
-            if (-not $Context.Flags.NoMail -and $Context.Config.notifications.email.enabled) {
-                $earlyFriendlyName = if ($releaseInfo -and $releaseInfo.FriendlyName) { $releaseInfo.FriendlyName } else { $displayName }
-                Set-SAEmailSummary -Name $earlyFriendlyName -SourceName $displayName `
-                    -Label $Job.input.downloadLabel -Result 'Failed' `
-                    -Duration '00:00' -FailurePhase 'Import' `
-                    -FailureError 'TBA retry failed: source files no longer available'
-                Add-SAEmailException -Message "Use -Rerun to retry manually if files become available" -Type Warning
+            # Set outside the email check: Pushover reads the same summary
+            $earlyFriendlyName = if ($releaseInfo -and $releaseInfo.FriendlyName) { $releaseInfo.FriendlyName } else { $displayName }
+            Set-SAEmailSummary -Name $earlyFriendlyName -SourceName $displayName `
+                -Label $Job.input.downloadLabel -Result 'Failed' `
+                -Duration '00:00' -FailurePhase 'Import' `
+                -FailureError 'TBA retry failed: source files no longer available'
+            Add-SAEmailException -Message "Use -Rerun to retry manually if files become available" -Type Warning
 
+            if (-not $Context.Flags.NoMail -and $Context.Config.notifications.email.enabled) {
                 $title = "$($Job.input.downloadLabel) - $displayName"
                 $emailBody = ConvertTo-SAEmailHtml -Title $title
                 $emailSubject = Get-SAEmailSubject -Result 'Failed'
                 Send-SAEmail -Config $Context.Config.notifications.email `
                     -Subject $emailSubject -Body $emailBody
             }
+
+            Invoke-SAPushoverNotify -Context $Context -JobSuccess $false
 
             return $false
         }
@@ -1327,6 +1335,9 @@ function Invoke-SAStandardJob {
             -Body $emailBody `
             -InlineImages $inlineImages
     }
+
+    Invoke-SAPushoverNotify -Context $Context -JobSuccess $jobSuccess -ImportResult $importResult `
+        -MissingLanguages $missingLangs -TbaRetryScheduled $tbaRetryScheduled -KodiStatus $kodiStatus
     
     # Return success only if both video processing and import succeeded
     return $jobSuccess
