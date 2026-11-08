@@ -239,3 +239,230 @@ function Get-SAPushoverState {
 }
 
 #endregion
+
+#region Message
+
+function New-SAPushoverMessage {
+    <#
+    .SYNOPSIS
+        Builds the Pushover message for one audience. Pure function.
+    .DESCRIPTION
+        A success recipient only hears about jobs that imported something, and then sees
+        what is ready without warnings or retry times. An "all" recipient sees every state
+        with its warnings.
+
+        The title is plain text (Pushover renders HTML in the message only). Every message
+        line is a self-contained HTML snippet, so shortening drops whole lines and never
+        leaves a tag open: the plot goes first, then warnings from the end.
+    .PARAMETER Summary
+        The email summary hashtable ($script:SAEmailSummary).
+    .PARAMETER StateInfo
+        Output of Get-SAPushoverState.
+    .PARAMETER Audience
+        'all' or 'success'.
+    .PARAMETER ImportResult
+        Result from Invoke-SAImport, for the episode list.
+    .PARAMETER KodiStatus
+        'Updated', 'Partial', 'Skipped' or empty, from Invoke-SAKodiStep.
+    .PARAMETER FinishedAt
+        When the job finished; shown instead of the arrival time.
+    .PARAMETER PushoverConfig
+        The [notifications.pushover] hashtable, for sounds.
+    .PARAMETER FolderPath
+        Where a passthrough job put its files.
+    .OUTPUTS
+        Hashtable of Pushover message fields, or $null when this audience gets nothing.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Summary,
+
+        [Parameter(Mandatory = $true)]
+        [PSCustomObject]$StateInfo,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('all', 'success')]
+        [string]$Audience,
+
+        [Parameter()]
+        [AllowNull()]
+        [object]$ImportResult,
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$KodiStatus = '',
+
+        [Parameter(Mandatory = $true)]
+        [datetime]$FinishedAt,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$PushoverConfig,
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string]$FolderPath = ''
+    )
+
+    $state = $StateInfo.State
+    $isAll = $Audience -eq 'all'
+    if (-not $isAll -and ($state -in @('Failed', 'NothingNew') -or $StateInfo.ImportedCount -lt 1)) {
+        return $null
+    }
+
+    $h = { param($t) ConvertTo-SAHtmlSafe -Text ([string]$t) }
+
+    $prefix = switch ($state) {
+        'Failed'     { '❌ Failed' }
+        'NothingNew' { 'ℹ️ Already in library' }
+        'Partial'    {
+            if (-not $isAll) { '✅ Ready to watch' }
+            elseif ($StateInfo.ImportedCount -lt 1) { '⏳ Waiting' }
+            else { '⚠️ Partly imported' }
+        }
+        default {
+            if ($Summary.IsPassthrough) { '✅ Done' }
+            elseif ($isAll) { '✅ Imported' }
+            else { '✅ Ready to watch' }
+        }
+    }
+    $title = "$prefix · $($Summary.Name)"
+    $titleMax = $script:SAConstants.PushoverTitleMaxLength
+    if ($title.Length -gt $titleMax) { $title = $title.Substring(0, $titleMax) }
+
+    $omdb = $Summary.OmdbData
+    $plotLine = $null
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $warningLines = [System.Collections.Generic.List[string]]::new()
+
+    if ($Summary.IsPassthrough) {
+        if ($state -eq 'Failed' -and $Summary.FailureError) {
+            $lines.Add("<b>Status:</b> $(& $h $Summary.FailureError)")
+        }
+        if ($Summary.VideoCount -gt 0) {
+            $files = "$($Summary.VideoCount)"
+            if ($Summary.VideoSize) { $files += ", $($Summary.VideoSize)" }
+            $lines.Add("<b>Files:</b> $(& $h $files)")
+        }
+        if ($FolderPath -and $state -ne 'Failed') { $lines.Add("<b>Folder:</b> $(& $h $FolderPath)") }
+        if ($Summary.Duration) { $lines.Add("<b>Took:</b> $(& $h $Summary.Duration)") }
+    } else {
+        if ($omdb -and $omdb.Plot) { $plotLine = "<i>$(& $h $omdb.Plot)</i>" }
+
+        $status = switch ($state) {
+            'Failed' {
+                if ($Summary.FailureError) { $Summary.FailureError }
+                elseif ($Summary.ImportResult) { $Summary.ImportResult }
+                else { 'Job failed' }
+            }
+            'NothingNew' { 'Already in library at equal or better quality' }
+            default {
+                if ($StateInfo.ImportedCount -lt 1) {
+                    "Waiting until $($Summary.ImportTarget) accepts the episode title"
+                } else {
+                    $note = ''
+                    if ($null -ne $ImportResult -and $ImportResult.ImportedFiles) {
+                        $note = Format-SAImportEpisodeNote -Files @($ImportResult.ImportedFiles) -Action 'Imported'
+                    }
+                    if (-not $note) { $note = 'Imported' }
+                    if ($Summary.ImportTarget) { "$note to $($Summary.ImportTarget)" } else { $note }
+                }
+            }
+        }
+        $lines.Add("<b>Status:</b> $(& $h $status)")
+
+        $quality = Get-SAEmailQualityDisplay -Summary $Summary
+        if ($quality) { $lines.Add("<b>Quality:</b> $(& $h $quality)") }
+
+        $subs = if ($isAll) {
+            Get-SAEmailSubtitleDisplay -Summary $Summary
+        } elseif ($Summary.Subtitles) {
+            (@($Summary.Subtitles) | Sort-Object) -join ', '
+        } else { '' }
+        if ($subs) { $lines.Add("<b>Subtitles:</b> $(& $h $subs)") }
+
+        if ($omdb -and $omdb.ImdbId -and $omdb.ImdbRating) {
+            $imdbUrl = "https://www.imdb.com/title/$([uri]::EscapeDataString([string]$omdb.ImdbId))/"
+            $imdb = "<b>IMDb:</b> <a href=`"$imdbUrl`">★ $(& $h $omdb.ImdbRating)</a>"
+            if ($omdb.Genre) { $imdb += " · $(& $h $omdb.Genre)" }
+            $lines.Add($imdb)
+        }
+
+        $kodi = switch ($KodiStatus) {
+            'Updated' { 'in library' }
+            'Partial' { if ($isAll) { 'not everything reached Kodi' } }
+            'Skipped' { if ($isAll) { 'not scanned' } }
+        }
+        if ($kodi) { $lines.Add("<b>Kodi:</b> $kodi") }
+    }
+
+    if ($isAll) {
+        foreach ($ex in @($Summary.Exceptions)) {
+            if ($ex -and $ex.Type -in @('Warning', 'Error') -and $ex.Message) {
+                $warningLines.Add((& $h $ex.Message))
+            }
+        }
+    }
+
+    $maxLength = $script:SAConstants.PushoverMessageMaxLength
+    $compose = {
+        param($withPlot, $warnCount)
+        $all = [System.Collections.Generic.List[string]]::new()
+        if ($withPlot -and $plotLine) { $all.Add($plotLine) }
+        $all.AddRange($lines)
+        for ($i = 0; $i -lt $warnCount; $i++) { $all.Add($warningLines[$i]) }
+        $left = $warningLines.Count - $warnCount
+        if ($left -gt 0) { $all.Add("<i>+$left more in the email and job log</i>") }
+        return ($all -join "`n")
+    }
+    $message = & $compose $true $warningLines.Count
+    if ($message.Length -gt $maxLength) { $message = & $compose $false $warningLines.Count }
+    $warnCount = $warningLines.Count
+    while ($message.Length -gt $maxLength -and $warnCount -gt 0) {
+        $warnCount--
+        $message = & $compose $false $warnCount
+    }
+    if ($message.Length -gt $maxLength) {
+        # Only the fixed lines are left: cut whole lines from the end, keeping Status
+        $kept = [System.Collections.Generic.List[string]]::new()
+        foreach ($line in ($message -split "`n")) {
+            $candidate = if ($kept.Count) { ($kept -join "`n") + "`n" + $line } else { $line }
+            if ($candidate.Length -gt $maxLength) { break }
+            $kept.Add($line)
+        }
+        $message = $kept -join "`n"
+    }
+
+    $fields = [ordered]@{
+        title     = $title
+        message   = $message
+        html      = 1
+        priority  = switch ($state) { 'Failed' { 1 } 'NothingNew' { -1 } default { 0 } }
+        timestamp = ([DateTimeOffset]$FinishedAt).ToUnixTimeSeconds()
+    }
+
+    $sound = if ($state -eq 'Failed') { $PushoverConfig.failureSound } else { $PushoverConfig.sound }
+    if ($state -ne 'NothingNew' -and -not [string]::IsNullOrWhiteSpace($sound)) {
+        $fields.sound = $sound
+    }
+
+    $link = $Summary.ArrLink
+    if ($link -and $link.Url -and $link.Url.Length -le 512) {
+        $fields.url = $link.Url
+        $urlTitle = "View in $($link.AppName)"
+        $fields.url_title = $urlTitle.Substring(0, [Math]::Min($urlTitle.Length, $script:SAConstants.PushoverUrlTitleMaxLength))
+    }
+
+    $poster = if ($omdb) { $omdb.PosterData } else { $null }
+    if ($poster -and $poster.Bytes -and $poster.Bytes.Length -gt 0 -and
+        $poster.Bytes.Length -le $script:SAConstants.PushoverAttachmentMaxBytes) {
+        $fields.attachment_base64 = [Convert]::ToBase64String([byte[]]$poster.Bytes)
+        $fields.attachment_type = if ($poster.MimeType) { $poster.MimeType } else { 'image/jpeg' }
+    }
+
+    return [hashtable]$fields
+}
+
+#endregion
