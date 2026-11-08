@@ -160,6 +160,7 @@ appToken = "" # pushover.net > Create an Application/API Token
 timeoutSeconds = 10
 sound = "" # empty = your Pushover default sound
 failureSound = "falling"
+poster = true # attach the OMDb poster as the message image
 # name|userOrGroupKey|all or success. "success" = only when something new was imported.
 recipients = []
 # labels|recipients. "tv" and "movie" also match their [labels] aliases.

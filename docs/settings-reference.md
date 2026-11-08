@@ -301,6 +301,7 @@ Sends a formatted Pushover message after each job, to the people routed for its 
 | `timeoutSeconds` | How long to wait for Pushover per message. All sends for one job together stop after 30 seconds. | `10` |
 | `sound` | Pushover sound for normal messages. Empty uses each person's default. | `""` |
 | `failureSound` | Pushover sound for failed jobs, which are also sent at high priority. | `"falling"` |
+| `poster` | Attach the OMDb poster as the message image. Turn off for text-only messages. Needs OMDb with its poster enabled. | `true` |
 | `recipients` | One `"name\|userOrGroupKey\|all"` or `"name\|key\|success"` string per person. `success` only gets jobs that imported something. | `[]` |
 | `routes` | One `"labels\|names"` string per route, with commas between labels or names. `tv` and `movie` also match their `[labels]` aliases; `*` covers labels no other route names. | `[]` |
 

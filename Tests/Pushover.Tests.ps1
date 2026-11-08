@@ -753,3 +753,33 @@ Describe 'Review fixes: sending' {
         Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { $TimeoutSeconds -le 4 }
     }
 }
+
+
+Describe 'Pushover poster setting' {
+    BeforeAll {
+        $script:posterSummary = @{ Name = 'Show S01'; ImportTarget = 'Sonarr'; Subtitles = @(); MissingLangs = @(); Exceptions = @()
+            IsPassthrough = $false; FailureError = ''; ReleaseInfo = $null; ArrLink = $null
+            OmdbData = @{ PosterData = @{ Bytes = [byte[]](1, 2, 3); MimeType = 'image/jpeg' } } }
+        $script:posterState = [PSCustomObject]@{ State = 'Imported'; ImportedCount = 1; HasWarnings = $false; AlreadyInLibrary = 0 }
+    }
+
+    It 'leaves the poster out when poster is false' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ S = $script:posterSummary; St = $script:posterState } {
+            param($S, $St)
+            $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt (Get-Date) -PushoverConfig @{ poster = $false }
+            $m.Contains('attachment_base64') | Should -BeFalse
+        }
+    }
+
+    It 'attaches the poster when poster is true or not set' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ S = $script:posterSummary; St = $script:posterState } {
+            param($S, $St)
+            (New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt (Get-Date) -PushoverConfig @{ poster = $true }).Contains('attachment_base64') | Should -BeTrue
+            (New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt (Get-Date) -PushoverConfig @{}).Contains('attachment_base64') | Should -BeTrue
+        }
+    }
+
+    It 'has poster on by default' {
+        InModuleScope 'Stagearr.Core' { $script:SAConfigDefaults.notifications.pushover.poster | Should -BeTrue }
+    }
+}

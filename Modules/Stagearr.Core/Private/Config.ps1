@@ -137,6 +137,7 @@ $script:SAConfigDefaults = @{
             timeoutSeconds = 10
             sound          = ''
             failureSound   = 'falling'
+            poster         = $true
             recipients     = @()
             routes         = @()
         }

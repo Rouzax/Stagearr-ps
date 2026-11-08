@@ -112,7 +112,7 @@ For TV and movies, in this order, each line only when the data is there:
 - **Quality**, **Subtitles**, and **IMDb** with the rating as a link to the IMDb page and the genres.
 - **Kodi**, when the [Kodi step](kodi.md) ran for this job's title. A `success` recipient only sees it when the title is in the library.
 - For an `all` recipient: the warnings and errors from the job, the same ones the email lists.
-- The poster as the image, and a **View in Radarr** or **View in Sonarr** button. The button uses the address Stagearr has for Radarr or Sonarr, so it only opens where that address is reachable, typically at home. Medusa imports have no button.
+- The poster as the image, unless `poster = false`, and a **View in Radarr** or **View in Sonarr** button. The button uses the address Stagearr has for Radarr or Sonarr, so it only opens where that address is reachable, typically at home. Medusa imports have no button.
 
 For a passthrough job: the number and size of the files, the folder they are in, and how long the job took.
 

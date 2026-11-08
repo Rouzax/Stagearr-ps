@@ -294,7 +294,7 @@ function New-SAPushoverMessage {
     .PARAMETER FinishedAt
         When the job finished; shown instead of the arrival time.
     .PARAMETER PushoverConfig
-        The [notifications.pushover] hashtable, for sounds.
+        The [notifications.pushover] hashtable, for sounds and the poster switch.
     .PARAMETER FolderPath
         Where a passthrough job put its files.
     .OUTPUTS
@@ -508,7 +508,7 @@ function New-SAPushoverMessage {
         $fields.url_title = $urlTitle.Substring(0, [Math]::Min($urlTitle.Length, $script:SAConstants.PushoverUrlTitleMaxLength))
     }
 
-    $poster = if ($omdb) { $omdb.PosterData } else { $null }
+    $poster = if ($omdb -and $PushoverConfig.poster -ne $false) { $omdb.PosterData } else { $null }
     if ($poster -and $poster.Bytes -and $poster.Bytes.Length -gt 0 -and
         $poster.Bytes.Length -le $script:SAConstants.PushoverAttachmentMaxBytes) {
         $fields.attachment_base64 = [Convert]::ToBase64String([byte[]]$poster.Bytes)
