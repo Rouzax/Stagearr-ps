@@ -466,3 +466,234 @@ function New-SAPushoverMessage {
 }
 
 #endregion
+
+#region Send
+
+function Send-SAPushoverMessage {
+    <#
+    .SYNOPSIS
+        Posts one message to one Pushover user or group key. Never throws.
+    .DESCRIPTION
+        Sent as a percent-encoded form, which the API documents for every field including
+        attachment_base64. One attempt only: a 429 means the monthly quota is used up and a
+        4xx will not change on retry, and the caller keeps an overall time budget.
+    .PARAMETER AppToken
+        Application API token.
+    .PARAMETER UserKey
+        User or group key.
+    .PARAMETER Fields
+        Message fields from New-SAPushoverMessage.
+    .PARAMETER TimeoutSeconds
+        Request timeout.
+    .OUTPUTS
+        PSCustomObject with Success, StatusCode and Error. Error never contains the token or key.
+    #>
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AppToken,
+
+        [Parameter(Mandatory = $true)]
+        [string]$UserKey,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Fields,
+
+        [Parameter()]
+        [int]$TimeoutSeconds = 10
+    )
+
+    $scrub = {
+        param([string]$Text)
+        if (-not $Text) { return '' }
+        $Text.Replace($AppToken, '***').Replace($UserKey, '***')
+    }
+
+    try {
+        $pairs = [System.Collections.Generic.List[string]]::new()
+        $pairs.Add("token=$([uri]::EscapeDataString($AppToken))")
+        $pairs.Add("user=$([uri]::EscapeDataString($UserKey))")
+        foreach ($key in $Fields.Keys) {
+            $pairs.Add("$key=$([uri]::EscapeDataString([string]$Fields[$key]))")
+        }
+
+        $response = Invoke-SAWebRequest -Uri $script:SAConstants.PushoverApiUrl -Method POST `
+            -Body ($pairs -join '&') -ContentType 'application/x-www-form-urlencoded' `
+            -TimeoutSeconds $TimeoutSeconds -MaxRetries 1
+
+        if ($response.Success) {
+            return [PSCustomObject]@{ Success = $true; StatusCode = $response.StatusCode; Error = '' }
+        }
+
+        $reason = $response.ErrorMessage
+        if ($response.RawContent) {
+            try {
+                $body = $response.RawContent | ConvertFrom-Json -ErrorAction Stop
+                if ($body.errors) { $reason = @($body.errors) -join '; ' }
+            } catch {
+                Write-SAVerbose -Text 'Pushover: error response was not JSON'
+            }
+        }
+        if ($response.StatusCode -eq 429) { $reason = 'monthly message limit reached' }
+        return [PSCustomObject]@{ Success = $false; StatusCode = $response.StatusCode; Error = (& $scrub $reason) }
+    } catch {
+        return [PSCustomObject]@{ Success = $false; StatusCode = $null; Error = (& $scrub $_.Exception.Message) }
+    }
+}
+
+function Invoke-SAPushoverNotify {
+    <#
+    .SYNOPSIS
+        The pipeline's Pushover step: route, build and send. Never throws.
+    .DESCRIPTION
+        Reads the job's email summary, so it must run after Set-SAEmailSummary. Writes one
+        outcome line and never adds an email exception: a Pushover problem must not turn the
+        email amber or change the job result.
+
+        NoMail silences every notification channel, not only email.
+    .PARAMETER Context
+        Processing context.
+    .PARAMETER JobSuccess
+        Overall job success.
+    .PARAMETER ImportResult
+        Result from Invoke-SAImport, or $null.
+    .PARAMETER MissingLanguages
+        Wanted subtitle languages that were not found.
+    .PARAMETER TbaRetryScheduled
+        Whether a TBA retry was queued.
+    .PARAMETER IsPassthrough
+        Whether the job ran in passthrough mode.
+    .PARAMETER KodiStatus
+        Return value of Invoke-SAKodiStep.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Context,
+
+        [Parameter(Mandatory = $true)]
+        [bool]$JobSuccess,
+
+        [Parameter()]
+        [AllowNull()]
+        [object]$ImportResult,
+
+        [Parameter()]
+        [AllowNull()]
+        [array]$MissingLanguages,
+
+        [Parameter()]
+        [bool]$TbaRetryScheduled = $false,
+
+        [Parameter()]
+        [bool]$IsPassthrough = $false,
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$KodiStatus = ''
+    )
+
+    try {
+        $poConfig = $Context.Config.notifications.pushover
+        if (-not $poConfig -or -not $poConfig.enabled -or $Context.Flags.NoMail) {
+            return
+        }
+
+        $summary = $script:SAEmailSummary
+        $parsed = ConvertFrom-SAPushoverConfig -Config $poConfig
+        $recipients = @(Get-SAPushoverRecipients -Parsed $parsed -Label ([string]$summary.Label) -Config $Context.Config)
+        $problems = [System.Collections.Generic.List[string]]::new()
+        foreach ($e in $parsed.Errors) { $problems.Add("config: $e") }
+
+        if ($recipients.Count -eq 0) {
+            Write-SAVerbose -Text "Pushover: no route for label '$($summary.Label)'"
+            if ($problems.Count -gt 0) {
+                Write-SAOutcome -Level Skip -Label 'Pushover' -Text ($problems -join '; ') -Indent 1
+            }
+            return
+        }
+
+        if ([string]::IsNullOrWhiteSpace($poConfig.appToken)) {
+            Write-SAOutcome -Level Skip -Label 'Pushover' -Text 'Not sent: appToken is empty' -Indent 1
+            return
+        }
+
+        $stateInfo = Get-SAPushoverState -JobSuccess $JobSuccess -ImportResult $ImportResult `
+            -MissingLanguages $MissingLanguages -TbaRetryScheduled $TbaRetryScheduled -IsPassthrough $IsPassthrough
+        $folder = if ($IsPassthrough -and $Context.State) { [string]$Context.State.StagingPath } else { '' }
+        $timeout = if ($poConfig.timeoutSeconds -gt 0) { [int]$poConfig.timeoutSeconds } else { 10 }
+
+        $messages = @{}
+        foreach ($audience in @('all', 'success')) {
+            $messages[$audience] = New-SAPushoverMessage -Summary $summary -StateInfo $stateInfo -Audience $audience `
+                -ImportResult $ImportResult -KodiStatus $KodiStatus -FinishedAt (Get-Date) `
+                -PushoverConfig $poConfig -FolderPath $folder
+        }
+
+        $sent = [System.Collections.Generic.List[string]]::new()
+        $budget = [System.Diagnostics.Stopwatch]::StartNew()
+        foreach ($recipient in $recipients) {
+            $fields = $messages[$recipient.Notify]
+            if ($null -eq $fields) { continue }
+            if ($budget.Elapsed.TotalSeconds -ge $script:SAConstants.PushoverTotalBudgetSeconds) {
+                $problems.Add("$($recipient.Name): out of time")
+                continue
+            }
+            $result = Send-SAPushoverMessage -AppToken $poConfig.appToken -UserKey $recipient.Key `
+                -Fields $fields -TimeoutSeconds $timeout
+            if ($result.Success) {
+                $sent.Add($recipient.Name)
+            } else {
+                $problems.Add("$($recipient.Name): $($result.Error)")
+            }
+        }
+
+        if ($problems.Count -gt 0) {
+            Write-SAOutcome -Level Skip -Label 'Pushover' -Text "Not sent to all: $($problems -join '; ')" -Indent 1
+        } elseif ($sent.Count -gt 0) {
+            Write-SAOutcome -Level Success -Label 'Pushover' -Text "Sent to $($sent -join ', ')" -Indent 1
+        } else {
+            Write-SAVerbose -Text 'Pushover: nothing to send for this outcome'
+        }
+    } catch {
+        Write-SAVerbose -Text "Pushover step failed: $($_.Exception.Message)"
+        Write-SAOutcome -Level Skip -Label 'Pushover' -Text 'Not sent: unexpected error' -Indent 1
+    }
+}
+
+function Test-SAPushoverConfig {
+    <#
+    .SYNOPSIS
+        Sends a test message to every configured Pushover recipient.
+    .PARAMETER Config
+        The [notifications.pushover] hashtable.
+    .OUTPUTS
+        One PSCustomObject per recipient with Name, Success and Error.
+    .EXAMPLE
+        Test-SAPushoverConfig -Config $config.notifications.pushover
+    #>
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Config
+    )
+
+    $parsed = ConvertFrom-SAPushoverConfig -Config $Config
+    foreach ($e in $parsed.Errors) { Write-Warning "Pushover config: $e" }
+    $timeout = if ($Config.timeoutSeconds -gt 0) { [int]$Config.timeoutSeconds } else { 10 }
+
+    foreach ($recipient in $parsed.Recipients.Values) {
+        $fields = @{
+            title    = 'Stagearr test'
+            message  = "This is a test message for <b>$(ConvertTo-SAHtmlSafe -Text $recipient.Name)</b>, who receives <b>$($recipient.Notify)</b> messages."
+            html     = 1
+        }
+        $result = Send-SAPushoverMessage -AppToken ([string]$Config.appToken) -UserKey $recipient.Key -Fields $fields -TimeoutSeconds $timeout
+        [PSCustomObject]@{ Name = $recipient.Name; Success = $result.Success; Error = $result.Error }
+    }
+}
+
+#endregion

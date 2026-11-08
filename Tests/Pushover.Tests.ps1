@@ -416,3 +416,165 @@ Describe 'New-SAPushoverMessage' {
         }
     }
 }
+
+Describe 'Pushover config sync' {
+    It 'round-trips recipients and routes through the TOML writer' {
+        $sample = Join-Path $PSScriptRoot '..' 'config-sample.toml'
+        InModuleScope 'Stagearr.Core' -Parameters @{ Sample = $sample } {
+            param($Sample)
+            $text = "[notifications.pushover]`nenabled = true`nrecipients = [`"me|uAAA|all`", `"partner|uBBB|success`"]`nroutes = [`"tv,movie|me,partner`", `"*|me`"]`n"
+            $first = ConvertFrom-SAToml -Content $text
+            $second = ConvertFrom-SAToml -Content (ConvertTo-SAToml -Config $first -SamplePath $Sample)
+            $p = ConvertFrom-SAPushoverConfig -Config $second.notifications.pushover
+            $p.Recipients.Keys | Should -Be @('me', 'partner')
+            $p.Routes | Should -HaveCount 2
+            $p.Errors | Should -BeNullOrEmpty
+        }
+    }
+}
+
+Describe 'Send-SAPushoverMessage' {
+
+    It 'posts a form body with token, user and fields' {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAWebRequest { [pscustomobject]@{ Success = $true; StatusCode = 200; Data = @{ status = 1 }; RawContent = '{"status":1}' } }
+        $r = InModuleScope 'Stagearr.Core' {
+            Send-SAPushoverMessage -AppToken 'aTOKEN' -UserKey 'uKEY' -Fields @{ title = 'T & T'; message = '<b>x</b>'; html = 1 } -TimeoutSeconds 7
+        }
+        $r.Success | Should -BeTrue
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAWebRequest -Times 1 -ParameterFilter {
+            $Method -eq 'POST' -and $ContentType -eq 'application/x-www-form-urlencoded' -and $TimeoutSeconds -eq 7 -and $MaxRetries -eq 1 -and
+            $Body -match '(^|&)token=aTOKEN(&|$)' -and $Body -match '(^|&)user=uKEY(&|$)' -and
+            $Body -match 'title=T%20%26%20T' -and $Body -match 'message=%3Cb%3Ex%3C%2Fb%3E' -and $Body -match 'html=1'
+        }
+    }
+
+    It 'returns the Pushover error text without the token or key' {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAWebRequest { [pscustomobject]@{ Success = $false; StatusCode = 400; ErrorMessage = 'HTTP 400'; RawContent = '{"user":"uKEY","errors":["user identifier is not a valid user, group, or subscribed user key"],"status":0}' } }
+        $r = InModuleScope 'Stagearr.Core' {
+            Send-SAPushoverMessage -AppToken 'aTOKEN' -UserKey 'uKEY' -Fields @{ message = 'x' } -TimeoutSeconds 5
+        }
+        $r.Success | Should -BeFalse
+        $r.StatusCode | Should -Be 400
+        $r.Error | Should -Match 'not a valid user'
+        $r.Error | Should -Not -Match 'uKEY|aTOKEN'
+    }
+
+    It 'returns a failure instead of throwing' {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAWebRequest { throw 'network down for aTOKEN' }
+        $r = InModuleScope 'Stagearr.Core' {
+            Send-SAPushoverMessage -AppToken 'aTOKEN' -UserKey 'uKEY' -Fields @{ message = 'x' } -TimeoutSeconds 5
+        }
+        $r.Success | Should -BeFalse
+        $r.Error | Should -Not -Match 'aTOKEN'
+    }
+}
+
+Describe 'Invoke-SAPushoverNotify' {
+
+    BeforeEach {
+        $script:ctx = @{
+            Config = @{
+                labels = @{ tv = 'tv'; tvLabels = @(); movie = 'movie'; movieLabels = @() }
+                notifications = @{ pushover = @{
+                    enabled = $true; appToken = 'aTOKEN'; timeoutSeconds = 5; sound = ''; failureSound = 'falling'
+                    recipients = @('me|uME|all', 'partner|uPARTNER|success')
+                    routes = @('tv|me,partner')
+                } }
+            }
+            Flags = @{ NoMail = $false }
+            State = @{ StagingPath = 'C:\Done\TV\Show' }
+        }
+        $script:sentTo = [System.Collections.Generic.List[string]]::new()
+        Mock -ModuleName 'Stagearr.Core' Write-SAOutcome {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAVerbose {}
+        Mock -ModuleName 'Stagearr.Core' Add-SAEmailException {}
+        Mock -ModuleName 'Stagearr.Core' Send-SAPushoverMessage { [pscustomobject]@{ Success = $true; StatusCode = 200; Error = '' } }
+        InModuleScope 'Stagearr.Core' {
+            $script:SAEmailSummary = @{
+                Name = 'Show S01'; Label = 'tv'; ImportTarget = 'Sonarr'; Subtitles = @('English'); MissingLangs = @()
+                Exceptions = @(); IsPassthrough = $false; Duration = '01:00'; VideoCount = 1; VideoSize = '1 GB'
+                FailureError = ''; ReleaseInfo = $null; OmdbData = $null; ArrLink = $null
+            }
+        }
+        $script:ok = [pscustomobject]@{ Success = $true; ImportedCount = 1 }
+    }
+
+    It 'sends one message per recipient on a successful import' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; I = $script:ok } { param($X, $I) Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { $UserKey -eq 'uME' -and $AppToken -eq 'aTOKEN' -and $Fields.html -eq 1 }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { $UserKey -eq 'uPARTNER' -and $Fields.title -like '*Ready to watch*' }
+        Should -Invoke -ModuleName 'Stagearr.Core' Write-SAOutcome -Times 1 -ParameterFilter { $Level -eq 'Success' -and $Label -eq 'Pushover' -and $Text -eq 'Sent to me, partner' }
+    }
+
+    It 'sends a failed job only to the all recipient' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx } { param($X) Invoke-SAPushoverNotify -Context $X -JobSuccess $false -ImportResult $null }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { $UserKey -eq 'uME' }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 0 -ParameterFilter { $UserKey -eq 'uPARTNER' }
+    }
+
+    It 'still sends to the next recipient after one is rejected, and reports it without keys' {
+        Mock -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -ParameterFilter { $UserKey -eq 'uME' } { [pscustomobject]@{ Success = $false; StatusCode = 400; Error = 'user key is invalid' } }
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; I = $script:ok } { param($X, $I) Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { $UserKey -eq 'uPARTNER' }
+        Should -Invoke -ModuleName 'Stagearr.Core' Write-SAOutcome -Times 1 -ParameterFilter { $Level -eq 'Skip' -and $Text -match 'me' -and $Text -match 'user key is invalid' -and $Text -notmatch 'uME|aTOKEN' }
+        Should -Invoke -ModuleName 'Stagearr.Core' Add-SAEmailException -Times 0
+    }
+
+    It 'never throws when sending throws' {
+        Mock -ModuleName 'Stagearr.Core' Send-SAPushoverMessage { throw 'boom' }
+        { InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; I = $script:ok } { param($X, $I) Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult $I } } | Should -Not -Throw
+    }
+
+    It 'sends nothing with NoMail set' {
+        $script:ctx.Flags.NoMail = $true
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; I = $script:ok } { param($X, $I) Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 0
+    }
+
+    It 'sends nothing when disabled' {
+        $script:ctx.Config.notifications.pushover.enabled = $false
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; I = $script:ok } { param($X, $I) Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 0
+    }
+
+    It 'sends nothing for a label without a route' {
+        InModuleScope 'Stagearr.Core' { $script:SAEmailSummary.Label = 'software' }
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; I = $script:ok } { param($X, $I) Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 0
+        Should -Invoke -ModuleName 'Stagearr.Core' Write-SAOutcome -Times 0
+    }
+
+    It 'reports config errors in the job log without keys' {
+        $script:ctx.Config.notifications.pushover.recipients = @('me|uME|all', 'x|uX|sometimes')
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; I = $script:ok } { param($X, $I) Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { $UserKey -eq 'uME' }
+        Should -Invoke -ModuleName 'Stagearr.Core' Write-SAOutcome -Times 1 -ParameterFilter { $Level -eq 'Skip' -and $Text -match 'sometimes' -and $Text -notmatch 'uX' }
+    }
+
+    It 'stops starting sends once the time budget is used up' {
+        InModuleScope 'Stagearr.Core' { $script:SAConstants.PushoverTotalBudgetSeconds = 0 }
+        try {
+            InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; I = $script:ok } { param($X, $I) Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult $I }
+        } finally {
+            InModuleScope 'Stagearr.Core' { $script:SAConstants.PushoverTotalBudgetSeconds = 30 }
+        }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 0
+        Should -Invoke -ModuleName 'Stagearr.Core' Write-SAOutcome -Times 1 -ParameterFilter { $Level -eq 'Skip' -and $Text -match 'time' }
+    }
+
+    It 'passes the staging folder for a passthrough job' {
+        InModuleScope 'Stagearr.Core' { $script:SAEmailSummary.Label = 'tv'; $script:SAEmailSummary.IsPassthrough = $true }
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx } { param($X) Invoke-SAPushoverNotify -Context $X -JobSuccess $true -IsPassthrough $true }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -ParameterFilter { $Fields.message -match 'C:\\Done\\TV\\Show' }
+    }
+}
+
+Describe 'Test-SAPushoverConfig' {
+    It 'sends a test message to every recipient and reports each result' {
+        Mock -ModuleName 'Stagearr.Core' Send-SAPushoverMessage { [pscustomobject]@{ Success = ($UserKey -eq 'uME'); StatusCode = 200; Error = $(if ($UserKey -eq 'uME') { '' } else { 'bad key' }) } }
+        $r = @(Test-SAPushoverConfig -Config @{ enabled = $true; appToken = 'aTOKEN'; timeoutSeconds = 5; recipients = @('me|uME|all', 'partner|uP|success'); routes = @() })
+        $r | Should -HaveCount 2
+        ($r | Where-Object Name -eq 'me').Success | Should -BeTrue
+        ($r | Where-Object Name -eq 'partner').Error | Should -Be 'bad key'
+    }
+}

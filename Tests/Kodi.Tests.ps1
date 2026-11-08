@@ -1581,3 +1581,37 @@ Describe 'Kodi request timeouts' {
         }
     }
 }
+
+Describe 'Invoke-SAKodiStep result' {
+    BeforeEach {
+        $script:context = @{ Config = @{ kodi = @{ enabled = $true; host = 'h'; port = 80; pathMap = @() } }; Paths = @{ QueueRoot = 'q' } }
+        $script:import = [pscustomobject]@{ Success = $true; ImportedCount = 1; KodiTargets = @([pscustomobject]@{ RootPath = 'D:\M\A' }) }
+        Mock -ModuleName 'Stagearr.Core' Update-SAJobProgress {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAProgress {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAOutcome {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAVerbose {}
+        Mock -ModuleName 'Stagearr.Core' Add-SAEmailException {}
+    }
+
+    It 'returns <Expected> for an update with status <Status>' -ForEach @(
+        @{ Status = 'Updated'; Expected = 'Updated' }
+        @{ Status = 'Partial'; Expected = 'Partial' }
+        @{ Status = 'Skipped'; Expected = 'Skipped' }
+    ) {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate -MockWith ([scriptblock]::Create("[pscustomobject]@{ Status = '$Status'; Text = 'x'; Missing = @(); Duration = 1 }"))
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $script:import } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        $r | Should -Be $Expected
+    }
+
+    It 'returns nothing when the feature is off' {
+        $script:context.Config.kodi.enabled = $false
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $script:import } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        $r | Should -BeNullOrEmpty
+    }
+
+    It 'returns Skipped when the update throws' {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate { throw 'boom' }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $script:import } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        $r | Should -Be 'Skipped'
+    }
+}
