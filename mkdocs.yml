@@ -84,6 +84,7 @@ nav:
       - Subtitle Processing: subtitles.md
       - Importing to Radarr / Sonarr / Medusa: importing.md
       - Email Notifications: email.md
+      - Pushover Notifications: pushover.md
       - MDBList Collection Sync: mdblist.md
       - Kodi Library Updates: kodi.md
   - Configuration:

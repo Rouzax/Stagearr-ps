@@ -290,6 +290,24 @@ See [Email Notifications](email.md) for how metadata is fetched and displayed.
 
 ---
 
+## [notifications.pushover]
+
+Sends a formatted Pushover message after each job, to the people routed for its label. Disabled by default. Problems here never stop a job or change the email; the job log says what went wrong.
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `enabled` | Send Pushover messages. | `false` |
+| `appToken` | Your Pushover application token. | `""` |
+| `timeoutSeconds` | How long to wait for Pushover per message. All sends for one job together stop after 30 seconds. | `10` |
+| `sound` | Pushover sound for normal messages. Empty uses each person's default. | `""` |
+| `failureSound` | Pushover sound for failed jobs, which are also sent at high priority. | `"falling"` |
+| `recipients` | One `"name\|userOrGroupKey\|all"` or `"name\|key\|success"` string per person. `success` only gets jobs that imported something. | `[]` |
+| `routes` | One `"labels\|names"` string per route, with commas between labels or names. `tv` and `movie` also match their `[labels]` aliases; `*` covers labels no other route names. | `[]` |
+
+See [Pushover Notifications](pushover.md) for setup, routing and what each person gets.
+
+---
+
 ## [omdb]
 
 Optional OMDb API integration for fetching movie metadata (poster, plot, ratings) for email enrichment. Useful when using Medusa (which does not provide ratings) or to force OMDb for all imports.

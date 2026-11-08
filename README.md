@@ -56,6 +56,7 @@ flowchart LR
 | 📚 **MDBList Sync** | Mark imports as collected / In Library on MDBList (free account) |
 | 📺 **Kodi Updates** | Scan only the imported title in Kodi instead of the whole library |
 | 📧 **Email Notifications** | Dark-themed HTML emails with configurable subject templates |
+| 📱 **Pushover Notifications** | Formatted phone messages with poster, routed per label to the people you choose |
 | 🎬 **Metadata Enrichment** | Movie posters, IMDb/RT/Metacritic ratings in emails |
 | 📋 **Job Queue** | Persistent file-backed queue survives reboots |
 | 🔒 **Safe Processing** | Global locks, security validation, atomic operations |
@@ -225,7 +226,7 @@ Once configured, Stagearr runs automatically when torrents complete.
 | `-DownloadLabel` | Torrent label/category (e.g., TV, Movie) |
 | `-TorrentHash` | Torrent hash for better import matching |
 | `-NoCleanup` | Skip staging folder cleanup after processing |
-| `-SkipEmail` | Skip email notification |
+| `-SkipEmail` | Skip notifications (email and Pushover) |
 | `-Force` | Re-run even if job already completed/failed |
 | `-Wait` | Wait for job to complete before returning |
 | `-Status` | Show queue status, running job details, and recent history |
@@ -252,7 +253,7 @@ Once configured, Stagearr runs automatically when torrents complete.
 | Label | Behavior |
 |-------|----------|
 | `skip` / `NoProcess` | Skip processing entirely |
-| `NoMail` | Process but skip email notification |
+| `NoMail` | Process but skip notifications (email and Pushover) |
 | Unknown labels | **Passthrough mode** — extract/copy only, no video processing or import |
 
 ---
