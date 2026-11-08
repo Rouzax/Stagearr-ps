@@ -135,3 +135,94 @@ Describe 'Pushover config masking' {
         }
     }
 }
+
+Describe 'Get-SAPushoverState' {
+
+    It 'is Failed when the job failed before import' {
+        InModuleScope 'Stagearr.Core' {
+            $s = Get-SAPushoverState -JobSuccess $false -ImportResult $null
+            $s.State | Should -Be 'Failed'
+            $s.ImportedCount | Should -Be 0
+        }
+    }
+
+    It 'is Imported for a successful passthrough job' {
+        InModuleScope 'Stagearr.Core' {
+            $s = Get-SAPushoverState -JobSuccess $true -IsPassthrough $true
+            $s.State | Should -Be 'Imported'
+            $s.ImportedCount | Should -Be 1
+        }
+    }
+
+    It 'is Imported when every file imported' {
+        InModuleScope 'Stagearr.Core' {
+            $r = [PSCustomObject]@{ Success = $true; Status = $null; ImportedCount = 8; AbortedCount = 0; Skipped = $false; QualityRejected = $false }
+            $s = Get-SAPushoverState -JobSuccess $true -ImportResult $r
+            $s.State | Should -Be 'Imported'
+            $s.ImportedCount | Should -Be 8
+            $s.HasWarnings | Should -BeFalse
+        }
+    }
+
+    It 'stays Imported when other files were skipped as already in library' {
+        InModuleScope 'Stagearr.Core' {
+            $r = [PSCustomObject]@{ Success = $true; Status = $null; ImportedCount = 7; SkippedCount = 1; AbortedCount = 0; Skipped = $false; QualityRejected = $false }
+            (Get-SAPushoverState -JobSuccess $true -ImportResult $r).State | Should -Be 'Imported'
+        }
+    }
+
+    It 'is Partial when some files imported and a TBA retry is scheduled' {
+        InModuleScope 'Stagearr.Core' {
+            $r = [PSCustomObject]@{ Success = $true; Status = $null; ImportedCount = 7; AbortedCount = 0; Skipped = $false; QualityRejected = $false }
+            $s = Get-SAPushoverState -JobSuccess $true -ImportResult $r -TbaRetryScheduled $true
+            $s.State | Should -Be 'Partial'
+            $s.ImportedCount | Should -Be 7
+            $s.HasWarnings | Should -BeTrue
+        }
+    }
+
+    It 'is Partial with nothing imported when only a TBA retry is scheduled' {
+        InModuleScope 'Stagearr.Core' {
+            $r = [PSCustomObject]@{ Success = $true; ImportedCount = 0; Skipped = $true; QualityRejected = $false }
+            $s = Get-SAPushoverState -JobSuccess $true -ImportResult $r -TbaRetryScheduled $true
+            $s.State | Should -Be 'Partial'
+            $s.ImportedCount | Should -Be 0
+        }
+    }
+
+    It 'is Partial when the arr silently skipped some files' {
+        InModuleScope 'Stagearr.Core' {
+            $r = [PSCustomObject]@{ Success = $true; Status = 'partial'; ImportedCount = 5; AbortedCount = 1; Skipped = $false; QualityRejected = $false }
+            (Get-SAPushoverState -JobSuccess $true -ImportResult $r).State | Should -Be 'Partial'
+        }
+    }
+
+    It 'is NothingNew when everything was already in the library' {
+        InModuleScope 'Stagearr.Core' {
+            $r = [PSCustomObject]@{ Success = $true; ImportedFiles = @(); Skipped = $true; QualityRejected = $true }
+            (Get-SAPushoverState -JobSuccess $true -ImportResult $r).State | Should -Be 'NothingNew'
+        }
+    }
+
+    It 'is NothingNew for a superseded TBA retry' {
+        InModuleScope 'Stagearr.Core' {
+            $r = [PSCustomObject]@{ Success = $true; Skipped = $true; QualityRejected = $true; Superseded = $true; ImportedFiles = @() }
+            (Get-SAPushoverState -JobSuccess $true -ImportResult $r).State | Should -Be 'NothingNew'
+        }
+    }
+
+    It 'is Partial when a subtitle language is missing' {
+        InModuleScope 'Stagearr.Core' {
+            $r = [PSCustomObject]@{ Success = $true; ImportedCount = 1; AbortedCount = 0; Skipped = $false; QualityRejected = $false }
+            (Get-SAPushoverState -JobSuccess $true -ImportResult $r -MissingLanguages @('nl')).State | Should -Be 'Partial'
+        }
+    }
+
+    It 'counts one import for a Medusa-style result without counts' {
+        InModuleScope 'Stagearr.Core' {
+            $s = Get-SAPushoverState -JobSuccess $true -ImportResult ([PSCustomObject]@{ Success = $true })
+            $s.State | Should -Be 'Imported'
+            $s.ImportedCount | Should -Be 1
+        }
+    }
+}

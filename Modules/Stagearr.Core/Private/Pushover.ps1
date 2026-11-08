@@ -156,3 +156,86 @@ function Get-SAPushoverRecipients {
 }
 
 #endregion
+
+#region State
+
+function Get-SAPushoverState {
+    <#
+    .SYNOPSIS
+        Classifies a finished job for Pushover. Pure function.
+    .DESCRIPTION
+        Get-SAEmailResultLevel cannot be reused: it reports a quality skip and a scheduled
+        TBA retry as Success, while here a success recipient must only hear about jobs that
+        imported something, and an "all" recipient must see the retry.
+
+        States: Imported, Partial (imported with warnings, or nothing yet and a TBA retry
+        scheduled), NothingNew (already in the library), Failed.
+    .PARAMETER JobSuccess
+        Overall job success.
+    .PARAMETER ImportResult
+        Result from Invoke-SAImport, or $null.
+    .PARAMETER MissingLanguages
+        Wanted subtitle languages that were not found.
+    .PARAMETER TbaRetryScheduled
+        Whether a TBA retry was queued for this job.
+    .PARAMETER IsPassthrough
+        Whether the job ran in passthrough mode (no import).
+    .OUTPUTS
+        PSCustomObject with State, ImportedCount and HasWarnings.
+    #>
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [bool]$JobSuccess,
+
+        [Parameter()]
+        [AllowNull()]
+        [object]$ImportResult,
+
+        [Parameter()]
+        [AllowNull()]
+        [array]$MissingLanguages,
+
+        [Parameter()]
+        [bool]$TbaRetryScheduled = $false,
+
+        [Parameter()]
+        [bool]$IsPassthrough = $false
+    )
+
+    $result = { param($State, $Count, $Warn) [PSCustomObject]@{ State = $State; ImportedCount = [int]$Count; HasWarnings = [bool]$Warn } }
+
+    if (-not $JobSuccess) {
+        return & $result 'Failed' 0 $true
+    }
+    if ($IsPassthrough) {
+        return & $result 'Imported' 1 $false
+    }
+
+    $count = 0
+    if ($null -ne $ImportResult) {
+        if ($ImportResult.PSObject.Properties['ImportedCount'] -and $null -ne $ImportResult.ImportedCount) {
+            $count = [int]$ImportResult.ImportedCount
+        } elseif ($ImportResult.Success -eq $true -and $ImportResult.Skipped -ne $true -and $ImportResult.QualityRejected -ne $true) {
+            # Medusa and older results carry no count; a plain success imported something
+            $count = 1
+        }
+    }
+
+    if ($count -eq 0) {
+        if ($TbaRetryScheduled) {
+            return & $result 'Partial' 0 $true
+        }
+        return & $result 'NothingNew' 0 $false
+    }
+
+    $aborted = $null -ne $ImportResult -and $ImportResult.Status -eq 'partial' -and $ImportResult.AbortedCount -gt 0
+    $missing = $null -ne $MissingLanguages -and @($MissingLanguages).Count -gt 0
+    if ($aborted -or $TbaRetryScheduled -or $missing) {
+        return & $result 'Partial' $count $true
+    }
+    return & $result 'Imported' $count $false
+}
+
+#endregion
