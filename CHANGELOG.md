@@ -6,8 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.14.1] - 2026-11-08
+
 ### Fixes
 - **A TBA retry waits until Sonarr will accept the episode.** Sonarr accepts a TBA title 48 hours after the episode airs, counted from the air date in its own database. The retry was timed 49 hours after the download, so a release that came out before its broadcast date was retried too early, rejected again, and dropped. The retry is now timed 49 hours after the latest air date of the episodes, at most 7 days away; without an air date it still runs 49 hours later.
+
+### Changed
+- **Kodi setup keeps Radarr and Sonarr scanning for renames and deletes.** The [Kodi Library Updates](https://rouzax.github.io/Stagearr-ps/docs/kodi/) page and the `[kodi]` comment in `config-sample.toml` no longer say to untick Update Library and Clean Library. Leave them on and untick only the import triggers (On File Import, and On Import Complete and On Series Add in Sonarr), so renamed and deleted files still reach Kodi.
 
 ## [2.14.0] - 2026-11-07
 
