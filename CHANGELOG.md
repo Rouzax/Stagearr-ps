@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixes
+- **A TBA retry waits until Sonarr will accept the episode.** Sonarr accepts a TBA title 48 hours after the episode airs, counted from the air date in its own database. The retry was timed 49 hours after the download, so a release that came out before its broadcast date was retried too early, rejected again, and dropped. The retry is now timed 49 hours after the latest air date of the episodes, at most 7 days away; without an air date it still runs 49 hours later.
+
 ## [2.14.0] - 2026-11-07
 
 ### Added

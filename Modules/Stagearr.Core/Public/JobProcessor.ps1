@@ -341,6 +341,52 @@ function Test-SATbaRetryNeeded {
     return $true
 }
 
+function Get-SATbaRetryAfter {
+    <#
+    .SYNOPSIS
+        Works out when a TBA-rejected import should be retried.
+    .DESCRIPTION
+        Pure function - no I/O. Sonarr accepts a TBA title once the episode aired
+        more than 48 hours ago, counted from the air date in its own database, not
+        from when the file arrived. A release that is out before its broadcast date
+        is still inside that window 48 hours after download, so the retry is timed
+        from the latest air date plus TbaRetryDelayHours, capped at
+        TbaRetryMaxDelayDays from now. Without an air date, or when that time has
+        already passed, it falls back to TbaRetryDelayHours from now.
+    .PARAMETER Now
+        The current local time.
+    .PARAMETER LatestAirDateUtc
+        Latest air date of the rejected episodes (UTC), or $null.
+    .OUTPUTS
+        Local DateTime.
+    #>
+    [CmdletBinding()]
+    [OutputType([datetime])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [datetime]$Now,
+
+        [Parameter()]
+        [AllowNull()]
+        [Nullable[datetime]]$LatestAirDateUtc
+    )
+
+    $delayHours = $script:SAConstants.TbaRetryDelayHours
+    $fallback = $Now.AddHours($delayHours)
+    if ($null -eq $LatestAirDateUtc) { return $fallback }
+
+    # PowerShell hands a Nullable[datetime] over as a plain DateTime, so there is no .Value
+    [datetime]$air = $LatestAirDateUtc
+    $airUtc = if ($air.Kind -eq [DateTimeKind]::Local) { $air.ToUniversalTime() }
+              else { [datetime]::SpecifyKind($air, [DateTimeKind]::Utc) }
+    $candidate = $airUtc.ToLocalTime().AddHours($delayHours)
+    if ($candidate -le $Now) { return $fallback }
+
+    $latestAllowed = $Now.AddDays($script:SAConstants.TbaRetryMaxDelayDays)
+    if ($candidate -gt $latestAllowed) { return $latestAllowed }
+    return $candidate
+}
+
 function Test-SATbaRetryMode {
     <#
     .SYNOPSIS
@@ -945,7 +991,7 @@ function Invoke-SAStandardJob {
     $tbaRetryScheduled = $false
     $tbaRetryAfter = $null
     if (Test-SATbaRetryNeeded -ImportResult $importResult -Job $Job) {
-        $tbaRetryAfter = (Get-Date).AddHours($script:SAConstants.TbaRetryDelayHours)
+        $tbaRetryAfter = Get-SATbaRetryAfter -Now (Get-Date) -LatestAirDateUtc $importResult.LatestAirDateUtc
 
         $retryParams = @{
             QueueRoot     = $Context.Paths.QueueRoot

@@ -113,7 +113,7 @@ For Sonarr imports, if an episode title is still TBA in the database, Sonarr rej
 
 1. Attempts a metadata refresh on the series to pull in any updated titles
 2. Re-scans after the refresh
-3. If still TBA, schedules an automatic retry approximately 49 hours later (staged files are kept until the retry runs)
+3. If still TBA, schedules an automatic retry 49 hours after the episode's air date in Sonarr, because Sonarr accepts a TBA title 48 hours after the episode airs. A release that comes out before its broadcast date therefore waits longer. Without an air date the retry runs 49 hours later, and it never waits more than 7 days. Staged files are kept until the retry runs.
 
 The email for the original job shows "Pending retry". The retry email shows the final import result. If a better release of the same episodes was imported while the retry waited, the retry ends with "Already in library at equal or better quality" and removes the staged files, without a warning.
 

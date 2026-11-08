@@ -42,8 +42,14 @@ $script:SAConstants = @{
     # How long to wait for series metadata refresh before giving up (minutes)
     TbaRefreshTimeoutMinutes = 2
 
-    # How long to wait before retrying a TBA-rejected import (hours); 49 keeps us past Sonarr's 48h TBA window
+    # How long to wait before retrying a TBA-rejected import (hours). Sonarr accepts a TBA
+    # title once the episode aired more than 48h ago, so the retry is timed from the air date;
+    # 49 leaves an hour of margin. Without an air date it is timed from now.
     TbaRetryDelayHours = 49
+
+    # Upper bound on that wait (days), so a far-future air date in Sonarr cannot hold the
+    # staged files for months
+    TbaRetryMaxDelayDays = 7
 
     #endregion
     

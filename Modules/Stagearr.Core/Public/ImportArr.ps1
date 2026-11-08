@@ -582,16 +582,18 @@ function Invoke-SAArrImport {
             $isQualityRejected = ($errorType -eq 'quality')
 
             return [PSCustomObject]@{
-                Success         = $true  # Skip is not an error
-                Message         = $rejectionSummary.Message
-                Duration        = (& $getDuration)
-                ImportedFiles   = @()
-                SkippedFiles    = $skippedFilePaths
-                SkippedCount    = $rejectionSummary.RejectedCount
-                ArrMetadata     = $arrMetadata
-                Skipped         = $true
-                QualityRejected = $isQualityRejected
-                ErrorType       = $errorType
+                Success          = $true  # Skip is not an error
+                Message          = $rejectionSummary.Message
+                Duration         = (& $getDuration)
+                ImportedFiles    = @()
+                SkippedFiles     = $skippedFilePaths
+                SkippedCount     = $rejectionSummary.RejectedCount
+                ArrMetadata      = $arrMetadata
+                Skipped          = $true
+                QualityRejected  = $isQualityRejected
+                ErrorType        = $errorType
+                # Sonarr's TBA window runs from the air date, so the retry is timed from it
+                LatestAirDateUtc = Get-SALatestEpisodeAirDate -ScanResults $scanItems
             }
         }
     }
