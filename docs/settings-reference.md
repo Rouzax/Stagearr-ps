@@ -302,6 +302,7 @@ Sends a formatted Pushover message after each job, to the people routed for its 
 | `sound` | Pushover sound for normal messages. Empty uses each person's default. | `""` |
 | `failureSound` | Pushover sound for failed jobs, which are also sent at high priority. | `"falling"` |
 | `poster` | Attach the OMDb poster as the message image. Turn off for text-only messages. Needs OMDb with its poster enabled. | `true` |
+| `plot` | Show a short plot above the details: from OMDb, or from Radarr or Sonarr when OMDb has none. Independent of `[omdb.display] plot`, which only controls the email. | `true` |
 | `recipients` | One `"name\|userOrGroupKey\|all"` or `"name\|key\|success"` string per person. `success` only gets jobs that imported something. | `[]` |
 | `routes` | One `"labels\|names"` string per route, with commas between labels or names. `tv` and `movie` also match their `[labels]` aliases; `*` covers labels no other route names. | `[]` |
 
@@ -331,7 +332,7 @@ Get a free API key (1,000 requests/day) at [omdbapi.com](https://www.omdbapi.com
 
 | Key | Description | Default |
 |-----|-------------|---------|
-| `plot` | Include the plot synopsis in the email. | `false` |
+| `plot` | Include the plot synopsis in the email. Pushover has its own `plot` setting under [`[notifications.pushover]`](#notificationspushover). | `false` |
 | `plotMaxLength` | Maximum character length of the plot text before truncation. | `150` |
 
 ---

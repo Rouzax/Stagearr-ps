@@ -118,7 +118,7 @@ Describe 'Get-SAOmdbMetadata' {
                 }
 
                 $config = @{ enabled = $true; apiKey = 'test-key'; poster = @{ enabled = $false }; display = @{ plot = $false } }
-                $result = Get-SAOmdbMetadata -Title 'ONE PIECE' -Type 'series' -Config $config
+                $null = Get-SAOmdbMetadata -Title 'ONE PIECE' -Type 'series' -Config $config
 
                 $script:CapturedUri | Should -Match 't=ONE'
                 $script:CapturedUri | Should -Not -Match 'i='
@@ -215,6 +215,32 @@ Describe 'Get-SAOmdbMetadata' {
 
                 $script:CapturedUri | Should -Match 'type=movie'
             }
+        }
+    }
+}
+
+Describe 'Get-SAOmdbMetadata plot for notifications' {
+    It 'keeps the plot, shortened, with IncludePlot even when display.plot is off' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Write-SAVerbose {}
+            Mock Invoke-SAOmdbRequest {
+                [PSCustomObject]@{ Response = 'True'; Title = 'X'; Year = '2024'; imdbID = 'tt1'; Plot = ('A ' * 120); Poster = 'N/A'; Type = 'movie'; Ratings = @() }
+            }
+            $config = @{ enabled = $true; apiKey = 'k'; poster = @{ enabled = $false }; display = @{ plot = $false; plotMaxLength = 50 } }
+            $r = Get-SAOmdbMetadata -ImdbId 'tt1' -Config $config -IncludePlot
+            $r.Plot | Should -Match '^A A'
+            $r.Plot.Length | Should -BeLessOrEqual 50
+        }
+    }
+
+    It 'still drops the plot without IncludePlot when display.plot is off' {
+        InModuleScope 'Stagearr.Core' {
+            Mock Write-SAVerbose {}
+            Mock Invoke-SAOmdbRequest {
+                [PSCustomObject]@{ Response = 'True'; Title = 'X'; Year = '2024'; imdbID = 'tt1'; Plot = 'Short plot'; Poster = 'N/A'; Type = 'movie'; Ratings = @() }
+            }
+            $config = @{ enabled = $true; apiKey = 'k'; poster = @{ enabled = $false }; display = @{ plot = $false } }
+            (Get-SAOmdbMetadata -ImdbId 'tt1' -Config $config).Plot | Should -BeNullOrEmpty
         }
     }
 }

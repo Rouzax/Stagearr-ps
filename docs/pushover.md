@@ -16,7 +16,7 @@ It also lets you share notifications in a household: TV and movies to everyone, 
 
 - **A Pushover account** for each person who should get messages, with the Pushover app on their phone. Each account has a **user key**, shown on the Pushover dashboard after you log in.
 - **An application token.** On pushover.net, choose **Create an Application/API Token**, name it Stagearr, and copy the token. One token covers all messages.
-- **Optional: OMDb.** The poster and IMDb rating come from [OMDb](settings-reference.md#omdb), the same data the email uses. Without it, messages have no poster or rating. The plot also needs `plot = true` under [`[omdb.display]`](settings-reference.md#omdbdisplay), which adds it to the email too.
+- **Optional: OMDb.** The poster, IMDb rating and plot come from [OMDb](settings-reference.md#omdb), the same service the email uses. Without it, messages have no poster or rating, and the plot comes from Radarr or Sonarr instead.
 
 Pushover's free plan allows 10,000 messages a month per account, far more than Stagearr sends.
 
@@ -106,7 +106,7 @@ The title gives the state and the name, for example `✅ Imported · Lanterns S0
 
 For TV and movies, in this order, each line only when the data is there:
 
-- The plot, from OMDb, when `[omdb.display] plot` is on.
+- The plot, unless `plot = false`: OMDb's short plot, or the Radarr or Sonarr overview when OMDb has none, shortened to `plotMaxLength` under [`[omdb.display]`](settings-reference.md#omdbdisplay) (150 characters by default). This is separate from the email, which shows a plot only when `[omdb.display] plot` is on.
 - **Status:** what was imported, such as `Imported S01E01-E03 to Sonarr`. For more than three episodes it shows the count, as the email does. A very long error is shortened.
 - **Already in library**, when some files were skipped because the library already had them.
 - **Quality**, **Subtitles**, and **IMDb** with the rating as a link to the IMDb page and the genres.

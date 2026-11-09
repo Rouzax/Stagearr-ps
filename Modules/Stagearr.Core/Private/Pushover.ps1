@@ -297,6 +297,9 @@ function New-SAPushoverMessage {
         The [notifications.pushover] hashtable, for sounds and the poster switch.
     .PARAMETER FolderPath
         Where a passthrough job put its files.
+    .PARAMETER Plot
+        Plot text for TV and movie jobs. Passed separately from the summary because the
+        email only carries a plot when [omdb.display] plot is on.
     .OUTPUTS
         Hashtable of Pushover message fields, or $null when this audience gets nothing.
     #>
@@ -330,7 +333,12 @@ function New-SAPushoverMessage {
 
         [Parameter()]
         [AllowEmptyString()]
-        [string]$FolderPath = ''
+        [string]$FolderPath = '',
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$Plot = ''
     )
 
     $state = $StateInfo.State
@@ -389,7 +397,7 @@ function New-SAPushoverMessage {
         if ($FolderPath -and $state -ne 'Failed') { $lines.Add("<b>Folder:</b> $(& $h $FolderPath)") }
         if ($Summary.Duration) { $lines.Add("<b>Took:</b> $(& $h $Summary.Duration)") }
     } else {
-        if ($omdb -and $omdb.Plot) { $plotLine = "<i>$(& $h $omdb.Plot)</i>" }
+        if ($Plot -and $PushoverConfig.plot -ne $false) { $plotLine = "<i>$(& $h $Plot)</i>" }
 
         $status = switch ($state) {
             'Failed' {
@@ -619,6 +627,8 @@ function Invoke-SAPushoverNotify {
         Whether the job ran in passthrough mode.
     .PARAMETER KodiStatus
         Return value of Invoke-SAKodiStep.
+    .PARAMETER Plot
+        Plot text for the message, chosen by the pipeline.
     #>
     [CmdletBinding()]
     param(
@@ -645,7 +655,12 @@ function Invoke-SAPushoverNotify {
         [Parameter()]
         [AllowEmptyString()]
         [AllowNull()]
-        [string]$KodiStatus = ''
+        [string]$KodiStatus = '',
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$Plot = ''
     )
 
     try {
@@ -682,7 +697,7 @@ function Invoke-SAPushoverNotify {
         foreach ($audience in @('all', 'success')) {
             $messages[$audience] = New-SAPushoverMessage -Summary $summary -StateInfo $stateInfo -Audience $audience `
                 -ImportResult $ImportResult -KodiStatus $KodiStatus -FinishedAt (Get-Date) `
-                -PushoverConfig $poConfig -FolderPath $folder
+                -PushoverConfig $poConfig -FolderPath $folder -Plot $Plot
         }
 
         $sent = [System.Collections.Generic.List[string]]::new()

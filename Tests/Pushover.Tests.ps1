@@ -246,7 +246,6 @@ Describe 'New-SAPushoverMessage' {
                 FailureError  = ''
                 ReleaseInfo   = [PSCustomObject]@{ QualityDisplay = '2160p WEB-DL HBO Max' }
                 OmdbData      = @{
-                    Plot       = 'Two Green Lantern officers investigate.'
                     ImdbId     = 'tt26545992'
                     ImdbRating = '7.8'
                     Genre      = 'Action, Crime'
@@ -268,7 +267,7 @@ Describe 'New-SAPushoverMessage' {
     It 'builds the full message for an all recipient' {
         InModuleScope 'Stagearr.Core' -Parameters @{ S = (& $script:newSummary); St = $script:imported; R = $script:importResult; C = $script:poConfig; T = $script:at } {
             param($S, $St, $R, $C, $T)
-            $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -ImportResult $R -KodiStatus 'Updated' -FinishedAt $T -PushoverConfig $C
+            $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -ImportResult $R -KodiStatus 'Updated' -FinishedAt $T -PushoverConfig $C -Plot 'Two Green Lantern officers investigate.'
             $m.title | Should -Be '✅ Imported · Lanterns S01'
             $m.html | Should -Be 1
             $m.priority | Should -Be 0
@@ -353,11 +352,10 @@ Describe 'New-SAPushoverMessage' {
 
     It 'escapes text taken from names, plot and warnings' {
         $sum = & $script:newSummary @{ Name = 'A<B & "C"'; Exceptions = @([PSCustomObject]@{ Message = 'bad <tag>'; Type = 'Warning' }) }
-        $sum.OmdbData.Plot = 'x < y & z'
         $st = [PSCustomObject]@{ State = 'Partial'; ImportedCount = 1; HasWarnings = $true }
         InModuleScope 'Stagearr.Core' -Parameters @{ S = $sum; St = $st; C = $script:poConfig; T = $script:at } {
             param($S, $St, $C, $T)
-            $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt $T -PushoverConfig $C
+            $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt $T -PushoverConfig $C -Plot 'x < y & z'
             $m.title | Should -Be '⚠️ Partly imported · A<B & "C"'
             $m.message | Should -Match 'x &lt; y &amp; z'
             $m.message | Should -Match 'bad &lt;tag&gt;'
@@ -368,11 +366,10 @@ Describe 'New-SAPushoverMessage' {
     It 'keeps a long message under the limit, dropping the plot first and leaving tags balanced' {
         $warnings = @(1..30 | ForEach-Object { [PSCustomObject]@{ Message = "Warning number $_ with some extra words to take room"; Type = 'Warning' } })
         $sum = & $script:newSummary @{ Exceptions = $warnings }
-        $sum.OmdbData.Plot = 'p' * 3000
         $st = [PSCustomObject]@{ State = 'Partial'; ImportedCount = 1; HasWarnings = $true }
         InModuleScope 'Stagearr.Core' -Parameters @{ S = $sum; St = $st; C = $script:poConfig; T = $script:at } {
             param($S, $St, $C, $T)
-            $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt $T -PushoverConfig $C
+            $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt $T -PushoverConfig $C -Plot ('p' * 3000)
             $m.message.Length | Should -BeLessOrEqual 1024
             $m.message | Should -Not -Match 'ppppp'
             $m.message | Should -Match '<b>Status:</b>'
@@ -781,5 +778,57 @@ Describe 'Pushover poster setting' {
 
     It 'has poster on by default' {
         InModuleScope 'Stagearr.Core' { $script:SAConfigDefaults.notifications.pushover.poster | Should -BeTrue }
+    }
+}
+
+Describe 'Pushover plot setting' {
+    BeforeAll {
+        $script:plotSummary = @{ Name = 'Show S01'; ImportTarget = 'Sonarr'; Subtitles = @(); MissingLangs = @(); Exceptions = @()
+            IsPassthrough = $false; FailureError = ''; ReleaseInfo = $null; ArrLink = $null
+            OmdbData = @{ Plot = 'Email plot' } }
+        $script:plotState = [PSCustomObject]@{ State = 'Imported'; ImportedCount = 1; HasWarnings = $false; AlreadyInLibrary = 0 }
+    }
+
+    It 'shows the plot it is given, not the email plot' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ S = $script:plotSummary; St = $script:plotState } {
+            param($S, $St)
+            $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt (Get-Date) -PushoverConfig @{} -Plot 'Two officers investigate.'
+            $m.message | Should -Match '^<i>Two officers investigate\.</i>'
+            $m.message | Should -Not -Match 'Email plot'
+        }
+    }
+
+    It 'leaves the plot out when plot is false' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ S = $script:plotSummary; St = $script:plotState } {
+            param($S, $St)
+            $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt (Get-Date) -PushoverConfig @{ plot = $false } -Plot 'Two officers investigate.'
+            $m.message | Should -Not -Match 'officers'
+        }
+    }
+
+    It 'has plot on by default' {
+        InModuleScope 'Stagearr.Core' { $script:SAConfigDefaults.notifications.pushover.plot | Should -BeTrue }
+    }
+
+    It 'passes the plot from the pipeline to the message' {
+        Mock -ModuleName 'Stagearr.Core' Write-SAOutcome {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAVerbose {}
+        Mock -ModuleName 'Stagearr.Core' Send-SAPushoverMessage { [pscustomobject]@{ Success = $true; StatusCode = 200; Error = '' } }
+        Mock -ModuleName 'Stagearr.Core' New-SAPushoverMessage { @{ message = 'x' } }
+        $ctx = @{
+            Config = @{
+                labels = @{ tv = 'tv'; tvLabels = @(); movie = 'movie'; movieLabels = @() }
+                notifications = @{ pushover = @{ enabled = $true; appToken = 'aTOKEN'; recipients = @('me|uME|all'); routes = @('tv|me') } }
+            }
+            Flags = @{ NoMail = $false }
+            State = @{}
+        }
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $ctx; S = $script:plotSummary } {
+            param($X, $S)
+            $script:SAEmailSummary = $S.Clone()
+            $script:SAEmailSummary.Label = 'tv'
+            Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult ([pscustomobject]@{ Success = $true; ImportedCount = 1 }) -Plot 'Pipeline plot'
+        }
+        Should -Invoke -ModuleName 'Stagearr.Core' New-SAPushoverMessage -ParameterFilter { $Plot -eq 'Pipeline plot' } -Times 2 -Exactly
     }
 }

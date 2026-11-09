@@ -873,9 +873,11 @@ function Invoke-SAStandardJob {
 
     # Query OMDb - uses *arr IMDB ID for exact lookup, or falls back to title search
     if (Test-SAFeatureEnabled -Feature 'omdb' -Config $Context.Config) {
+        $poConfig = $Context.Config.notifications.pushover
         $omdbParams = @{
-            Config = $Context.Config.omdb
-            Type   = $omdbType
+            Config      = $Context.Config.omdb
+            Type        = $omdbType
+            IncludePlot = [bool]($poConfig -and $poConfig.enabled -eq $true -and $poConfig.plot -ne $false)
         }
         if ($Context.State.ArrImdbId) {
             # Tier 1: Exact IMDB ID lookup (most reliable)
@@ -1043,6 +1045,12 @@ function Invoke-SAStandardJob {
     $cachedOmdb = $Context.State.OmdbData  # From early pipeline query (may be null)
     $arrMetadata = if ($null -ne $importResult) { $importResult.ArrMetadata } else { $null }
 
+    # Pushover shows a plot by its own setting, independent of the email's metadata
+    # source. Taken before the email merge below, which shares and clears these objects.
+    $notifyPlot = if ($cachedOmdb -and $cachedOmdb.Plot) { [string]$cachedOmdb.Plot }
+                  elseif ($arrMetadata -and $arrMetadata.Plot) { [string]$arrMetadata.Plot }
+                  else { '' }
+
     if ($metadataSourceConfig -eq 'none') {
         Write-SAVerbose -Text "Email metadata: Disabled (metadata.source = none)"
     } elseif ($metadataSourceConfig -eq 'omdb') {
@@ -1076,17 +1084,17 @@ function Invoke-SAStandardJob {
         } else {
             Write-SAVerbose -Text "Email metadata: Using ArrMetadata (no OMDb available)"
         }
-
-        # Respect display.plot config
-        if ($Context.Config.omdb.display.plot -ne $true) {
-            $omdbData.Plot = $null
-        }
     } elseif ($null -ne $cachedOmdb) {
         # No *arr metadata, use OMDb directly
         $omdbData = $cachedOmdb
         Write-SAVerbose -Text "Email metadata: Using OMDb (no ArrMetadata available)"
     } else {
         Write-SAVerbose -Text "Email metadata: None available"
+    }
+
+    # The email shows a plot only with [omdb.display] plot, whichever source supplied it
+    if ($null -ne $omdbData -and $Context.Config.omdb.display.plot -ne $true) {
+        $omdbData.Plot = $null
     }
     
     # Step 4: Finalize (Cleanup, Log, Email)
@@ -1290,7 +1298,7 @@ function Invoke-SAStandardJob {
 
     # Before the log is saved, so its result line is in the job log
     Invoke-SAPushoverNotify -Context $Context -JobSuccess $jobSuccess -ImportResult $importResult `
-        -MissingLanguages $missingLangs -TbaRetryScheduled $tbaRetryScheduled -KodiStatus $kodiStatus
+        -MissingLanguages $missingLangs -TbaRetryScheduled $tbaRetryScheduled -KodiStatus $kodiStatus -Plot $notifyPlot
 
     # Step 6: Save file log and set path in email
     $logPath = Get-SAContextLogPath -Context $Context

@@ -94,4 +94,41 @@ Describe 'Pushover in the job pipeline' {
             $JobSuccess -eq $true -and $KodiStatus -eq 'Updated' -and $ImportResult.ImportedCount -eq 1 -and $TbaRetryScheduled -eq $false
         }
     }
+
+    Context 'plot for Pushover' {
+        BeforeEach {
+            $script:ctx.Config.omdb = @{ enabled = $true; display = @{ plot = $false } }
+            Mock -ModuleName 'Stagearr.Core' Invoke-SAVideoProcessing { [pscustomobject]@{ Success = $true; ProcessedFiles = @(); TotalSize = 0 } }
+            Mock -ModuleName 'Stagearr.Core' Invoke-SASubtitleProcessing { $null }
+            Mock -ModuleName 'Stagearr.Core' Invoke-SAImport {
+                [pscustomobject]@{ Success = $true; ImportedCount = 1; ImportedFiles = @(); SkippedFiles = @(); Skipped = $false; QualityRejected = $false; Message = 'Imported'
+                    ArrMetadata = @{ Plot = 'Arr overview' } }
+            }
+            Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiStep {}
+            Mock -ModuleName 'Stagearr.Core' Invoke-SAMDBListCollect { $null }
+        }
+
+        It 'uses the Radarr/Sonarr overview without OMDb, and keeps it out of the email' {
+            $null = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAStandardJob -Context $X -Job $J }
+            Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify -Times 1 -ParameterFilter { $Plot -eq 'Arr overview' }
+            InModuleScope 'Stagearr.Core' { $script:SAEmailSummary.OmdbData.Plot | Should -BeNullOrEmpty }
+        }
+
+        It 'prefers the OMDb plot and asks OMDb for it when Pushover shows plots' {
+            Mock -ModuleName 'Stagearr.Core' Test-SAFeatureEnabled { $Feature -eq 'omdb' }
+            Mock -ModuleName 'Stagearr.Core' Get-SAOmdbMetadata { @{ Plot = 'OMDb plot' } }
+            $null = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAStandardJob -Context $X -Job $J }
+            Should -Invoke -ModuleName 'Stagearr.Core' Get-SAOmdbMetadata -Times 1 -ParameterFilter { $IncludePlot -eq $true }
+            Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAPushoverNotify -Times 1 -ParameterFilter { $Plot -eq 'OMDb plot' }
+            InModuleScope 'Stagearr.Core' { $script:SAEmailSummary.OmdbData.Plot | Should -BeNullOrEmpty }
+        }
+
+        It 'does not ask OMDb for a plot when plot is false' {
+            $script:ctx.Config.notifications.pushover.plot = $false
+            Mock -ModuleName 'Stagearr.Core' Test-SAFeatureEnabled { $Feature -eq 'omdb' }
+            Mock -ModuleName 'Stagearr.Core' Get-SAOmdbMetadata { @{ Plot = $null } }
+            $null = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAStandardJob -Context $X -Job $J }
+            Should -Invoke -ModuleName 'Stagearr.Core' Get-SAOmdbMetadata -Times 1 -ParameterFilter { -not $IncludePlot }
+        }
+    }
 }

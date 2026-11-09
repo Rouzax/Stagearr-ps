@@ -138,6 +138,7 @@ $script:SAConfigDefaults = @{
             sound          = ''
             failureSound   = 'falling'
             poster         = $true
+            plot           = $true
             recipients     = @()
             routes         = @()
         }

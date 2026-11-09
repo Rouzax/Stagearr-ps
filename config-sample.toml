@@ -161,6 +161,7 @@ timeoutSeconds = 10
 sound = "" # empty = your Pushover default sound
 failureSound = "falling"
 poster = true # attach the OMDb poster as the message image
+plot = true # short plot above the details (OMDb, else Radarr/Sonarr); independent of [omdb.display] plot
 # name|userOrGroupKey|all or success. "success" = only when something new was imported.
 recipients = []
 # labels|recipients. "tv" and "movie" also match their [labels] aliases.
