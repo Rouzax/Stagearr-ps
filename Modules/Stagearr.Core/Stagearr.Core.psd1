@@ -1,7 +1,7 @@
 @{
     # Module identification
     RootModule        = 'Stagearr.Core.psm1'
-    ModuleVersion     = '2.14.1'
+    ModuleVersion     = '2.15.0'
     GUID              = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
     Author            = 'Rouzax'
     Description       = 'Core module for Stagearr - qBittorrent post-processing automation'
