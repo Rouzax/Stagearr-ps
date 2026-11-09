@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-11-09
+
 ### Added
 - **Pushover notifications.** Stagearr can send a formatted Pushover message when a job finishes: the state, a short plot (optional, from OMDb or else Radarr/Sonarr, independent of the email's plot setting), what was imported, quality, subtitles, IMDb rating with a link, the Kodi result, the poster (optional), and a button to open the title in Radarr or Sonarr. Routes send each download label to the people you choose, with a catch-all for labels you did not list. Each person gets either every message or only jobs that imported something, without warnings. Failures are sent at high priority with their own sound. Pushover problems never fail a job. Off by default; see [Pushover Notifications](https://rouzax.github.io/Stagearr-ps/docs/pushover/).
 
