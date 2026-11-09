@@ -109,6 +109,7 @@
         # --- Notifications ---
         'Send-SAEmail'
         'Test-SAEmailConfig'
+        'Test-SAPushoverConfig'
     )
     
     # Private data

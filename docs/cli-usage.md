@@ -31,7 +31,7 @@ Adds a job to the queue and starts processing. This is the mode qBittorrent uses
 | `-DownloadLabel` | string | Torrent label/category (e.g., `TV`, `Movie`). Maps to content type via [label config](labels.md). Defaults to `NoLabel` if omitted or blank. |
 | `-TorrentHash` | string | Torrent info hash. Used for import matching and duplicate detection. |
 | `-NoCleanup` | switch | Keep the staging folder after processing instead of deleting it. Useful for debugging. |
-| `-SkipEmail` | switch | Skip email notification for this job. Also accepted as `-NoMail`. |
+| `-SkipEmail` | switch | Skip notifications for this job: no email and no [Pushover](pushover.md) message. Also accepted as `-NoMail`. |
 | `-Force` | switch | Re-run a job that already exists in completed or failed state. Without this flag, duplicate jobs are silently skipped. |
 | `-Wait` | switch | Wait for the global lock if another instance is currently processing. Without this, the script exits immediately if the lock is held (the job is still queued and will be picked up by the active worker). Useful for manual runs when you want to see console output. |
 

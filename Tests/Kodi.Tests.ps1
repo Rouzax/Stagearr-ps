@@ -1,3 +1,10 @@
+﻿# The fake Kodi and clock are globals because the mock bodies that read them run in the
+# module's scope, where the test file's script scope is not visible.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '', Justification = 'Shared with mock bodies that run in module scope')]
+# InModuleScope parameters are consumed inside mock and assertion scriptblocks, which the rule does not follow.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '', Justification = 'Used inside nested scriptblocks')]
+param()
+
 BeforeAll {
     Import-Module "$PSScriptRoot/../Modules/Stagearr.Core/Stagearr.Core.psd1" -Force
 }
@@ -1049,7 +1056,7 @@ Describe 'Invoke-SAKodiUpdate retries' {
         InModuleScope 'Stagearr.Core' { Reset-SAKodiBreaker }
         Mock -ModuleName 'Stagearr.Core' Get-SAKodiBudgetSeconds { 4 }
         $global:FakeKodi.Calls.Clear()
-        $r = Invoke-Update -Targets @($script:other) -Root $script:root
+        $null = Invoke-Update -Targets @($script:other) -Root $script:root
         @($global:FakeKodi.Calls | Where-Object Method -EQ 'VideoLibrary.Scan').Params.directory | Should -Not -Contain 'smb://S/Data/Movies/Film (2020)/'
         Get-PendingRoots -Root $script:root | Should -Be $script:movie.RootPath
     }
@@ -1579,5 +1586,51 @@ Describe 'Kodi request timeouts' {
             @(Test-SAKodiConfig -Config @{ kodi = @{ host = 'h'; port = 80; pathMap = @() } }) | Should -HaveCount 0
             @(Test-SAKodiConfig -Config @{ kodi = @{ host = 'h'; port = 80; pathMap = @(); timeoutSeconds = 5 } }) | Should -HaveCount 0
         }
+    }
+}
+
+Describe 'Invoke-SAKodiStep result' {
+    BeforeEach {
+        $script:context = @{ Config = @{ kodi = @{ enabled = $true; host = 'h'; port = 80; pathMap = @() } }; Paths = @{ QueueRoot = 'q' } }
+        $script:import = [pscustomobject]@{ Success = $true; ImportedCount = 1; KodiTargets = @([pscustomobject]@{ RootPath = 'D:\M\A' }) }
+        Mock -ModuleName 'Stagearr.Core' Update-SAJobProgress {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAProgress {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAOutcome {}
+        Mock -ModuleName 'Stagearr.Core' Write-SAVerbose {}
+        Mock -ModuleName 'Stagearr.Core' Add-SAEmailException {}
+    }
+
+    It 'returns <Expected> for an update with status <Status>' -ForEach @(
+        @{ Status = 'Updated'; Expected = 'Updated' }
+        @{ Status = 'Partial'; Expected = 'Partial' }
+        @{ Status = 'Skipped'; Expected = 'Skipped' }
+    ) {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate -MockWith ([scriptblock]::Create("[pscustomobject]@{ Status = '$Status'; Text = 'x'; Missing = @(); Duration = 1 }"))
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $script:import } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        $r | Should -Be $Expected
+    }
+
+    It 'returns nothing when the feature is off' {
+        $script:context.Config.kodi.enabled = $false
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $script:import } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        $r | Should -BeNullOrEmpty
+    }
+
+    It 'returns nothing when it only caught up on titles from earlier jobs' {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate { [pscustomobject]@{ Status = 'Updated'; Text = 'Caught up'; Missing = @(); Duration = 1 } }
+        $root = Join-Path $TestDrive 'caughtup'
+        $null = New-Item -ItemType Directory -Path (Join-Path $root 'kodi' 'h_80')
+        Set-Content -Path (Join-Path $root 'kodi' 'h_80' 'kodi-pending.json') -Value '[{"RootPath":"D:\\M\\A","Title":"A","MediaType":"movie","Verified":true,"Episodes":[],"AddedAt":"2026-11-07T00:00:00.0000000Z"}]'
+        $script:context.Paths.QueueRoot = $root
+        $none = [pscustomobject]@{ Success = $true; Skipped = $true }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $none } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate -Times 1
+        $r | Should -BeNullOrEmpty
+    }
+
+    It 'returns Skipped when the update throws' {
+        Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiUpdate { throw 'boom' }
+        $r = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:context; I = $script:import } { param($X, $I) Invoke-SAKodiStep -Context $X -JobId '1' -ImportResult $I }
+        $r | Should -Be 'Skipped'
     }
 }

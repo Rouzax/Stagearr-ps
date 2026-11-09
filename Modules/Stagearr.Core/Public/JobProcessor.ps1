@@ -642,6 +642,9 @@ function Invoke-SAPassthroughJob {
         Add-SAEmailException -Message $passthroughResult.Reason -Type Error
     }
     
+    # Before the log is saved, so its result line is in the job log
+    Invoke-SAPushoverNotify -Context $Context -JobSuccess $passthroughSuccess -IsPassthrough $true
+
     # Save file log and set path in email
     $logPath = Get-SAContextLogPath -Context $Context
     Save-SAFileLog -Path $logPath
@@ -788,6 +791,7 @@ function Invoke-SAStandardJob {
 
         # Set up email notification for the security block
         Set-SAEmailSummary -Name $displayName `
+            -Label $Job.input.downloadLabel `
             -Result 'Blocked' `
             -ImportTarget $arrAppType `
             -FailurePhase 'Security' `
@@ -799,6 +803,9 @@ function Invoke-SAStandardJob {
             $securityMsg += " - blocklisted in $arrAppType"
         }
         Add-SAEmailException -Message $securityMsg -Type Error
+
+        # Before the log is saved, so its result line is in the job log
+        Invoke-SAPushoverNotify -Context $Context -JobSuccess $false
 
         # Save log and send notification
         $logPath = Get-SAContextLogPath -Context $Context
@@ -829,19 +836,23 @@ function Invoke-SAStandardJob {
             Update-SAJobProgress -QueueRoot $Context.Paths.QueueRoot -JobId $Job.id -Phase 'Finalize' -Activity 'Cleaning up...'
             Write-SAPhaseHeader -Title "Finalize"
 
+            # Set outside the email check: Pushover reads the same summary
+            $earlyFriendlyName = if ($releaseInfo -and $releaseInfo.FriendlyName) { $releaseInfo.FriendlyName } else { $displayName }
+            Set-SAEmailSummary -Name $earlyFriendlyName -SourceName $displayName `
+                -Label $Job.input.downloadLabel -Result 'Failed' `
+                -Duration '00:00' -FailurePhase 'Import' `
+                -FailureError 'TBA retry failed: source files no longer available'
+            Add-SAEmailException -Message "Use -Rerun to retry manually if files become available" -Type Warning
+
+            # Before the log is saved, so its result line is in the job log
+            Invoke-SAPushoverNotify -Context $Context -JobSuccess $false
+
             $logPath = Get-SAContextLogPath -Context $Context
             Save-SAFileLog -Path $logPath
             Set-SAEmailLogPath -Path $logPath
             Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
 
             if (-not $Context.Flags.NoMail -and $Context.Config.notifications.email.enabled) {
-                $earlyFriendlyName = if ($releaseInfo -and $releaseInfo.FriendlyName) { $releaseInfo.FriendlyName } else { $displayName }
-                Set-SAEmailSummary -Name $earlyFriendlyName -SourceName $displayName `
-                    -Label $Job.input.downloadLabel -Result 'Failed' `
-                    -Duration '00:00' -FailurePhase 'Import' `
-                    -FailureError 'TBA retry failed: source files no longer available'
-                Add-SAEmailException -Message "Use -Rerun to retry manually if files become available" -Type Warning
-
                 $title = "$($Job.input.downloadLabel) - $displayName"
                 $emailBody = ConvertTo-SAEmailHtml -Title $title
                 $emailSubject = Get-SAEmailSubject -Result 'Failed'
@@ -862,9 +873,11 @@ function Invoke-SAStandardJob {
 
     # Query OMDb - uses *arr IMDB ID for exact lookup, or falls back to title search
     if (Test-SAFeatureEnabled -Feature 'omdb' -Config $Context.Config) {
+        $poConfig = $Context.Config.notifications.pushover
         $omdbParams = @{
-            Config = $Context.Config.omdb
-            Type   = $omdbType
+            Config      = $Context.Config.omdb
+            Type        = $omdbType
+            IncludePlot = [bool]($poConfig -and $poConfig.enabled -eq $true -and $poConfig.plot -ne $false)
         }
         if ($Context.State.ArrImdbId) {
             # Tier 1: Exact IMDB ID lookup (most reliable)
@@ -985,7 +998,7 @@ function Invoke-SAStandardJob {
     }
 
     # Kodi library update (best-effort, non-fatal)
-    Invoke-SAKodiStep -Context $Context -JobId $Job.id -ImportResult $importResult
+    $kodiStatus = Invoke-SAKodiStep -Context $Context -JobId $Job.id -ImportResult $importResult
 
     # TBA auto-retry: schedule a retry job if import was skipped due to TBA title
     $tbaRetryScheduled = $false
@@ -1032,6 +1045,12 @@ function Invoke-SAStandardJob {
     $cachedOmdb = $Context.State.OmdbData  # From early pipeline query (may be null)
     $arrMetadata = if ($null -ne $importResult) { $importResult.ArrMetadata } else { $null }
 
+    # Pushover shows a plot by its own setting, independent of the email's metadata
+    # source. Taken before the email merge below, which shares and clears these objects.
+    $notifyPlot = if ($cachedOmdb -and $cachedOmdb.Plot) { [string]$cachedOmdb.Plot }
+                  elseif ($arrMetadata -and $arrMetadata.Plot) { [string]$arrMetadata.Plot }
+                  else { '' }
+
     if ($metadataSourceConfig -eq 'none') {
         Write-SAVerbose -Text "Email metadata: Disabled (metadata.source = none)"
     } elseif ($metadataSourceConfig -eq 'omdb') {
@@ -1065,17 +1084,17 @@ function Invoke-SAStandardJob {
         } else {
             Write-SAVerbose -Text "Email metadata: Using ArrMetadata (no OMDb available)"
         }
-
-        # Respect display.plot config
-        if ($Context.Config.omdb.display.plot -ne $true) {
-            $omdbData.Plot = $null
-        }
     } elseif ($null -ne $cachedOmdb) {
         # No *arr metadata, use OMDb directly
         $omdbData = $cachedOmdb
         Write-SAVerbose -Text "Email metadata: Using OMDb (no ArrMetadata available)"
     } else {
         Write-SAVerbose -Text "Email metadata: None available"
+    }
+
+    # The email shows a plot only with [omdb.display] plot, whichever source supplied it
+    if ($null -ne $omdbData -and $Context.Config.omdb.display.plot -ne $true) {
+        $omdbData.Plot = $null
     }
     
     # Step 4: Finalize (Cleanup, Log, Email)
@@ -1276,6 +1295,10 @@ function Invoke-SAStandardJob {
             -RetryAfter $tbaRetryAfter -ImportTarget $importTarget `
             -IsTbaRetry $isTbaRetry
     }
+
+    # Before the log is saved, so its result line is in the job log
+    Invoke-SAPushoverNotify -Context $Context -JobSuccess $jobSuccess -ImportResult $importResult `
+        -MissingLanguages $missingLangs -TbaRetryScheduled $tbaRetryScheduled -KodiStatus $kodiStatus -Plot $notifyPlot
 
     # Step 6: Save file log and set path in email
     $logPath = Get-SAContextLogPath -Context $Context

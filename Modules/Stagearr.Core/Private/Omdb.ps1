@@ -384,6 +384,9 @@ function Get-SAOmdbMetadata {
         - poster.enabled: Whether to download poster (default: true)
         - display.plot: Whether to include plot (default: false)
         - display.plotMaxLength: Max plot length (default: 150)
+    .PARAMETER IncludePlot
+        Keep the plot even when display.plot is off, for a notification channel that
+        shows it on its own terms. The caller then removes it from the email itself.
     .OUTPUTS
         Hashtable with metadata, or $null on failure.
     .EXAMPLE
@@ -408,7 +411,10 @@ function Get-SAOmdbMetadata {
         [string]$Type = 'movie',
 
         [Parameter()]
-        [hashtable]$Config
+        [hashtable]$Config,
+
+        [Parameter()]
+        [switch]$IncludePlot
     )
     
     # Validate config
@@ -432,6 +438,7 @@ function Get-SAOmdbMetadata {
     $timeoutSeconds = if ($Config.timeoutSeconds -gt 0) { $Config.timeoutSeconds } else { 5 }
     $posterEnabled = if ($null -ne $Config.poster -and $null -ne $Config.poster.enabled) { $Config.poster.enabled } else { $true }
     $plotEnabled = if ($null -ne $Config.display -and $null -ne $Config.display.plot) { $Config.display.plot } else { $false }
+    $plotEnabled = $plotEnabled -or $IncludePlot
     $plotMaxLength = if ($null -ne $Config.display -and $Config.display.plotMaxLength -gt 0) { $Config.display.plotMaxLength } else { 150 }
     
     # Validate: need at least ImdbId or Title

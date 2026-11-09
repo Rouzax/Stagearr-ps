@@ -29,7 +29,7 @@
     Skip staging folder cleanup after processing.
     
 .PARAMETER NoMail
-    Skip email notification for this job.
+    Skip notifications (email and Pushover) for this job.
     
 .PARAMETER Force
     Force re-run of a job even if it already exists (completed or failed).
@@ -99,6 +99,12 @@
     External Tools: WinRAR, MKVToolNix, SubtitleEdit
 #>
 
+# These switches only select a parameter set; the script dispatches on $PSCmdlet.ParameterSetName
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Status', Justification = 'Selects the Status parameter set')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'SyncConfig', Justification = 'Selects the SyncConfig parameter set')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Setup', Justification = 'Selects the Setup parameter set')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Update', Justification = 'Selects the Update parameter set')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Rerun', Justification = 'Selects the Rerun parameter set')]
 [CmdletBinding(DefaultParameterSetName = 'Enqueue')]
 param(
     [Parameter(ParameterSetName = 'Enqueue', Position = 0)]
@@ -312,7 +318,7 @@ switch ($PSCmdlet.ParameterSetName) {
                         }
                         Write-SAKeyValue -Key "Elapsed" -Value $elapsedStr
                     } catch {
-                        # Skip elapsed if timestamp can't be parsed
+                        Write-Verbose "Elapsed time skipped: timestamp could not be parsed"
                     }
                 }
 
@@ -375,7 +381,7 @@ switch ($PSCmdlet.ParameterSetName) {
                             [System.Globalization.DateTimeStyles]::RoundtripKind
                         )
                         $finishTime = $updatedDt.ToLocalTime().ToString('HH:mm')
-                    } catch { }
+                    } catch { Write-Verbose "Finish time skipped: timestamp could not be parsed" }
                 }
 
                 $parts = @($label)
@@ -404,7 +410,7 @@ switch ($PSCmdlet.ParameterSetName) {
                             [System.Globalization.DateTimeStyles]::RoundtripKind
                         )
                         $finishTime = $completedDt.ToLocalTime().ToString('HH:mm')
-                    } catch { }
+                    } catch { Write-Verbose "Finish time skipped: timestamp could not be parsed" }
                 }
                 if ([string]::IsNullOrWhiteSpace($finishTime) -and $job.updatedAt) {
                     try {
@@ -414,7 +420,7 @@ switch ($PSCmdlet.ParameterSetName) {
                             [System.Globalization.DateTimeStyles]::RoundtripKind
                         )
                         $finishTime = $updatedDt.ToLocalTime().ToString('HH:mm')
-                    } catch { }
+                    } catch { Write-Verbose "Finish time skipped: timestamp could not be parsed" }
                 }
 
                 $parts = @($label)
@@ -469,7 +475,7 @@ switch ($PSCmdlet.ParameterSetName) {
             exit 0
         }
         
-        # Check if label should skip email
+        # The NoMail label skips all notifications for the job
         if ($DownloadLabel -eq 'NoMail') {
             $SkipEmail = $true
         }

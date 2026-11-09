@@ -382,6 +382,9 @@ function Invoke-SAWebRequest {
             
         } catch {
             $lastError = $_.Exception.Message
+            # PowerShell 7 puts the error response body here, not on the exception, so APIs
+            # that explain a 4xx in their body (Pushover's "errors") can still be read
+            $errorBody = if ($_.ErrorDetails) { $_.ErrorDetails.Message } else { $null }
             
             # PowerShell 7 uses HttpRequestException - try to extract status code from message
             # Format: "Response status code does not indicate success: 401 (Unauthorized)."
@@ -391,7 +394,7 @@ function Invoke-SAWebRequest {
             
             # Don't retry auth errors (401, 403) - use helper function
             if ($null -ne $lastStatusCode -and (Test-SAHttpStatusAuthError -StatusCode $lastStatusCode)) {
-                return New-SAHttpResult -Success $false -StatusCode $lastStatusCode -ErrorMessage $lastError
+                return New-SAHttpResult -Success $false -StatusCode $lastStatusCode -ErrorMessage $lastError -RawContent $errorBody
             }
             
             # Retry on transient/network errors (but not auth errors)
@@ -402,7 +405,7 @@ function Invoke-SAWebRequest {
                 continue
             }
             
-            return New-SAHttpResult -Success $false -StatusCode $lastStatusCode -ErrorMessage $lastError
+            return New-SAHttpResult -Success $false -StatusCode $lastStatusCode -ErrorMessage $lastError -RawContent $errorBody
         }
     }
     

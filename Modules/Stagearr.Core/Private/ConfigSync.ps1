@@ -14,7 +14,8 @@ function Format-SAConfigValuePreview {
         Formats a config value for sync output, hiding secrets. Pure function.
     .DESCRIPTION
         Extra keys are often typos, so a secret can sit under an unexpected name. Everything
-        under [kodi] is masked for that reason, alongside anything named like a secret.
+        under [kodi] and [notifications.pushover] (user keys sit inside its recipients
+        strings) is masked for that reason, alongside anything named like a secret.
     .PARAMETER Path
         Dotted config path.
     .PARAMETER Value
@@ -38,7 +39,7 @@ function Format-SAConfigValuePreview {
         [switch]$Full
     )
 
-    if ($Path -match '^kodi\.|(password|passwd|apikey|api_key|secret|token)$') {
+    if ($Path -match '^(kodi|notifications\.pushover)\.|(password|passwd|apikey|api_key|secret|token)$') {
         return '***'
     }
     if ($Value -is [hashtable] -or $Value -is [PSCustomObject]) {

@@ -169,7 +169,7 @@ See [Subtitle Processing](subtitles.md) for a full explanation of extraction, st
 - Check `smtp.server` and `smtp.port` in `config.toml`.
 - For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833) rather than your regular account password.
 - Port 465 (implicit SSL) requires the [Mailozaurr](https://github.com/EvotecIT/Mailozaurr) module. Without it, use port 587 (STARTTLS).
-- To test a run without sending email, add `-SkipEmail` (also aliased as `-NoMail`):
+- To test a run without sending email or Pushover messages, add `-SkipEmail` (also aliased as `-NoMail`):
 
 ```powershell
 .\Stagearr.ps1 -DownloadPath "C:\Downloads\Movie" -DownloadLabel "Movie" -SkipEmail

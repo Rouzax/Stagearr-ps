@@ -1327,8 +1327,13 @@ function Invoke-SAKodiStep {
         Job id, for progress reporting.
     .PARAMETER ImportResult
         Result object from Invoke-SAImport.
+    .OUTPUTS
+        'Updated', 'Partial' or 'Skipped' for the Pushover message, or nothing when the
+        step did not run, had nothing to report, or only worked on titles from earlier jobs
+        (that result says nothing about this job's title).
     #>
     [CmdletBinding()]
+    [OutputType([string])]
     param(
         [Parameter(Mandatory = $true)]
         [object]$Context,
@@ -1400,10 +1405,12 @@ function Invoke-SAKodiStep {
                 if ($kodiResult.Notes) {
                     Add-SAEmailException -Message "Kodi: $($kodiResult.Notes)" -Type Info
                 }
+                if ($needed) { return 'Updated' }
             }
             'Partial' {
                 Write-SAOutcome -Level Warning -Label 'Kodi' -Text 'Not everything reached Kodi' -Duration $kodiResult.Duration -Indent 1
                 Add-SAEmailException -Message "Kodi: $($kodiResult.Text)" -Type Warning
+                if ($needed) { return 'Partial' }
             }
             'Idle' {
                 Write-SAVerbose -Text 'Kodi: nothing to report'
@@ -1411,12 +1418,14 @@ function Invoke-SAKodiStep {
             default {
                 Write-SAOutcome -Level Skip -Label 'Kodi' -Text 'Not scanned' -Indent 1
                 Add-SAEmailException -Message "Kodi: $($kodiResult.Text)" -Type Info
+                if ($needed) { return 'Skipped' }
             }
         }
     } catch {
         Write-SAVerbose -Text "Kodi step failed: $($_.Exception.Message)"
         Write-SAOutcome -Level Skip -Label 'Kodi' -Text 'Not scanned' -Indent 1
         Add-SAEmailException -Message 'Kodi: update failed, so the title stays out of Kodi until a scan runs' -Type Info
+        if ($needed) { return 'Skipped' }
     }
 }
 

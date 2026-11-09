@@ -41,6 +41,7 @@ $PrivateLoadOrder = @(
     'Omdb.ps1'                    # OMDb API client (metadata, poster download)
     'MDBList.ps1'                 # MDBList collection sync client (depends on Http)
     'Kodi.ps1'                    # Targeted Kodi library updates (depends on Http)
+    'Pushover.ps1'                # Pushover notifications (depends on Http, email summary helpers)
     'Toml.ps1'                    # TOML parser and writer (load before Config)
     'ConfigSync.ps1'              # Config sync detection and merge (load before Config)
     'Config.ps1'                  # Configuration loader (depends on ConfigSync for schema validation)

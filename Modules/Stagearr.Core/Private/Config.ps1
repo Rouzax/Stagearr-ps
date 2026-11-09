@@ -131,6 +131,17 @@ $script:SAConfigDefaults = @{
                 }
             }
         }
+        pushover = @{
+            enabled        = $false
+            appToken       = ''
+            timeoutSeconds = 10
+            sound          = ''
+            failureSound   = 'falling'
+            poster         = $true
+            plot           = $true
+            recipients     = @()
+            routes         = @()
+        }
     }
     omdb = @{
         enabled        = $false
