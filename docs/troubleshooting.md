@@ -309,7 +309,7 @@ See [Re-running Jobs](rerun.md) for full details, including cross-server path tr
 .\Stagearr.ps1 -Update
 ```
 
-This checks GitHub for a new release and applies it. Your `config.toml`, queue data, and log files are not touched: the release ZIP contains only the runtime files (`Stagearr.ps1`, `Modules/`, `config-sample.toml`, `LICENSE`, `README.md`).
+This checks GitHub for a new release and applies it. Your `config.toml`, queue data, and log files are not touched: the release ZIP contains only the runtime files (`Stagearr.ps1`, `Modules/`, `config-sample.toml`, `LICENSE`, `README.md`, and the icons in `Assets/`).
 
 After updating, check whether new configuration keys were added:
 

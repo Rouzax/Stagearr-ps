@@ -75,7 +75,7 @@ updater:
    aborted and nothing is written to disk.
 4. Extracts the ZIP to a temporary directory (extraction only happens after verification passes).
 5. Applies the update atomically: for each top-level item in the release (`Stagearr.ps1`,
-   `Modules/`, `config-sample.toml`, `LICENSE`, `README.md`), the new content is staged into a
+   `Modules/`, `config-sample.toml`, `LICENSE`, `README.md`, `Assets/`), the new content is staged into a
    temporary sibling path, the existing item is moved aside to a backup, and then the new content
    is swapped into place. If anything fails partway (disk full, locked file, interrupted run), all
    already-swapped items are restored from their backups, leaving the previous working install

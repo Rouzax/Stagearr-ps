@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **Stagearr has an icon.** A violet S logo in a light and a dark version now appears on the docs site, the landing page, and the README, along with a favicon and a GitHub social preview banner.
+- **Icons ship with the release.** The release ZIP has a new `Assets/` folder with PNG icons: `pushover-128.png` for the Pushover application icon (see [Pushover Notifications](https://rouzax.github.io/Stagearr-ps/docs/pushover/)), and 512 px light and dark versions for dashboards. Self-update keeps this folder in sync like the other release files.
+
 ## [2.15.0] - 2026-11-09
 
 ### Added

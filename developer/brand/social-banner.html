@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!--
+  Source of docs/assets/brand/social-banner.png (GitHub social preview, 1280x640).
+  Render with headless Chrome from the repo root:
+    google-chrome --headless=new --hide-scrollbars --window-size=1280,640 \
+      --screenshot=docs/assets/brand/social-banner.png developer/brand/social-banner.html
+  GitHub crops the edges in some views, so keep content inside the 40 px safe margin.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0F172A; --card: #1E293B; --border: #334155;
+    --text: #F8FAFC; --muted: #94A3B8; --violet: #7C3AED; --violet-light: #A78BFA;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 640px; overflow: hidden; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif; color: var(--text);
+    background:
+      radial-gradient(ellipse 700px 460px at 24% 50%, rgba(124, 58, 237, 0.28), transparent 70%),
+      radial-gradient(ellipse 600px 400px at 85% 90%, rgba(167, 139, 250, 0.10), transparent 70%),
+      var(--bg);
+    display: flex; align-items: center; gap: 64px; padding: 0 96px;
+  }
+  .mark { width: 300px; height: 300px; flex: none; filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.45)); }
+  .copy { display: flex; flex-direction: column; gap: 18px; }
+  h1 { font-size: 112px; font-weight: 800; letter-spacing: -0.035em; line-height: 1; }
+  h1 span { color: var(--violet-light); }
+  .tagline { font-size: 34px; font-weight: 600; color: var(--text); }
+  .sub { font-size: 24px; font-weight: 500; color: var(--muted); }
+  .pipeline { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+  .pill { background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 8px 18px; font-size: 20px; font-weight: 600; color: var(--text); }
+  .pill.end { border-color: var(--violet); color: var(--violet-light); }
+  .arrow { color: var(--violet-light); font-size: 22px; }
+</style>
+</head>
+<body>
+  <img class="mark" src="../../docs/assets/brand/stagearr-dark.svg" alt="">
+  <div class="copy">
+    <h1>Stage<span>arr</span></h1>
+    <p class="tagline">Torrent completes → library ready</p>
+    <p class="sub">Automated post-processing for qBittorrent</p>
+    <div class="pipeline">
+      <span class="pill">Extract</span><span class="arrow">→</span>
+      <span class="pill">Remux</span><span class="arrow">→</span>
+      <span class="pill">Subtitles</span><span class="arrow">→</span>
+      <span class="pill">Import</span><span class="arrow">→</span>
+      <span class="pill end">Notify</span>
+    </div>
+  </div>
+</body>
+</html>

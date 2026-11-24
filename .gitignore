@@ -31,5 +31,5 @@ CLAUDE.md
 _temp/
 TODO.md
 
-# MkDocs build output
+# Docs build output (site_dir in mkdocs.yml)
 build/

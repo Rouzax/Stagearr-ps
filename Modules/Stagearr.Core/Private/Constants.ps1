@@ -219,7 +219,7 @@ $script:SAConstants = @{
     # linger. Entries NOT listed here (config.toml, queueRoot/, logArchive/,
     # stagingRoot/, .git, etc.) are user data and never touched.
     # Keep in sync with the ZIP allowlist in .github/workflows/release.yml.
-    UpdateManagedEntries = @('Stagearr.ps1', 'Modules', 'config-sample.toml', 'LICENSE', 'README.md')
+    UpdateManagedEntries = @('Stagearr.ps1', 'Modules', 'config-sample.toml', 'LICENSE', 'README.md', 'Assets')
 
     #endregion
 }

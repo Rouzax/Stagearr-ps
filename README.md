@@ -3,11 +3,18 @@
   <img src="https://img.shields.io/badge/Platform-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows">
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License">
   <img src="https://img.shields.io/badge/Version-2.15.0-blue?style=for-the-badge" alt="Version 2.15.0">
-  <a href="https://rouzax.github.io/Stagearr-ps/docs/"><img src="https://img.shields.io/badge/Docs-MkDocs-526CFE?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation"></a>
+  <a href="https://rouzax.github.io/Stagearr-ps/docs/"><img src="https://img.shields.io/badge/Docs-Zensical-7C3AED?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Documentation"></a>
   <a href="https://ko-fi.com/O0W221GBUG"><img src="https://img.shields.io/badge/Ko--fi-Support-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>
 
-<h1 align="center">🎬 Stagearr-ps</h1>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/stagearr-dark.svg">
+    <img src="docs/assets/brand/stagearr-light.svg" alt="Stagearr logo" width="128" height="128">
+  </picture>
+</p>
+
+<h1 align="center">Stagearr-ps</h1>
 
 <p align="center">
   <strong>Automated Media Processing Pipeline for qBittorrent</strong>

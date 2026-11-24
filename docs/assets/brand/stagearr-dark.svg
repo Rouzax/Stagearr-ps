@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Stagearr">
+  <circle cx="50" cy="50" r="47" fill="#7C3AED"/>
+  <circle cx="50" cy="50" r="41" fill="#2B2F3A"/>
+  <g transform="translate(10 10) scale(0.8)">
+    <path fill="#FFFFFF" d="M40 20H74L81 26L74 32H40A10 10 0 0 0 40 52H60A6 6 0 0 1 60 64H40A22 22 0 0 1 40 20Z"/>
+    <path fill="#8B5CF6" d="M60 80H26L19 74L26 68H60A10 10 0 0 0 60 48H40A6 6 0 0 1 40 36H60A22 22 0 0 1 60 80Z"/>
+  </g>
+</svg>
