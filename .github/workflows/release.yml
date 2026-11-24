@@ -19,14 +19,14 @@ jobs:
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Build release ZIP
+        # The top-level entries staged here must match UpdateManagedEntries in
+        # Modules/Stagearr.Core/Private/Constants.ps1 (Tests/Release.Tests.ps1 checks this).
         run: |
-          mkdir -p build
-          zip -r "build/Stagearr-v${{ steps.version.outputs.version }}.zip" \
-            Stagearr.ps1 \
-            Modules/ \
-            config-sample.toml \
-            LICENSE \
-            README.md
+          stage=build/stage
+          mkdir -p "$stage/Assets"
+          cp -r Stagearr.ps1 Modules config-sample.toml LICENSE README.md "$stage/"
+          cp docs/assets/brand/pushover-128.png docs/assets/brand/stagearr-light-512.png docs/assets/brand/stagearr-dark-512.png "$stage/Assets/"
+          (cd "$stage" && zip -r "../Stagearr-v${{ steps.version.outputs.version }}.zip" .)
 
       - name: Generate checksums
         working-directory: build
