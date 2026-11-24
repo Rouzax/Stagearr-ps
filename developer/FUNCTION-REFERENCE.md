@@ -602,7 +602,7 @@ The import result includes rich metadata for email enrichment:
 |----------|---------|------|
 | `Send-SAEmail` | Send HTML email with optional inline image attachments | Notification.ps1 |
 | `Test-SAEmailConfig` | Send test email | Notification.ps1 |
-| `Test-SAPushoverConfig` | Send a test Pushover message to every recipient; returns Name, Success, Error each | Pushover.ps1 |
+| `Test-SAPushoverConfig` | Send a test Pushover message, with the configured `sound`, to every recipient; returns Name, Success, Error each | Pushover.ps1 |
 | `Get-SAEmailInlineImages` | Extract inline images from OmdbData for email | EmailHelpers.ps1 |
 
 ### State Management

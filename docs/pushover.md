@@ -49,7 +49,7 @@ $config = Read-SAConfig -Path .\config.toml
 Test-SAPushoverConfig -Config $config.notifications.pushover
 ```
 
-Every recipient gets a message called "Stagearr test", and the command lists each name with `Success` true or the error Pushover gave.
+Every recipient gets a message called "Stagearr test", played with your `sound` setting, and the command lists each name with `Success` true or the error Pushover gave.
 
 **3. Let a job come through** and check that the message arrives. The job log shows `Pushover: Sent to me, partner`.
 
@@ -137,6 +137,7 @@ The `NoMail` label and the `-SkipEmail` switch (also accepted as `-NoMail`) sile
 | `... monthly message limit reached` | The Pushover account used its monthly quota | Wait for the next month or upgrade the plan. |
 | `config: recipient 'x' does not end in all or success`, `config: routes entry 2 names a recipient that is not in recipients` | A typo in `recipients` or `routes`. The message names the entry by position, and never repeats what you typed in case it is a key. | Fix the entry the message points to. |
 | `... out of time` | Pushover did not answer, and all sends for one job share 30 seconds | Nothing; later jobs send as normal. Lower `timeoutSeconds` if this happens often. |
+| A message plays a different sound than `sound` or `failureSound` | The job started before you changed the setting: a job reads `config.toml` once, when it starts | The job log's verbose lines show `Pushover: state Imported, sound none` with the sound that was sent. Later jobs use the new setting. A message with nothing new to report plays no sound at all, whatever the setting. |
 | Partner never gets messages | Their filter is `success` and the jobs imported nothing new, or they are not in the route for that label | Check `routes` and the table above. |
 
 A Pushover problem never fails a job and never turns the email amber; it only adds the line in the job log.

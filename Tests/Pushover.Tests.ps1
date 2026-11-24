@@ -502,6 +502,17 @@ Describe 'Invoke-SAPushoverNotify' {
         Should -Invoke -ModuleName 'Stagearr.Core' Write-SAOutcome -Times 1 -ParameterFilter { $Level -eq 'Success' -and $Label -eq 'Pushover' -and $Text -eq 'Sent to me, partner' }
     }
 
+    It 'logs the state and sound each job message is sent with' {
+        $script:ctx.Config.notifications.pushover.sound = 'none'
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; I = $script:ok } { param($X, $I) Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Write-SAVerbose -Times 1 -ParameterFilter { $Text -eq 'Pushover: state Imported, sound none' }
+    }
+
+    It 'logs the default sound when none is configured' {
+        InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; I = $script:ok } { param($X, $I) Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult $I }
+        Should -Invoke -ModuleName 'Stagearr.Core' Write-SAVerbose -Times 1 -ParameterFilter { $Text -eq 'Pushover: state Imported, sound default' }
+    }
+
     It 'sends a failed job only to the all recipient' {
         InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx } { param($X) Invoke-SAPushoverNotify -Context $X -JobSuccess $false -ImportResult $null }
         Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { $UserKey -eq 'uME' }
@@ -572,6 +583,18 @@ Describe 'Test-SAPushoverConfig' {
         $r | Should -HaveCount 2
         ($r | Where-Object Name -eq 'me').Success | Should -BeTrue
         ($r | Where-Object Name -eq 'partner').Error | Should -Be 'bad key'
+    }
+
+    It 'plays the configured sound, so a test sounds like a real job' {
+        Mock -ModuleName 'Stagearr.Core' Send-SAPushoverMessage { [pscustomobject]@{ Success = $true; StatusCode = 200; Error = '' } }
+        $null = Test-SAPushoverConfig -Config @{ appToken = 'aTOKEN'; sound = 'none'; recipients = @('me|uME|all'); routes = @() }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { $Fields.sound -eq 'none' }
+    }
+
+    It 'leaves the sound out when none is configured' {
+        Mock -ModuleName 'Stagearr.Core' Send-SAPushoverMessage { [pscustomobject]@{ Success = $true; StatusCode = 200; Error = '' } }
+        $null = Test-SAPushoverConfig -Config @{ appToken = 'aTOKEN'; sound = ''; recipients = @('me|uME|all'); routes = @() }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { -not $Fields.Contains('sound') }
     }
 }
 

@@ -699,6 +699,10 @@ function Invoke-SAPushoverNotify {
                 -ImportResult $ImportResult -KodiStatus $KodiStatus -FinishedAt (Get-Date) `
                 -PushoverConfig $poConfig -FolderPath $folder -Plot $Plot
         }
+        # Job logs keep no other record of the sound; without it, a ding from a config edited
+        # after the job started looks the same as a sound Pushover ignored
+        $soundUsed = if ($messages['all'].Contains('sound')) { $messages['all'].sound } else { 'default' }
+        Write-SAVerbose -Text "Pushover: state $($stateInfo.State), sound $soundUsed"
 
         $sent = [System.Collections.Generic.List[string]]::new()
         $budget = [System.Diagnostics.Stopwatch]::StartNew()
@@ -736,7 +740,7 @@ function Invoke-SAPushoverNotify {
 function Test-SAPushoverConfig {
     <#
     .SYNOPSIS
-        Sends a test message to every configured Pushover recipient.
+        Sends a test message to every configured Pushover recipient, with the normal sound.
     .PARAMETER Config
         The [notifications.pushover] hashtable.
     .OUTPUTS
@@ -765,6 +769,7 @@ function Test-SAPushoverConfig {
             message  = "This is a test message for <b>$(ConvertTo-SAHtmlSafe -Text $recipient.Name)</b>, who receives <b>$($recipient.Notify)</b> messages."
             html     = 1
         }
+        if (-not [string]::IsNullOrWhiteSpace([string]$Config.sound)) { $fields.sound = [string]$Config.sound }
         $result = Send-SAPushoverMessage -AppToken ([string]$Config.appToken) -UserKey $recipient.Key -Fields $fields -TimeoutSeconds $timeout
         [PSCustomObject]@{ Name = $recipient.Name; Success = $result.Success; Error = $result.Error }
     }
