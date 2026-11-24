@@ -6,9 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-11-24
+
 ### Added
 - **Stagearr has an icon.** A violet S logo in a light and a dark version now appears on the docs site, the landing page, and the README, along with a favicon and a GitHub social preview banner.
 - **Icons ship with the release.** The release ZIP has a new `Assets/` folder with PNG icons: `pushover-128.png` for the Pushover application icon (see [Pushover Notifications](https://rouzax.github.io/Stagearr-ps/docs/pushover/)), and 512 px light and dark versions for dashboards. Self-update keeps this folder in sync like the other release files.
+- **The job log records the Pushover sound.** Each job's log has a verbose line such as `Pushover: state Imported, sound none` with the sound the message was sent with, so a message that plays an unexpected sound can be traced. A job reads `config.toml` when it starts, so a job already running when `sound` is changed still uses the old one.
+
+### Changed
+- **The Pushover test message plays your `sound`.** `Test-SAPushoverConfig` now sends the configured `sound`, so a test sounds like a real job. With `sound` empty it still uses each phone's default.
 
 ## [2.15.0] - 2026-11-09
 
