@@ -1,3 +1,6 @@
+# Built with Zensical (requirements-docs.txt), which reads mkdocs.yml natively.
+# The config stays in this file on purpose: MkDocs can still build it, so a
+# rollback only touches the workflow and the pin.
 site_name: Stagearr
 site_url: https://rouzax.github.io/Stagearr-ps/docs/
 site_description: "Automated media processing pipeline for qBittorrent"
@@ -9,6 +12,9 @@ site_dir: build/docs
 
 theme:
   name: material
+  # Zensical's default "modern" variant swaps in different fonts and styling;
+  # classic keeps the Material look the site was designed with.
+  variant: classic
   logo: assets/brand/stagearr-light.svg
   favicon: assets/brand/favicon.svg
   palette:
@@ -46,8 +52,7 @@ extra_css:
   - stylesheets/extra.css
 
 # Renders a small icon row in the footer of every page. Icon names resolve against
-# the sets Material bundles under templates/.icons. Note: fontawesome/brands/ko-fi
-# is not present in mkdocs-material 9.x, so the Simple Icons glyph is used instead.
+# the icon sets the theme bundles; an unknown name fails the build.
 extra:
   social:
     - icon: fontawesome/brands/github
