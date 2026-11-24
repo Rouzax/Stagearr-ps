@@ -1,17 +1,35 @@
-/* stagearr palette: blue accent over Material light/slate, tuned to the
- * landing page (site/index.html) slate/navy backgrounds. */
+/* stagearr palette: violet brand accent (docs/assets/brand) over Material
+ * light/slate, tuned to the landing page (site/index.html) navy backgrounds. */
 :root {
-  --md-primary-fg-color: #5391FE;
-  --md-primary-fg-color--light: #7DABFF;
-  --md-primary-fg-color--dark: #2F6FE0;
-  --md-accent-fg-color: #5391FE;
+  --md-primary-fg-color: #7C3AED;
+  --md-primary-fg-color--light: #8B5CF6;
+  --md-primary-fg-color--dark: #6D28D9;
+  --md-accent-fg-color: #7C3AED;
 }
 
 [data-md-color-scheme="slate"] {
-  --md-primary-fg-color: #60A5FA;
-  --md-primary-fg-color--light: #93C5FD;
-  --md-primary-fg-color--dark: #3B82F6;
-  --md-accent-fg-color: #60A5FA;
+  --md-primary-fg-color: #A78BFA;
+  --md-primary-fg-color--light: #C4B5FD;
+  --md-primary-fg-color--dark: #8B5CF6;
+  --md-accent-fg-color: #A78BFA;
   --md-default-bg-color: #0F172A;
   --md-default-bg-color--light: #1E293B;
+}
+
+/* Light violet is too pale behind the white header text, so the dark scheme
+ * gets a navy header instead, which also suits the dark logo variant. */
+[data-md-color-scheme="slate"] .md-header,
+[data-md-color-scheme="slate"] .md-tabs {
+  background-color: #1E293B;
+}
+
+/* theme.logo takes a single image; swap to the dark-disc variant here. The
+ * URL is relative to this stylesheet. */
+[data-md-color-scheme="slate"] .md-header__button.md-logo img {
+  content: url("../assets/brand/stagearr-dark.svg");
+}
+
+/* Material's default logo size (24 px) loses the S; the disc needs more room. */
+.md-header__button.md-logo img {
+  height: 2rem;
 }

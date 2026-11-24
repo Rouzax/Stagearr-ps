@@ -15,7 +15,7 @@ It also lets you share notifications in a household: TV and movies to everyone, 
 ## Prerequisites
 
 - **A Pushover account** for each person who should get messages, with the Pushover app on their phone. Each account has a **user key**, shown on the Pushover dashboard after you log in.
-- **An application token.** On pushover.net, choose **Create an Application/API Token**, name it Stagearr, and copy the token. One token covers all messages.
+- **An application token.** On pushover.net, choose **Create an Application/API Token**, name it Stagearr, and copy the token. One token covers all messages. Optionally, upload the Stagearr icon (128×128 PNG, transparent background) in the same form: `Assets\pushover-128.png` in your Stagearr folder, also [downloadable here](assets/brand/pushover-128.png); Pushover shows it next to every message from this application.
 - **Optional: OMDb.** The poster, IMDb rating and plot come from [OMDb](settings-reference.md#omdb), the same service the email uses. Without it, messages have no poster or rating, and the plot comes from Radarr or Sonarr instead.
 
 Pushover's free plan allows 10,000 messages a month per account, far more than Stagearr sends.

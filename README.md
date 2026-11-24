@@ -7,7 +7,14 @@
   <a href="https://ko-fi.com/O0W221GBUG"><img src="https://img.shields.io/badge/Ko--fi-Support-FF5E5B?style=for-the-badge&logo=kofi&logoColor=white" alt="Support on Ko-fi"></a>
 </p>
 
-<h1 align="center">🎬 Stagearr-ps</h1>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/stagearr-dark.svg">
+    <img src="docs/assets/brand/stagearr-light.svg" alt="Stagearr logo" width="128" height="128">
+  </picture>
+</p>
+
+<h1 align="center">Stagearr-ps</h1>
 
 <p align="center">
   <strong>Automated Media Processing Pipeline for qBittorrent</strong>

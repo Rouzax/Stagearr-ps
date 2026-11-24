@@ -9,6 +9,8 @@ site_dir: build/docs
 
 theme:
   name: material
+  logo: assets/brand/stagearr-light.svg
+  favicon: assets/brand/favicon.svg
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
