@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.17.0] - 2026-11-25
+
 ### Changed
 - **Pushover titles lead with the name.** The lock screen shows little more than the title, so it is now just the show or movie name, for example `Lanterns S01` instead of `✅ Imported · Lanterns S01`. An imported job has no emoji, including one with a missing subtitle language. Outcomes that need attention keep theirs in front of the name: `❌` failed, `⚠️` not imported, `⏳` waiting for a TBA retry, `ℹ️` already in library. The message body still says what happened.
 
