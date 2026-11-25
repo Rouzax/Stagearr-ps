@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.17.2] - 2026-11-25
+
 ### Fixes
 - **A title Radarr or Sonarr does not know is reported as such.** When Radarr rejected a file as "Unknown Movie" (or Sonarr as "Unknown Series"), the log and email said `1 file skipped (Cannot parse)`, which pointed at the release name instead of the library. They now say `1 file skipped (Unknown movie)` or `(Unknown series)`, followed by a hint to add the title, or correct its title or year in Radarr or Sonarr, and use `-Rerun`.
 - **The hint for a release name that cannot be parsed is shown again.** A `Cannot parse` rejection mapped to an error type with no hint, so its hint never appeared. It now shows `Check release naming; use Manual Import in Radarr to see rejections` (or Sonarr).
