@@ -85,14 +85,14 @@ A malformed entry, an unknown name in a route, or a filter other than `all` or `
 
 | Job outcome | `all` recipient | `success` recipient |
 |-------------|-----------------|---------------------|
-| Everything imported | ✅ Imported, with details | ✅ Ready to watch, with details |
-| Some imported, with a problem (a TBA title waiting for its retry, a file Radarr or Sonarr rejected or skipped, a missing subtitle language) | ⚠️ Partly imported, with the problems | ✅ Ready to watch, listing only what was imported |
-| Nothing imported yet, TBA retry scheduled | ⏳ Waiting | Nothing |
-| Already in the library at equal or better quality | ℹ️ Already in library, sent silently | Nothing |
-| Nothing imported, rejected for another reason (for example an unknown series) | ⚠️ Not imported, with the reason | Nothing |
-| Failed or blocked | ❌ Failed, high priority, with the reason | Nothing |
-| Passthrough job (unknown label) done | ✅ Done | ✅ Done |
-| Passthrough job failed | ❌ Failed | Nothing |
+| Everything imported | `Lanterns S01`, with details | `Lanterns S01`, with details |
+| Some imported, with a problem (a TBA title waiting for its retry, a file Radarr or Sonarr rejected or skipped, a missing subtitle language) | `Lanterns S01`, with the problems | `Lanterns S01`, listing only what was imported |
+| Nothing imported yet, TBA retry scheduled | `⏳ Lanterns S01` | Nothing |
+| Already in the library at equal or better quality | `ℹ️ Lanterns S01`, sent silently | Nothing |
+| Nothing imported, rejected for another reason (for example an unknown series) | `⚠️ Lanterns S01`, with the reason | Nothing |
+| Failed or blocked | `❌ Lanterns S01`, high priority, with the reason | Nothing |
+| Passthrough job (unknown label) done | The download name | The download name |
+| Passthrough job failed | `❌` and the download name | Nothing |
 
 When a TBA retry later imports the missing episode, that retry is its own job and sends its own message, so a `success` recipient still hears about it.
 
@@ -102,7 +102,7 @@ Episodes that were skipped because the library already had them at equal or bett
 
 ## What a Message Contains
 
-The title gives the state and the name, for example `✅ Imported · Lanterns S01`. The lock screen shows the title and the first lines as plain text; open the message in the Pushover app to see the formatting.
+The title starts with the name, because that is what the lock screen shows before you open the message. An outcome that needs your attention gets an emoji in front (see the table above); a normal import has none, and neither does a missing subtitle language, which is common. The **Status** line in the message says what happened. The lock screen shows the title and the first lines as plain text; open the message in the Pushover app to see the formatting.
 
 For TV and movies, in this order, each line only when the data is there:
 

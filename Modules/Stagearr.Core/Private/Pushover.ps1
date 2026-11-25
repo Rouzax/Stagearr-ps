@@ -278,7 +278,8 @@ function New-SAPushoverMessage {
         what is ready without warnings or retry times. An "all" recipient sees every state
         with its warnings.
 
-        The title is plain text (Pushover renders HTML in the message only). Every message
+        The title is the name, preceded by an emoji only for an outcome that needs
+        attention. It is plain text (Pushover renders HTML in the message only). Every message
         line is a self-contained HTML snippet, so shortening drops whole lines and never
         leaves a tag open: the plot goes first, then warnings from the end.
     .PARAMETER Summary
@@ -361,22 +362,16 @@ function New-SAPushoverMessage {
     }
     $files = { param([int]$n) if ($n -eq 1) { '1 file' } else { "$n files" } }
 
+    # The lock screen shows little more than the title, so it leads with the name. Routine
+    # outcomes, a missing subtitle included, get no marker; the message body has the details.
     $prefix = switch ($state) {
-        'Failed'     { '❌ Failed' }
-        'NothingNew' { 'ℹ️ Already in library' }
-        'NotImported' { '⚠️ Not imported' }
-        'Partial'    {
-            if (-not $isAll) { '✅ Ready to watch' }
-            elseif ($StateInfo.ImportedCount -lt 1) { '⏳ Waiting' }
-            else { '⚠️ Partly imported' }
-        }
-        default {
-            if ($Summary.IsPassthrough) { '✅ Done' }
-            elseif ($isAll) { '✅ Imported' }
-            else { '✅ Ready to watch' }
-        }
+        'Failed'      { '❌' }
+        'NothingNew'  { 'ℹ️' }
+        'NotImported' { '⚠️' }
+        'Partial'     { if ($isAll -and $StateInfo.ImportedCount -lt 1) { '⏳' } else { '' } }
+        default       { '' }
     }
-    $title = "$prefix · $($Summary.Name)"
+    $title = if ($prefix) { "$prefix $($Summary.Name)" } else { [string]$Summary.Name }
     $titleMax = $script:SAConstants.PushoverTitleMaxLength
     if ($title.Length -gt $titleMax) { $title = $title.Substring(0, $titleMax) }
 
