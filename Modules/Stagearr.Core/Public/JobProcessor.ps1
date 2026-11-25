@@ -645,12 +645,9 @@ function Invoke-SAPassthroughJob {
     # Before the log is saved, so its result line is in the job log
     Invoke-SAPushoverNotify -Context $Context -JobSuccess $passthroughSuccess -IsPassthrough $true
 
-    # Save file log and set path in email
+    # The email shows the log path; the file itself is written after the email
     $logPath = Get-SAContextLogPath -Context $Context
-    Save-SAFileLog -Path $logPath
     Set-SAEmailLogPath -Path $logPath
-    
-    Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
     
     # Send email notification
     if (-not $Context.Flags.NoMail -and $Context.Config.notifications.email.enabled) {
@@ -662,6 +659,10 @@ function Invoke-SAPassthroughJob {
             -Subject $emailSubject `
             -Body $emailBody
     }
+
+    # After the email, so its result line is in the job log
+    Save-SAFileLog -Path $logPath
+    Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
     
     return $passthroughSuccess
 }
@@ -807,11 +808,9 @@ function Invoke-SAStandardJob {
         # Before the log is saved, so its result line is in the job log
         Invoke-SAPushoverNotify -Context $Context -JobSuccess $false
 
-        # Save log and send notification
+        # The email shows the log path; the file itself is written after the email
         $logPath = Get-SAContextLogPath -Context $Context
-        Save-SAFileLog -Path $logPath
         Set-SAEmailLogPath -Path $logPath
-        Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
 
         if (-not $Context.Flags.NoMail -and $Context.Config.notifications.email.enabled) {
             $title = "$($Job.input.downloadLabel) - $displayName"
@@ -821,6 +820,10 @@ function Invoke-SAStandardJob {
                 -Subject $emailSubject `
                 -Body $emailBody
         }
+
+        # After the email, so its result line is in the job log
+        Save-SAFileLog -Path $logPath
+        Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
 
         return $false
     }
@@ -848,9 +851,7 @@ function Invoke-SAStandardJob {
             Invoke-SAPushoverNotify -Context $Context -JobSuccess $false
 
             $logPath = Get-SAContextLogPath -Context $Context
-            Save-SAFileLog -Path $logPath
             Set-SAEmailLogPath -Path $logPath
-            Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
 
             if (-not $Context.Flags.NoMail -and $Context.Config.notifications.email.enabled) {
                 $title = "$($Job.input.downloadLabel) - $displayName"
@@ -859,6 +860,10 @@ function Invoke-SAStandardJob {
                 Send-SAEmail -Config $Context.Config.notifications.email `
                     -Subject $emailSubject -Body $emailBody
             }
+
+            # After the email, so its result line is in the job log
+            Save-SAFileLog -Path $logPath
+            Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
 
             return $false
         }
@@ -1300,12 +1305,9 @@ function Invoke-SAStandardJob {
     Invoke-SAPushoverNotify -Context $Context -JobSuccess $jobSuccess -ImportResult $importResult `
         -MissingLanguages $missingLangs -TbaRetryScheduled $tbaRetryScheduled -KodiStatus $kodiStatus -Plot $notifyPlot
 
-    # Step 6: Save file log and set path in email
+    # Step 6: Log path for the email; the file itself is written after the email
     $logPath = Get-SAContextLogPath -Context $Context
-    Save-SAFileLog -Path $logPath
     Set-SAEmailLogPath -Path $logPath
-    
-    Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
     
     # Step 7: Send email notification
     if (-not $Context.Flags.NoMail -and $Context.Config.notifications.email.enabled) {
@@ -1350,6 +1352,10 @@ function Invoke-SAStandardJob {
             -Body $emailBody `
             -InlineImages $inlineImages
     }
+
+    # After the email, so its result line is in the job log
+    Save-SAFileLog -Path $logPath
+    Write-SAProgress -Label "Log" -Text $logPath -Indent 1 -ConsoleOnly
     
     # Return success only if both video processing and import succeeded
     return $jobSuccess

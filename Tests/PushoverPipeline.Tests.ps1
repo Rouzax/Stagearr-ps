@@ -95,6 +95,52 @@ Describe 'Pushover in the job pipeline' {
         }
     }
 
+    Context 'email result in the job log' {
+        BeforeEach {
+            $script:ctx.Config.notifications.email = @{ enabled = $true }
+            Mock -ModuleName 'Stagearr.Core' Send-SAEmail { $global:PushoverOrder.Add('email') }
+            Mock -ModuleName 'Stagearr.Core' ConvertTo-SAEmailHtml { '<html></html>' }
+            Mock -ModuleName 'Stagearr.Core' Get-SAEmailSubject { 'subject' }
+            Mock -ModuleName 'Stagearr.Core' Set-SAEmailLogPath { $global:PushoverOrder.Add('logpath') }
+        }
+
+        It 'sends the email before saving the log, for a passthrough job' {
+            Mock -ModuleName 'Stagearr.Core' Invoke-SAPassthroughProcessing { [pscustomobject]@{ Success = $true; StagingPath = 'C:\Staging\x' } }
+            $null = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAPassthroughJob -Context $X -Job $J }
+            @($global:PushoverOrder) | Should -Be @('pushover', 'logpath', 'email', 'save') -Because 'the email result line must reach the saved job log'
+        }
+
+        It 'sends the email before saving the log, for a security block' {
+            Mock -ModuleName 'Stagearr.Core' Test-SADangerousDownload { [pscustomobject]@{ IsDangerous = $true; DangerousFiles = @('setup.exe') } }
+            $null = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAStandardJob -Context $X -Job $J }
+            @($global:PushoverOrder) | Should -Be @('pushover', 'logpath', 'email', 'save') -Because 'the email result line must reach the saved job log'
+        }
+
+        It 'sends the email before saving the log, for a TBA retry whose files are gone' {
+            Mock -ModuleName 'Stagearr.Core' Test-SATbaRetryMode { [pscustomobject]@{ Mode = 'Failed' } }
+            $null = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAStandardJob -Context $X -Job $J }
+            @($global:PushoverOrder) | Should -Be @('pushover', 'logpath', 'email', 'save') -Because 'the email result line must reach the saved job log'
+        }
+
+        It 'sends the email before saving the log, for a standard job' {
+            Mock -ModuleName 'Stagearr.Core' Invoke-SAVideoProcessing { [pscustomobject]@{ Success = $true; ProcessedFiles = @(); TotalSize = 0 } }
+            Mock -ModuleName 'Stagearr.Core' Invoke-SASubtitleProcessing { $null }
+            Mock -ModuleName 'Stagearr.Core' Invoke-SAImport { [pscustomobject]@{ Success = $true; ImportedCount = 1; ImportedFiles = @(); SkippedFiles = @(); Skipped = $false; QualityRejected = $false; Message = 'Imported' } }
+            Mock -ModuleName 'Stagearr.Core' Invoke-SAKodiStep {}
+            Mock -ModuleName 'Stagearr.Core' Invoke-SAMDBListCollect { $null }
+            Mock -ModuleName 'Stagearr.Core' Get-SAEmailInlineImages { @() }
+            $null = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAStandardJob -Context $X -Job $J }
+            @($global:PushoverOrder) | Should -Be @('pushover', 'logpath', 'email', 'save') -Because 'the email result line must reach the saved job log'
+        }
+
+        It 'still saves the log when the email is off' {
+            $script:ctx.Config.notifications.email.enabled = $false
+            Mock -ModuleName 'Stagearr.Core' Invoke-SAPassthroughProcessing { [pscustomobject]@{ Success = $true; StagingPath = 'C:\Staging\x' } }
+            $null = InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; J = $script:job } { param($X, $J) Invoke-SAPassthroughJob -Context $X -Job $J }
+            @($global:PushoverOrder) | Should -Be @('pushover', 'logpath', 'save')
+        }
+    }
+
     Context 'plot for Pushover' {
         BeforeEach {
             $script:ctx.Config.omdb = @{ enabled = $true; display = @{ plot = $false } }
