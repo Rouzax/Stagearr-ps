@@ -8,7 +8,9 @@ Describe 'Get-SASimplifiedRejectionReason' {
         It 'maps "<Reason>" to "<Expected>"' -ForEach @(
             @{ Reason = 'Not an upgrade for existing episode file(s)'; Expected = 'Quality exists' }
             @{ Reason = 'Sample'; Expected = 'Sample file' }
-            @{ Reason = 'Unknown Series'; Expected = 'Cannot parse' }
+            @{ Reason = 'Unknown Series'; Expected = 'Unknown series' }
+            @{ Reason = 'Unknown Movie'; Expected = 'Unknown movie' }
+            @{ Reason = 'Unable to parse file'; Expected = 'Cannot parse' }
             @{ Reason = 'Episode file already imported at 2026-03-30'; Expected = 'Already imported' }
             @{ Reason = 'Locked file, try again later'; Expected = 'File locked' }
         ) {
@@ -94,6 +96,21 @@ Describe 'Get-SAErrorTypeFromRejection' {
         }
     }
 
+    It 'maps <Reason> to not-in-library' -ForEach @(
+        @{ Reason = 'Unknown movie' }
+        @{ Reason = 'Unknown series' }
+    ) {
+        InModuleScope 'Stagearr.Core' -Parameters @{ Reason = $Reason } {
+            Get-SAErrorTypeFromRejection -PrimaryReason $Reason | Should -Be 'not-in-library'
+        }
+    }
+
+    It 'maps Cannot parse to the parse type that has a hint' {
+        InModuleScope 'Stagearr.Core' {
+            Get-SAErrorTypeFromRejection -PrimaryReason 'Cannot parse' | Should -Be 'parse'
+        }
+    }
+
     # Existing mappings still work
     It 'maps Quality exists to quality' {
         InModuleScope 'Stagearr.Core' {
@@ -123,6 +140,14 @@ Describe 'Get-SAImportHint' {
         InModuleScope 'Stagearr.Core' {
             $hint = Get-SAImportHint -ErrorType 'scene-mapping' -ImporterLabel 'Sonarr'
             $hint | Should -BeLike '*TheXEM*'
+        }
+    }
+
+    It 'tells the user to add a title the importer does not know' {
+        InModuleScope 'Stagearr.Core' {
+            $hint = Get-SAImportHint -ErrorType 'not-in-library' -ImporterLabel 'Radarr'
+            $hint | Should -BeLike '*Radarr*'
+            $hint | Should -BeLike '*-Rerun*'
         }
     }
 
@@ -175,7 +200,7 @@ Describe 'Invoke-SAArrImport email exception label prefix' {
             }
 
             $config = @{ apiKey = 'test-key'; host = 'localhost'; port = 8989; ssl = $false; urlRoot = ''; timeoutMinutes = 1 }
-            $result = Invoke-SAArrImport -AppType 'Sonarr' -Config $config -StagingPath 'C:\Test'
+            $null = Invoke-SAArrImport -AppType 'Sonarr' -Config $config -StagingPath 'C:\Test'
 
             $capturedMessages | Should -Contain 'Sonarr: 1 file skipped (Quality exists)'
         }

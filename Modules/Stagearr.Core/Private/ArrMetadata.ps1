@@ -530,8 +530,16 @@ function Get-SASimplifiedRejectionReason {
         return 'Sample file'
     }
     
+    # The release name parsed, but matches no title in the library
+    if ($lower -match 'unknown.*movie') {
+        return 'Unknown movie'
+    }
+    if ($lower -match 'unknown.*series') {
+        return 'Unknown series'
+    }
+
     # Parse failures
-    if ($lower -match 'unable.*parse|cannot.*parse|unrecognized|unknown.*series|unknown.*movie') {
+    if ($lower -match 'unable.*parse|cannot.*parse|unrecognized') {
         return 'Cannot parse'
     }
     

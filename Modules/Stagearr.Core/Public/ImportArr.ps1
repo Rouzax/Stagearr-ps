@@ -826,7 +826,8 @@ function Get-SAErrorTypeFromRejection {
     switch -Regex ($PrimaryReason.ToLowerInvariant()) {
         'quality exists'    { return 'quality' }
         'sample'            { return 'sample' }
-        'cannot parse'      { return 'parse-error' }
+        'cannot parse'      { return 'parse' }
+        'unknown movie|unknown series' { return 'not-in-library' }
         'already imported'  { return 'already-exists' }
         'file locked'       { return 'permission' }
         'path not found'    { return 'path-not-found' }

@@ -207,7 +207,7 @@ function Get-SAMedusaFileDetails {
             
             # Look for context in output to determine the actual reason
             # The reason is typically on a preceding line
-            $inferredReason = Get-SAMedusaSameSizeSkipReason -OutputText $outputText -Filename $filename
+            $inferredReason = Get-SAMedusaSameSizeSkipReason -OutputText $outputText
             
             $fileDetail = Get-SAFileEpisodeInfo -Filename $filename -Reason $inferredReason
             if ($null -ne $fileDetail) {
@@ -244,7 +244,7 @@ function Get-SAMedusaFileDetails {
         # This file had "Processing succeeded" but no move - it's a skip
         # Determine the skip reason from output context
         $filename = $processedSucceeded[$baseName]
-        $skipReason = Get-SAMedusaSameSizeSkipReason -OutputText $outputText -Filename $filename
+        $skipReason = Get-SAMedusaSameSizeSkipReason -OutputText $outputText
         
         $fileDetail = Get-SAFileEpisodeInfo -Filename $filename -Reason $skipReason
         if ($null -ne $fileDetail) {
@@ -264,8 +264,6 @@ function Get-SAMedusaSameSizeSkipReason {
         Common reasons: same size (aborting post-processing), quality exists.
     .PARAMETER OutputText
         Full Medusa output text for context matching.
-    .PARAMETER Filename
-        The filename to find context for.
     .OUTPUTS
         Simplified skip reason string.
     #>
@@ -273,10 +271,7 @@ function Get-SAMedusaSameSizeSkipReason {
     [OutputType([string])]
     param(
         [Parameter(Mandatory = $true)]
-        [string]$OutputText,
-        
-        [Parameter(Mandatory = $true)]
-        [string]$Filename
+        [string]$OutputText
     )
     
     # Look for same-size abort pattern (most common case for "succeeded" without move)
@@ -850,8 +845,6 @@ function Get-SAImportHint {
         The categorized error type (path-format, permission, parse, etc.).
     .PARAMETER ImporterLabel
         The importer name for context (Radarr, Sonarr, Medusa).
-    .PARAMETER Path
-        Optional path for context in hint.
     .OUTPUTS
         String with actionable hint, or empty string if no hint available.
     .EXAMPLE
@@ -865,10 +858,7 @@ function Get-SAImportHint {
         [string]$ErrorType,
         
         [Parameter()]
-        [string]$ImporterLabel = 'importer',
-        
-        [Parameter()]
-        [string]$Path
+        [string]$ImporterLabel = 'importer'
     )
     
     switch ($ErrorType) {
@@ -901,6 +891,9 @@ function Get-SAImportHint {
         }
         'not-found' {
             return "Ensure show exists in $ImporterLabel"
+        }
+        'not-in-library' {
+            return "Add the title in $ImporterLabel, or correct its title or year there to match the release, then use -Rerun"
         }
         'tba' {
             return "$ImporterLabel accepts TBA titles 48 hours after the episode airs. Use -Rerun to retry."
