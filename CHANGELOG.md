@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.17.1] - 2026-11-25
+
 ### Fixes
 - **The job log records the email result.** The log file was written before the email was sent, so `Email: Sent to ...` or `Email: Failed: ...` only ever appeared on the console, and a missing email could not be traced from the log. The email is now sent first and the log written after it; the email still shows the log file's path.
 
