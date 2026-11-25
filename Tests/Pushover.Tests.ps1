@@ -268,7 +268,7 @@ Describe 'New-SAPushoverMessage' {
         InModuleScope 'Stagearr.Core' -Parameters @{ S = (& $script:newSummary); St = $script:imported; R = $script:importResult; C = $script:poConfig; T = $script:at } {
             param($S, $St, $R, $C, $T)
             $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -ImportResult $R -KodiStatus 'Updated' -FinishedAt $T -PushoverConfig $C -Plot 'Two Green Lantern officers investigate.'
-            $m.title | Should -Be '✅ Imported · Lanterns S01'
+            $m.title | Should -Be 'Lanterns S01'
             $m.html | Should -Be 1
             $m.priority | Should -Be 0
             $m.message | Should -Match '<i>Two Green Lantern officers investigate\.</i>'
@@ -286,11 +286,11 @@ Describe 'New-SAPushoverMessage' {
         }
     }
 
-    It 'titles an Imported message Ready to watch for a success recipient' {
+    It 'titles an Imported message with only the name for a success recipient' {
         InModuleScope 'Stagearr.Core' -Parameters @{ S = (& $script:newSummary); St = $script:imported; R = $script:importResult; C = $script:poConfig; T = $script:at } {
             param($S, $St, $R, $C, $T)
             $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'success' -ImportResult $R -FinishedAt $T -PushoverConfig $C
-            $m.title | Should -Be '✅ Ready to watch · Lanterns S01'
+            $m.title | Should -Be 'Lanterns S01'
         }
     }
 
@@ -303,23 +303,23 @@ Describe 'New-SAPushoverMessage' {
         InModuleScope 'Stagearr.Core' -Parameters @{ S = $sum; St = $st; R = $script:importResult; C = $script:poConfig; T = $script:at } {
             param($S, $St, $R, $C, $T)
             $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'success' -ImportResult $R -KodiStatus 'Partial' -FinishedAt $T -PushoverConfig $C
-            $m.title | Should -Be '✅ Ready to watch · Lanterns S01'
+            $m.title | Should -Be 'Lanterns S01'
             $m.message | Should -Not -Match 'TBA|retry|unavailable|Missing|Kodi'
             $m.message | Should -Match '<b>Subtitles:</b> English'
 
             $all = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -ImportResult $R -KodiStatus 'Partial' -FinishedAt $T -PushoverConfig $C
-            $all.title | Should -Be '⚠️ Partly imported · Lanterns S01'
+            $all.title | Should -Be 'Lanterns S01'
             $all.message | Should -Match 'retry Tue 19:00'
             $all.message | Should -Match 'unavailable: Dutch'
             $all.message | Should -Match '<b>Kodi:</b> not everything reached Kodi'
         }
     }
 
-    It 'titles a job waiting on a TBA retry Waiting for an all recipient and sends nothing to a success recipient' {
+    It 'titles a job waiting on a TBA retry with an hourglass for an all recipient and sends nothing to a success recipient' {
         $st = [PSCustomObject]@{ State = 'Partial'; ImportedCount = 0; HasWarnings = $true }
         InModuleScope 'Stagearr.Core' -Parameters @{ S = (& $script:newSummary); St = $st; C = $script:poConfig; T = $script:at } {
             param($S, $St, $C, $T)
-            (New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt $T -PushoverConfig $C).title | Should -Be '⏳ Waiting · Lanterns S01'
+            (New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt $T -PushoverConfig $C).title | Should -Be '⏳ Lanterns S01'
             New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'success' -FinishedAt $T -PushoverConfig $C | Should -BeNullOrEmpty
         }
     }
@@ -331,7 +331,7 @@ Describe 'New-SAPushoverMessage' {
             param($S, $St, $C, $T)
             New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'success' -FinishedAt $T -PushoverConfig $C | Should -BeNullOrEmpty
             $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt $T -PushoverConfig $C
-            $m.title | Should -Be '❌ Failed · Lanterns S01'
+            $m.title | Should -Be '❌ Lanterns S01'
             $m.priority | Should -Be 1
             $m.sound | Should -Be 'falling'
             $m.message | Should -Match '<b>Status:</b> Sonarr did not answer'
@@ -345,7 +345,7 @@ Describe 'New-SAPushoverMessage' {
             param($S, $St, $C, $T)
             New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'success' -FinishedAt $T -PushoverConfig $C | Should -BeNullOrEmpty
             $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt $T -PushoverConfig $C
-            $m.title | Should -Be 'ℹ️ Already in library · Lanterns S01'
+            $m.title | Should -Be 'ℹ️ Lanterns S01'
             $m.priority | Should -Be -1
         }
     }
@@ -356,7 +356,7 @@ Describe 'New-SAPushoverMessage' {
         InModuleScope 'Stagearr.Core' -Parameters @{ S = $sum; St = $st; C = $script:poConfig; T = $script:at } {
             param($S, $St, $C, $T)
             $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt $T -PushoverConfig $C -Plot 'x < y & z'
-            $m.title | Should -Be '⚠️ Partly imported · A<B & "C"'
+            $m.title | Should -Be 'A<B & "C"'
             $m.message | Should -Match 'x &lt; y &amp; z'
             $m.message | Should -Match 'bad &lt;tag&gt;'
             $m.message | Should -Not -Match '<tag>'
@@ -404,7 +404,7 @@ Describe 'New-SAPushoverMessage' {
         InModuleScope 'Stagearr.Core' -Parameters @{ S = $sum; St = $script:imported; C = $script:poConfig; T = $script:at } {
             param($S, $St, $C, $T)
             $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -FinishedAt $T -PushoverConfig $C -FolderPath 'C:\Done\Software\SomeApp 2.0'
-            $m.title | Should -Be '✅ Done · SomeApp 2.0'
+            $m.title | Should -Be 'SomeApp 2.0'
             $m.message | Should -Match '<b>Files:</b> 8, 28\.1 GB'
             $m.message | Should -Match '<b>Folder:</b> C:\\Done\\Software\\SomeApp 2\.0'
             $m.message | Should -Match '<b>Took:</b> 09:22'
@@ -498,7 +498,7 @@ Describe 'Invoke-SAPushoverNotify' {
     It 'sends one message per recipient on a successful import' {
         InModuleScope 'Stagearr.Core' -Parameters @{ X = $script:ctx; I = $script:ok } { param($X, $I) Invoke-SAPushoverNotify -Context $X -JobSuccess $true -ImportResult $I }
         Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { $UserKey -eq 'uME' -and $AppToken -eq 'aTOKEN' -and $Fields.html -eq 1 }
-        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { $UserKey -eq 'uPARTNER' -and $Fields.title -like '*Ready to watch*' }
+        Should -Invoke -ModuleName 'Stagearr.Core' Send-SAPushoverMessage -Times 1 -ParameterFilter { $UserKey -eq 'uPARTNER' -and $Fields.title -eq 'Show S01' }
         Should -Invoke -ModuleName 'Stagearr.Core' Write-SAOutcome -Times 1 -ParameterFilter { $Level -eq 'Success' -and $Label -eq 'Pushover' -and $Text -eq 'Sent to me, partner' }
     }
 
@@ -684,7 +684,7 @@ Describe 'Review fixes: state and message' {
         InModuleScope 'Stagearr.Core' -Parameters @{ S = (& $script:sum2); St = $st; R = $r; C = $script:cfg2; T = $script:t2 } {
             param($S, $St, $R, $C, $T)
             $m = New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'all' -ImportResult $R -FinishedAt $T -PushoverConfig $C
-            $m.title | Should -Be '⚠️ Not imported · Show S01'
+            $m.title | Should -Be '⚠️ Show S01'
             $m.priority | Should -Be 0
             $m.message | Should -Match '<b>Status:</b> Unknown Series'
             New-SAPushoverMessage -Summary $S -StateInfo $St -Audience 'success' -ImportResult $R -FinishedAt $T -PushoverConfig $C | Should -BeNullOrEmpty
